@@ -28,11 +28,11 @@ const schemeFromBundleId = `manus${timestamp}`;
 
 const env = {
   // App branding - update these values directly (do not use env vars)
-  appName: "Promoter Management System",
+  appName: "PromoterHub",
   appSlug: "promoter_management",
   // S3 URL of the app logo - set this to the URL returned by generate_image when creating custom logo
   // Leave empty to use the default icon from assets/images/icon.png
-  logoUrl: "",
+  logoUrl: "https://private-us-east-1.manuscdn.com/sessionFile/TligYQv58eLJzB2qdoLwOX/sandbox/sJ3mqXRkyYVVwPBTCD4LUD-img-1_1771622317000_na1fn_cHJvbW90ZXItbG9nbw.png",
   scheme: schemeFromBundleId,
   iosBundleId: bundleId,
   androidPackage: bundleId,
@@ -86,6 +86,21 @@ const config: ExpoConfig = {
   },
   plugins: [
     "expo-router",
+    [
+      "expo-location",
+      {
+        locationAlwaysAndWhenInUsePermission: "Permitir que o $(PRODUCT_NAME) acesse sua localização para registrar o ponto.",
+        locationWhenInUsePermission: "Permitir que o $(PRODUCT_NAME) acesse sua localização para registrar o ponto.",
+      },
+    ],
+    [
+      "expo-image-picker",
+      {
+        photosPermission: "Permitir que o $(PRODUCT_NAME) acesse suas fotos.",
+        cameraPermission: "Permitir que o $(PRODUCT_NAME) use a câmera para tirar fotos.",
+      },
+    ],
+    "expo-document-picker",
     [
       "expo-audio",
       {
