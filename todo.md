@@ -89,3 +89,30 @@
 - [x] Permissões de câmera no app.config.ts
 - [x] Permissões de documentos no app.config.ts
 - [x] Ícones SF Symbols mapeados para Material Icons
+
+## Fase 2 — Novas Funcionalidades
+
+### Cadastro de Lojas com Mapa
+- [x] Ler documentação expo-maps
+- [x] Tela de listagem de lojas para o Gestor
+- [x] Tela de cadastro de loja com mapa interativo (toque para selecionar coordenadas)
+- [x] Exibir raio de 5km no mapa
+- [x] Integrar lojas cadastradas com registro de ponto
+
+### Relatório de Desempenho Mensal
+- [x] Tela de relatório com seletor de mês/promotor
+- [x] Gráfico de horas trabalhadas por dia (barras)
+- [x] Gráfico de fotos enviadas por marca (pizza)
+- [x] Tabela detalhada diária com mini-barras de progresso
+- [x] Exportação do relatório (compartilhamento nativo)
+- [x] Adicionar aba de relatórios na navegação do Gestor
+- [x] Filtro por promotor individual
+
+### Notificações Push
+- [ ] Ler documentação expo-notifications
+- [ ] Configurar registro de token de push no backend
+- [ ] Tabela pushTokens no banco de dados
+- [ ] Notificação ao gestor: promotor saiu do raio
+- [ ] Notificação ao gestor: nova solicitação de material
+- [ ] Notificação ao promotor: solicitação aprovada/rejeitada
+- [ ] Notificação ao gestor: inconsistência de jornada

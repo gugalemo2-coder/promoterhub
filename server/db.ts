@@ -365,3 +365,71 @@ export async function getDailyReport(date: Date) {
     totalAlerts: Number(alertsCount[0]?.count ?? 0),
   };
 }
+
+// ─── MONTHLY REPORT ───────────────────────────────────────────────────────────
+
+export async function getMonthlyReport(year: number, month: number, userId?: number) {
+  const db = await getDb();
+  if (!db) return null;
+
+  const monthStart = new Date(year, month - 1, 1, 0, 0, 0, 0);
+  const monthEnd = new Date(year, month, 0, 23, 59, 59, 999);
+
+  // Build daily breakdown for the month
+  const daysInMonth = new Date(year, month, 0).getDate();
+  const dailyData: { day: number; hours: number; photos: number; requests: number }[] = [];
+
+  for (let d = 1; d <= daysInMonth; d++) {
+    const dayStart = new Date(year, month - 1, d, 0, 0, 0, 0);
+    const dayEnd = new Date(year, month - 1, d, 23, 59, 59, 999);
+
+    const conditions = [gte(timeEntries.entryTime, dayStart), lte(timeEntries.entryTime, dayEnd)];
+    if (userId) conditions.push(eq(timeEntries.userId, userId));
+    const dayEntries = await db.select().from(timeEntries).where(and(...conditions)).orderBy(timeEntries.entryTime);
+
+    let totalMinutes = 0;
+    let lastEntry: TimeEntry | null = null;
+    for (const entry of dayEntries) {
+      if (entry.entryType === "entry") { lastEntry = entry; }
+      else if (entry.entryType === "exit" && lastEntry) {
+        totalMinutes += (entry.entryTime.getTime() - lastEntry.entryTime.getTime()) / 60000;
+        lastEntry = null;
+      }
+    }
+
+    const photoConditions = [gte(photos.photoTimestamp, dayStart), lte(photos.photoTimestamp, dayEnd)];
+    if (userId) photoConditions.push(eq(photos.userId, userId));
+    const [photoCount] = await db.select({ count: sql<number>`count(*)` }).from(photos).where(and(...photoConditions));
+
+    const reqConditions = [gte(materialRequests.requestedAt, dayStart), lte(materialRequests.requestedAt, dayEnd)];
+    if (userId) reqConditions.push(eq(materialRequests.userId, userId));
+    const [reqCount] = await db.select({ count: sql<number>`count(*)` }).from(materialRequests).where(and(...reqConditions));
+
+    dailyData.push({ day: d, hours: totalMinutes / 60, photos: Number(photoCount?.count ?? 0), requests: Number(reqCount?.count ?? 0) });
+  }
+
+  // Photos by brand
+  const brandConditions = [gte(photos.photoTimestamp, monthStart), lte(photos.photoTimestamp, monthEnd)];
+  if (userId) brandConditions.push(eq(photos.userId, userId));
+  const photosByBrandRaw = await db
+    .select({ brandId: photos.brandId, count: sql<number>`count(*)` })
+    .from(photos)
+    .where(and(...brandConditions))
+    .groupBy(photos.brandId);
+
+  const allBrands = await getBrands();
+  const photosByBrand = photosByBrandRaw.map((r) => ({
+    brandId: r.brandId,
+    brandName: allBrands.find((b) => b.id === r.brandId)?.name ?? `Marca ${r.brandId}`,
+    brandColor: allBrands.find((b) => b.id === r.brandId)?.colorHex ?? "#6B7280",
+    count: Number(r.count),
+  }));
+
+  // Totals
+  const totalHours = dailyData.reduce((sum, d) => sum + d.hours, 0);
+  const totalPhotos = dailyData.reduce((sum, d) => sum + d.photos, 0);
+  const totalRequests = dailyData.reduce((sum, d) => sum + d.requests, 0);
+  const workingDays = dailyData.filter((d) => d.hours > 0).length;
+
+  return { year, month, dailyData, photosByBrand, totalHours, totalPhotos, totalRequests, workingDays };
+}

@@ -46,6 +46,10 @@ const MAPPING = {
   "map.fill": "map",
   "magnifyingglass": "search",
   "line.3.horizontal.decrease.circle": "filter-list",
+  "storefront.fill": "storefront",
+  "chart.line.uptrend.xyaxis": "trending-up",
+  "chart.pie.fill": "pie-chart",
+  "bell.badge.fill": "notifications-active",
 } as IconMapping;
 
 /**

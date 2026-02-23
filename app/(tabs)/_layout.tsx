@@ -121,6 +121,26 @@ export default function TabLayout() {
           href: isManager ? undefined : null,
         }}
       />
+      <Tabs.Screen
+        name="stores"
+        options={{
+          title: "Lojas",
+          tabBarIcon: ({ color }) => (
+            <IconSymbol size={26} name="storefront.fill" color={color} />
+          ),
+          href: isManager ? undefined : null,
+        }}
+      />
+      <Tabs.Screen
+        name="reports"
+        options={{
+          title: "Relatórios",
+          tabBarIcon: ({ color }) => (
+            <IconSymbol size={26} name="chart.line.uptrend.xyaxis" color={color} />
+          ),
+          href: isManager ? undefined : null,
+        }}
+      />
     </Tabs>
   );
 }
