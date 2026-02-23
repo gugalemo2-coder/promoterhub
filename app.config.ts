@@ -87,6 +87,15 @@ const config: ExpoConfig = {
   plugins: [
     "expo-router",
     [
+      "expo-notifications",
+      {
+        icon: "./assets/images/icon.png",
+        color: "#1A56DB",
+        defaultChannel: "default",
+        sounds: []
+      }
+    ],
+    [
       "expo-location",
       {
         locationAlwaysAndWhenInUsePermission: "Permitir que o $(PRODUCT_NAME) acesse sua localização para registrar o ponto.",

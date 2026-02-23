@@ -15,6 +15,13 @@
       "when": 1771622458184,
       "tag": "0001_narrow_patch",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "5",
+      "when": 1771845771822,
+      "tag": "0002_dizzy_hardball",
+      "breakpoints": true
     }
   ]
 }

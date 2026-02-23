@@ -109,10 +109,13 @@
 - [x] Filtro por promotor individual
 
 ### Notificações Push
-- [ ] Ler documentação expo-notifications
-- [ ] Configurar registro de token de push no backend
-- [ ] Tabela pushTokens no banco de dados
-- [ ] Notificação ao gestor: promotor saiu do raio
-- [ ] Notificação ao gestor: nova solicitação de material
-- [ ] Notificação ao promotor: solicitação aprovada/rejeitada
-- [ ] Notificação ao gestor: inconsistência de jornada
+- [x] Ler documentação expo-notifications
+- [x] Configurar registro de token de push no backend
+- [x] Tabela pushTokens no banco de dados
+- [x] Notificação ao gestor: promotor saiu do raio
+- [x] Notificação ao gestor: nova solicitação de material
+- [x] Notificação ao promotor: solicitação aprovada/rejeitada
+- [x] Notificação ao gestor: inconsistência de jornada
+- [x] Notificação ao promotor: novo arquivo disponível
+- [x] Integração no _layout.tsx (PushNotificationSetup)
+- [x] Plugin expo-notifications no app.config.ts

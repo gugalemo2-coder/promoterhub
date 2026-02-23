@@ -223,3 +223,18 @@ export const geoAlerts = mysqlTable("geo_alerts", {
 
 export type GeoAlert = typeof geoAlerts.$inferSelect;
 export type InsertGeoAlert = typeof geoAlerts.$inferInsert;
+
+// ─── PUSH TOKENS ──────────────────────────────────────────────────────────────
+export const pushTokens = mysqlTable("push_tokens", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  token: varchar("token", { length: 500 }).notNull(),
+  platform: mysqlEnum("platform", ["ios", "android", "web"]).notNull(),
+  deviceId: varchar("deviceId", { length: 255 }),
+  isActive: boolean("isActive").default(true).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type PushToken = typeof pushTokens.$inferSelect;
+export type InsertPushToken = typeof pushTokens.$inferInsert;

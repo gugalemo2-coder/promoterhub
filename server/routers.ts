@@ -4,6 +4,7 @@ import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
 import { protectedProcedure, publicProcedure, router } from "./_core/trpc";
 import * as db from "./db";
+import * as push from "./notifications";
 import { storagePut } from "./storage";
 
 function haversineDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
@@ -107,15 +108,33 @@ export const appRouter = router({
       .mutation(async ({ ctx, input }) => {
         const id = await db.createMaterialRequest({ ...input, userId: ctx.user.id });
         const material = await db.getMaterialById(input.materialId);
-        if (material) await db.updateMaterial(input.materialId, { quantityReserved: material.quantityReserved + input.quantityRequested });
+        if (material) {
+          await db.updateMaterial(input.materialId, { quantityReserved: material.quantityReserved + input.quantityRequested });
+          const promoterName = ctx.user.name ?? `Promotor ${ctx.user.id}`;
+          push.notifyNewMaterialRequest(promoterName, material.name, input.quantityRequested).catch(() => {});
+        }
         return { id };
       }),
     list: protectedProcedure.input(z.object({ status: z.enum(["pending", "approved", "rejected", "delivered", "cancelled"]).optional(), limit: z.number().default(50), offset: z.number().default(0) })).query(({ ctx, input }) => db.getMaterialRequests({ userId: ctx.user.id, ...input })),
     listAll: protectedProcedure.input(z.object({ status: z.enum(["pending", "approved", "rejected", "delivered", "cancelled"]).optional(), limit: z.number().default(50), offset: z.number().default(0) })).query(({ input }) => db.getMaterialRequests(input)),
-    approve: protectedProcedure.input(z.object({ id: z.number(), notes: z.string().optional() })).mutation(async ({ ctx, input }) => { await db.updateMaterialRequest(input.id, { status: "approved", approvedBy: ctx.user.id, approvedAt: new Date(), notes: input.notes }); return { success: true }; }),
+    approve: protectedProcedure.input(z.object({ id: z.number(), notes: z.string().optional() })).mutation(async ({ ctx, input }) => {
+      const request = await db.getMaterialRequestById(input.id);
+      await db.updateMaterialRequest(input.id, { status: "approved", approvedBy: ctx.user.id, approvedAt: new Date(), notes: input.notes });
+      if (request) {
+        const material = await db.getMaterialById(request.materialId);
+        if (material) push.notifyRequestApproved(request.userId, material.name, request.quantityRequested).catch(() => {});
+      }
+      return { success: true };
+    }),
     reject: protectedProcedure.input(z.object({ id: z.number(), rejectionReason: z.string() })).mutation(async ({ input }) => {
       const request = await db.getMaterialRequestById(input.id);
-      if (request) { const material = await db.getMaterialById(request.materialId); if (material) await db.updateMaterial(request.materialId, { quantityReserved: Math.max(0, material.quantityReserved - request.quantityRequested) }); }
+      if (request) {
+        const material = await db.getMaterialById(request.materialId);
+        if (material) {
+          await db.updateMaterial(request.materialId, { quantityReserved: Math.max(0, material.quantityReserved - request.quantityRequested) });
+          push.notifyRequestRejected(request.userId, material.name, input.rejectionReason).catch(() => {});
+        }
+      }
       await db.updateMaterialRequest(input.id, { status: "rejected", rejectionReason: input.rejectionReason });
       return { success: true };
     }),
@@ -141,7 +160,23 @@ export const appRouter = router({
   geoAlerts: router({
     list: protectedProcedure.input(z.object({ acknowledged: z.boolean().optional(), limit: z.number().default(50) })).query(({ input }) => db.getGeoAlerts(input)),
     acknowledge: protectedProcedure.input(z.object({ id: z.number(), notes: z.string().optional() })).mutation(({ ctx, input }) => db.acknowledgeGeoAlert(input.id, ctx.user.id, input.notes)),
-    createAlert: protectedProcedure.input(z.object({ storeId: z.number(), alertType: z.enum(["left_radius", "suspicious_movement", "gps_spoofing_suspected", "low_hours", "no_entry"]), latitude: z.number().optional(), longitude: z.number().optional(), distanceFromStore: z.number().optional(), notes: z.string().optional() })).mutation(async ({ ctx, input }) => { const id = await db.createGeoAlert({ userId: ctx.user.id, storeId: input.storeId, alertType: input.alertType, latitude: input.latitude?.toString(), longitude: input.longitude?.toString(), distanceFromStore: input.distanceFromStore?.toString(), notes: input.notes }); return { id }; }),
+    createAlert: protectedProcedure.input(z.object({ storeId: z.number(), alertType: z.enum(["left_radius", "suspicious_movement", "gps_spoofing_suspected", "low_hours", "no_entry"]), latitude: z.number().optional(), longitude: z.number().optional(), distanceFromStore: z.number().optional(), notes: z.string().optional() })).mutation(async ({ ctx, input }) => {
+      const id = await db.createGeoAlert({ userId: ctx.user.id, storeId: input.storeId, alertType: input.alertType, latitude: input.latitude?.toString(), longitude: input.longitude?.toString(), distanceFromStore: input.distanceFromStore?.toString(), notes: input.notes });
+      if (input.alertType === "left_radius") {
+        const store = await db.getStoreById(input.storeId);
+        const promoterName = ctx.user.name ?? `Promotor ${ctx.user.id}`;
+        push.notifyPromoterLeftRadius(promoterName, store?.name ?? `Loja ${input.storeId}`).catch(() => {});
+      }
+      return { id };
+    }),
+  }),
+  pushTokens: router({
+    register: protectedProcedure
+      .input(z.object({ token: z.string().min(1), platform: z.enum(["ios", "android", "web"]), deviceId: z.string().optional() }))
+      .mutation(async ({ ctx, input }) => {
+        await db.upsertPushToken({ userId: ctx.user.id, token: input.token, platform: input.platform, deviceId: input.deviceId });
+        return { success: true };
+      }),
   }),
   reports: router({
     daily: protectedProcedure.input(z.object({ date: z.string().optional() })).query(({ input }) => db.getDailyReport(input.date ? new Date(input.date) : new Date())),

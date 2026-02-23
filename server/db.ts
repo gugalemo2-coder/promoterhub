@@ -1,4 +1,4 @@
-import { and, desc, eq, gte, lte, sql } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, lte, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import {
   brands,
@@ -7,6 +7,7 @@ import {
   materials,
   photos,
   promoterProfiles,
+  pushTokens,
   stockFiles,
   stores,
   timeEntries,
@@ -26,6 +27,8 @@ import {
   type MaterialRequest,
   type Photo,
   type PromoterProfile,
+  type InsertPushToken,
+  type PushToken,
   type StockFile,
   type Store,
   type TimeEntry,
@@ -432,4 +435,41 @@ export async function getMonthlyReport(year: number, month: number, userId?: num
   const workingDays = dailyData.filter((d) => d.hours > 0).length;
 
   return { year, month, dailyData, photosByBrand, totalHours, totalPhotos, totalRequests, workingDays };
+}
+
+// ─── PUSH TOKENS ──────────────────────────────────────────────────────────────
+
+export async function upsertPushToken(data: InsertPushToken): Promise<void> {
+  const db = await getDb();
+  if (!db) return;
+  // Deactivate old tokens for this user/device, then insert new one
+  if (data.deviceId) {
+    await db
+      .update(pushTokens)
+      .set({ isActive: false })
+      .where(and(eq(pushTokens.userId, data.userId), eq(pushTokens.deviceId, data.deviceId)));
+  }
+  await db.insert(pushTokens).values({ ...data, isActive: true });
+}
+
+export async function getPushTokensByUserId(userId: number): Promise<PushToken[]> {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(pushTokens).where(and(eq(pushTokens.userId, userId), eq(pushTokens.isActive, true)));
+}
+
+export async function getPushTokensByUserIds(userIds: number[]): Promise<PushToken[]> {
+  const db = await getDb();
+  if (!db || userIds.length === 0) return [];
+  return db.select().from(pushTokens).where(and(inArray(pushTokens.userId, userIds), eq(pushTokens.isActive, true)));
+}
+
+export async function getManagerUserIds(): Promise<number[]> {
+  const db = await getDb();
+  if (!db) return [];
+  const managers = await db
+    .select({ userId: promoterProfiles.userId })
+    .from(promoterProfiles)
+    .where(eq(promoterProfiles.appRole, "manager"));
+  return managers.map((m) => m.userId);
 }
