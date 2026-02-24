@@ -304,3 +304,22 @@ export const appSettings = mysqlTable("app_settings", {
 });
 export type AppSettings = typeof appSettings.$inferSelect;
 export type InsertAppSettings = typeof appSettings.$inferInsert;
+
+// ─── APP USERS (custom auth — login/password) ─────────────────────────────────────────────
+export const appUsers = mysqlTable("app_users", {
+  id: int("id").autoincrement().primaryKey(),
+  /** Display name entered during registration */
+  name: varchar("name", { length: 128 }).notNull(),
+  /** Login = name lowercased, spaces removed, accents stripped */
+  login: varchar("login", { length: 128 }).notNull().unique(),
+  /** bcrypt hash of the password */
+  passwordHash: varchar("passwordHash", { length: 255 }).notNull(),
+  /** App role: promoter (default), manager, master */
+  appRole: mysqlEnum("appRole", ["promoter", "manager", "master"]).default("promoter").notNull(),
+  /** Whether the account is active */
+  active: boolean("active").default(true).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type AppUser = typeof appUsers.$inferSelect;
+export type InsertAppUser = typeof appUsers.$inferInsert;

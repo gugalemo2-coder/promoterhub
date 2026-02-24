@@ -1,9 +1,11 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import React, { createContext, useCallback, useContext, useEffect, useState } from "react";
 
-export type AppRole = "promoter" | "manager" | null;
+export type AppRole = "promoter" | "manager" | "master" | null;
 
 const ROLE_KEY = "promoterhub_app_role";
+// Key to store whether the user is using custom auth (login/password)
+export const CUSTOM_AUTH_KEY = "promoterhub_custom_auth_user";
 
 interface RoleContextValue {
   appRole: AppRole;
@@ -26,7 +28,7 @@ export function RoleProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     AsyncStorage.getItem(ROLE_KEY)
       .then((stored) => {
-        if (stored === "promoter" || stored === "manager") {
+        if (stored === "promoter" || stored === "manager" || stored === "master") {
           setAppRoleState(stored);
         }
       })
@@ -45,6 +47,7 @@ export function RoleProvider({ children }: { children: React.ReactNode }) {
   const clearRole = useCallback(async () => {
     setAppRoleState(null);
     await AsyncStorage.removeItem(ROLE_KEY);
+    await AsyncStorage.removeItem(CUSTOM_AUTH_KEY);
   }, []);
 
   return (

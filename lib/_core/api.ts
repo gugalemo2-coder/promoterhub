@@ -126,6 +126,54 @@ export async function demoLogin(role: "promoter" | "manager"): Promise<{ session
   return { sessionToken: result.app_session_id, user: result.user, appRole: result.appRole };
 }
 
+// Custom auth — app-login (login/password)
+export async function appLogin(login: string, password: string): Promise<{ sessionToken: string; user: any; appRole: string }> {
+  const result = await apiCall<{ app_session_id: string; user: any; appRole: string }>("/api/auth/app-login", {
+    method: "POST",
+    body: JSON.stringify({ login, password }),
+  });
+  return { sessionToken: result.app_session_id, user: result.user, appRole: result.appRole };
+}
+
+// Custom auth — app-register (name + password)
+export async function appRegister(name: string, password: string): Promise<{ sessionToken: string; user: any; appRole: string; generatedLogin: string }> {
+  const result = await apiCall<{ app_session_id: string; user: any; appRole: string; generatedLogin: string }>("/api/auth/app-register", {
+    method: "POST",
+    body: JSON.stringify({ name, password }),
+  });
+  return { sessionToken: result.app_session_id, user: result.user, appRole: result.appRole, generatedLogin: result.generatedLogin };
+}
+
+// Custom auth — get current app user
+export async function appGetMe(): Promise<{ user: any; appRole: string } | null> {
+  try {
+    return await apiCall<{ user: any; appRole: string }>("/api/auth/app-me");
+  } catch {
+    return null;
+  }
+}
+
+// Custom auth — list all users (master only)
+export async function masterListUsers(): Promise<{ users: any[] }> {
+  return apiCall<{ users: any[] }>("/api/master/users");
+}
+
+// Custom auth — update user role (master only)
+export async function masterUpdateRole(userId: number, appRole: "promoter" | "manager"): Promise<{ user: any }> {
+  return apiCall<{ user: any }>(`/api/master/users/${userId}/role`, {
+    method: "PATCH",
+    body: JSON.stringify({ appRole }),
+  });
+}
+
+// Custom auth — toggle user active (master only)
+export async function masterToggleActive(userId: number, active: boolean): Promise<{ user: any }> {
+  return apiCall<{ user: any }>(`/api/master/users/${userId}/active`, {
+    method: "PATCH",
+    body: JSON.stringify({ active }),
+  });
+}
+
 // Logout
 export async function logout(): Promise<void> {
   await apiCall<void>("/api/auth/logout", {

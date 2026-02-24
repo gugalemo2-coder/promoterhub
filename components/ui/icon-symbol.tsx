@@ -57,6 +57,8 @@ const MAPPING = {
   "person.crop.circle.fill": "account-circle",
   "trophy.fill": "emoji-events",
   "clock.arrow.circlepath": "history",
+  // Master tab
+  "person.badge.shield.checkmark.fill": "admin-panel-settings",
 } as IconMapping;
 
 /**

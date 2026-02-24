@@ -420,3 +420,31 @@
 - [x] Filtro de mês/ano no Controle de Ponto para ver histórico completo
 - [x] Botão de download individual de foto na página de Fotos
 - [x] Botão de download em massa de todas as fotos filtradas
+
+## Fase 19 — PWA (Progressive Web App)
+
+- [ ] Gerar ícones PWA em múltiplos tamanhos (192x192, 512x512, apple-touch-icon 180x180)
+- [ ] Criar manifest.json com nome, cores, ícones, display standalone e orientação
+- [ ] Configurar metadados PWA no layout do Next.js (apple-mobile-web-app, theme-color, viewport)
+- [ ] Implementar service worker com cache offline (next-pwa ou custom)
+- [ ] Adicionar banner de instalação nativo no painel web
+- [ ] Tela de splash personalizada para iOS e Android
+- [ ] Testar instalação na tela inicial do celular
+
+## Fase 20 — Sistema de Autenticação Próprio
+
+- [x] Tabela app_users no banco: id, name, login, passwordHash, role (promoter/manager/master), active, createdAt
+- [x] Seed automático da conta Master (gustavolemes / Gustavo2410@) na inicialização do servidor
+- [x] Endpoint POST /api/auth/app-register: nome + senha → login gerado, role=promoter
+- [x] Endpoint POST /api/auth/app-login: login + senha → JWT token
+- [x] Endpoint GET /api/auth/app-me: retorna dados do usuário autenticado
+- [x] Endpoint GET /api/master/users: lista todos os usuários (só Master)
+- [x] Endpoint PATCH /api/master/users/:id/role: promove/rebaixa role (só Master)
+- [x] Endpoint PATCH /api/master/users/:id/active: ativa/desativa conta (só Master)
+- [x] Tela de Login no app: campos login e senha, botão Entrar, link para Cadastro
+- [x] Tela de Cadastro no app: campo Nome e Senha, login gerado automaticamente
+- [x] Painel Master no app: lista de usuários com filtros, role badge e botões de ação
+- [x] Navegação condicional: Master → aba Usuários + tudo do Gestor
+- [x] Navegação condicional: Gestor → painel de gestão
+- [x] Navegação condicional: Promotor → painel do promotor
+- [x] Login demo mantido para testes (pode ser removido futuramente)

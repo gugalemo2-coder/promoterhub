@@ -30,17 +30,19 @@ export default function TabLayout() {
   }
 
   if (!appRole) {
-    // Navigate to role selection using router to avoid type issues
     router.replace("/role-select" as any);
     return null;
   }
 
-  const isManager = appRole === "manager";
+  // Master has all manager capabilities + user management
+  const isManager = appRole === "manager" || appRole === "master";
+  const isMaster = appRole === "master";
+  const isPromoter = appRole === "promoter";
 
   return (
     <Tabs
       screenOptions={{
-        tabBarActiveTintColor: colors.primary,
+        tabBarActiveTintColor: isMaster ? "#7C3AED" : colors.primary,
         headerShown: false,
         tabBarButton: HapticTab,
         tabBarStyle: {
@@ -53,16 +55,18 @@ export default function TabLayout() {
         },
       }}
     >
-      {/* ─── PROMOTER TABS ─────────────────────────────────────────────────── */}
+      {/* ─── SHARED TABS (all roles) ──────────────────────────────────────── */}
       <Tabs.Screen
         name="index"
         options={{
-          title: isManager ? "Painel" : "Início",
+          title: isPromoter ? "Início" : "Painel",
           tabBarIcon: ({ color }) => (
             <IconSymbol size={26} name="house.fill" color={color} />
           ),
         }}
       />
+
+      {/* ─── PROMOTER-ONLY TABS ──────────────────────────────────────────── */}
       <Tabs.Screen
         name="clock"
         options={{
@@ -70,13 +74,25 @@ export default function TabLayout() {
           tabBarIcon: ({ color }) => (
             <IconSymbol size={26} name="clock.fill" color={color} />
           ),
-          href: isManager ? null : undefined,
+          href: isPromoter ? undefined : null,
         }}
       />
       <Tabs.Screen
+        name="my-profile"
+        options={{
+          title: "Meu Perfil",
+          tabBarIcon: ({ color }) => (
+            <IconSymbol size={26} name="person.crop.circle.fill" color={color} />
+          ),
+          href: isPromoter ? undefined : null,
+        }}
+      />
+
+      {/* ─── SHARED PHOTOS + MATERIALS (all roles) ───────────────────────── */}
+      <Tabs.Screen
         name="photos"
         options={{
-          title: isManager ? "Fotos" : "Fotos",
+          title: "Fotos",
           tabBarIcon: ({ color }) => (
             <IconSymbol size={26} name="camera.fill" color={color} />
           ),
@@ -85,7 +101,7 @@ export default function TabLayout() {
       <Tabs.Screen
         name="materials"
         options={{
-          title: isManager ? "Materiais" : "Materiais",
+          title: "Materiais",
           tabBarIcon: ({ color }) => (
             <IconSymbol size={26} name="cube.box.fill" color={color} />
           ),
@@ -100,7 +116,8 @@ export default function TabLayout() {
           ),
         }}
       />
-      {/* ─── MANAGER-ONLY TABS ─────────────────────────────────────────────── */}
+
+      {/* ─── MANAGER + MASTER TABS ───────────────────────────────────────── */}
       <Tabs.Screen
         name="team"
         options={{
@@ -172,26 +189,6 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
-        name="offline-queue"
-        options={{
-          title: "Offline",
-          tabBarIcon: ({ color }) => (
-            <IconSymbol size={26} name="arrow.triangle.2.circlepath" color={color} />
-          ),
-          href: null,
-        }}
-      />
-      <Tabs.Screen
-        name="my-profile"
-        options={{
-          title: "Meu Perfil",
-          tabBarIcon: ({ color }) => (
-            <IconSymbol size={26} name="person.crop.circle.fill" color={color} />
-          ),
-          href: isManager ? null : undefined,
-        }}
-      />
-      <Tabs.Screen
         name="promoter-ranking"
         options={{
           title: "Ranking",
@@ -212,15 +209,6 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
-        name="notifications"
-        options={{
-          title: "Avisos",
-          tabBarIcon: ({ color }) => (
-            <IconSymbol size={26} name="bell.badge.fill" color={color} />
-          ),
-        }}
-      />
-      <Tabs.Screen
         name="settings"
         options={{
           title: "Config",
@@ -228,6 +216,40 @@ export default function TabLayout() {
             <IconSymbol size={26} name="gear" color={color} />
           ),
           href: isManager ? undefined : null,
+        }}
+      />
+
+      {/* ─── MASTER-ONLY TAB ─────────────────────────────────────────────── */}
+      <Tabs.Screen
+        name="master-users"
+        options={{
+          title: "Usuários",
+          tabBarIcon: ({ color }) => (
+            <IconSymbol size={26} name="person.badge.shield.checkmark.fill" color={color} />
+          ),
+          href: isMaster ? undefined : null,
+        }}
+      />
+
+      {/* ─── HIDDEN TABS ─────────────────────────────────────────────────── */}
+      <Tabs.Screen
+        name="offline-queue"
+        options={{
+          title: "Offline",
+          tabBarIcon: ({ color }) => (
+            <IconSymbol size={26} name="arrow.triangle.2.circlepath" color={color} />
+          ),
+          href: null,
+        }}
+      />
+      <Tabs.Screen
+        name="notifications"
+        options={{
+          title: "Avisos",
+          tabBarIcon: ({ color }) => (
+            <IconSymbol size={26} name="bell.badge.fill" color={color} />
+          ),
+          href: null,
         }}
       />
     </Tabs>
