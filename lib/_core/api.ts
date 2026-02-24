@@ -116,6 +116,16 @@ export async function exchangeOAuthCode(
   };
 }
 
+// Demo login — creates a session for a demo user without OAuth
+export async function demoLogin(role: "promoter" | "manager"): Promise<{ sessionToken: string; user: any; appRole: string }> {
+  const result = await apiCall<{ app_session_id: string; user: any; appRole: string }>("/api/auth/demo-login", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ role }),
+  });
+  return { sessionToken: result.app_session_id, user: result.user, appRole: result.appRole };
+}
+
 // Logout
 export async function logout(): Promise<void> {
   await apiCall<void>("/api/auth/logout", {

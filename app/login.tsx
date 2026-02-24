@@ -1,21 +1,62 @@
 import { useAuth } from "@/hooks/use-auth";
 import { useColors } from "@/hooks/use-colors";
 import { useRole } from "@/lib/role-context";
+import * as Api from "@/lib/_core/api";
+import * as Auth from "@/lib/_core/auth";
 import { Ionicons } from "@expo/vector-icons";
 import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
-import { Redirect } from "expo-router";
+import { Redirect, router } from "expo-router";
 import { StatusBar } from "expo-status-bar";
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-native";
+import { useState } from "react";
+import { ActivityIndicator, Alert, Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import { startOAuthLogin } from "@/constants/oauth";
 
 export default function LoginScreen() {
-  const { isAuthenticated, loading } = useAuth();
-  const { appRole, isRoleLoading } = useRole();
+  const { isAuthenticated, loading, refresh } = useAuth();
+  const { appRole, isRoleLoading, setAppRole } = useRole();
   const colors = useColors();
+  const [demoLoading, setDemoLoading] = useState<"promoter" | "manager" | null>(null);
 
   const handleSignIn = async () => {
     await startOAuthLogin();
+  };
+
+  const handleDemoLogin = async (role: "promoter" | "manager") => {
+    try {
+      setDemoLoading(role);
+      const result = await Api.demoLogin(role);
+
+      // Save session token on native
+      if (Platform.OS !== "web" && result.sessionToken) {
+        await Auth.setSessionToken(result.sessionToken);
+      }
+
+      // Save user info cache
+      if (result.user) {
+        const userInfo: Auth.User = {
+          id: result.user.id,
+          openId: result.user.openId,
+          name: result.user.name,
+          email: result.user.email,
+          loginMethod: result.user.loginMethod,
+          lastSignedIn: new Date(result.user.lastSignedIn),
+        };
+        await Auth.setUserInfo(userInfo);
+      }
+
+      // Set role directly — skip role-select screen
+      await setAppRole(role);
+
+      // Refresh auth state and navigate
+      await refresh();
+      router.replace("/(tabs)");
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Erro ao entrar com conta demo";
+      Alert.alert("Erro", msg);
+    } finally {
+      setDemoLoading(null);
+    }
   };
 
   if (loading || isRoleLoading) {
@@ -27,7 +68,6 @@ export default function LoginScreen() {
   }
 
   if (isAuthenticated) {
-    // Se já tem role salvo, vai direto para o app; senão, vai para seleção de perfil
     if (appRole) {
       return <Redirect href="/(tabs)" />;
     }
@@ -70,8 +110,9 @@ export default function LoginScreen() {
         ))}
       </View>
 
-      {/* Login Button */}
+      {/* Login Buttons */}
       <View style={styles.footer}>
+        {/* OAuth Login */}
         <Pressable
           style={({ pressed }) => [styles.loginBtn, pressed && { opacity: 0.85 }]}
           onPress={handleSignIn}
@@ -79,8 +120,55 @@ export default function LoginScreen() {
           <Ionicons name="log-in-outline" size={22} color="#1A56DB" />
           <Text style={styles.loginBtnText}>Entrar com Manus</Text>
         </Pressable>
+
+        {/* Demo separator */}
+        <View style={styles.separator}>
+          <View style={styles.separatorLine} />
+          <Text style={styles.separatorText}>ou acesse como demonstração</Text>
+          <View style={styles.separatorLine} />
+        </View>
+
+        {/* Demo buttons */}
+        <View style={styles.demoRow}>
+          <Pressable
+            style={({ pressed }) => [
+              styles.demoBtn,
+              styles.demoBtnPromoter,
+              pressed && { opacity: 0.85 },
+              demoLoading === "promoter" && { opacity: 0.7 },
+            ]}
+            onPress={() => handleDemoLogin("promoter")}
+            disabled={demoLoading !== null}
+          >
+            {demoLoading === "promoter" ? (
+              <ActivityIndicator size="small" color="#fff" />
+            ) : (
+              <Ionicons name="person-outline" size={18} color="#fff" />
+            )}
+            <Text style={styles.demoBtnText}>Promotor Demo</Text>
+          </Pressable>
+
+          <Pressable
+            style={({ pressed }) => [
+              styles.demoBtn,
+              styles.demoBtnManager,
+              pressed && { opacity: 0.85 },
+              demoLoading === "manager" && { opacity: 0.7 },
+            ]}
+            onPress={() => handleDemoLogin("manager")}
+            disabled={demoLoading !== null}
+          >
+            {demoLoading === "manager" ? (
+              <ActivityIndicator size="small" color="#fff" />
+            ) : (
+              <Ionicons name="briefcase-outline" size={18} color="#fff" />
+            )}
+            <Text style={styles.demoBtnText}>Gestor Demo</Text>
+          </Pressable>
+        </View>
+
         <Text style={styles.disclaimer}>
-          Acesso seguro via autenticação OAuth
+          Acesso seguro via autenticação OAuth · Dados de demonstração
         </Text>
       </View>
     </View>
@@ -107,7 +195,31 @@ const styles = StyleSheet.create({
   featureRow: { flexDirection: "row", alignItems: "center", gap: 12 },
   featureText: { fontSize: 15, color: "rgba(255,255,255,0.85)" },
   footer: { paddingHorizontal: 32, paddingBottom: 48, gap: 12 },
-  loginBtn: { backgroundColor: "#FFFFFF", borderRadius: 16, paddingVertical: 16, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 10 },
+  loginBtn: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 16,
+    paddingVertical: 16,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 10,
+  },
   loginBtnText: { fontSize: 17, fontWeight: "700", color: "#1A56DB" },
-  disclaimer: { textAlign: "center", fontSize: 13, color: "rgba(255,255,255,0.55)" },
+  separator: { flexDirection: "row", alignItems: "center", gap: 10, marginVertical: 4 },
+  separatorLine: { flex: 1, height: 1, backgroundColor: "rgba(255,255,255,0.25)" },
+  separatorText: { fontSize: 12, color: "rgba(255,255,255,0.55)", textAlign: "center" },
+  demoRow: { flexDirection: "row", gap: 12 },
+  demoBtn: {
+    flex: 1,
+    borderRadius: 14,
+    paddingVertical: 14,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+  },
+  demoBtnPromoter: { backgroundColor: "rgba(255,255,255,0.18)", borderWidth: 1, borderColor: "rgba(255,255,255,0.35)" },
+  demoBtnManager: { backgroundColor: "rgba(255,255,255,0.18)", borderWidth: 1, borderColor: "rgba(255,255,255,0.35)" },
+  demoBtnText: { fontSize: 15, fontWeight: "600", color: "#FFFFFF" },
+  disclaimer: { textAlign: "center", fontSize: 12, color: "rgba(255,255,255,0.45)" },
 });

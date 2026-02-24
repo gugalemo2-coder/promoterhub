@@ -1,6 +1,6 @@
 import { COOKIE_NAME, ONE_YEAR_MS } from "../../shared/const.js";
 import type { Express, Request, Response } from "express";
-import { getUserByOpenId, upsertUser } from "../db";
+import { getUserByOpenId, upsertUser, upsertPromoterProfile, getPromoterProfile } from "../db";
 import { getSessionCookieOptions } from "./cookies";
 import { sdk } from "./sdk";
 
@@ -125,6 +125,36 @@ export function registerOAuthRoutes(app: Express) {
     } catch (error) {
       console.error("[OAuth] Mobile exchange failed", error);
       res.status(500).json({ error: "OAuth mobile exchange failed" });
+    }
+  });
+
+  // Demo login — creates a demo user session without OAuth (for testing only)
+  app.post("/api/auth/demo-login", async (req: Request, res: Response) => {
+    try {
+      const { role } = req.body as { role?: string };
+      if (role !== "promoter" && role !== "manager") {
+        res.status(400).json({ error: "role must be 'promoter' or 'manager'" });
+        return;
+      }
+      const openId = role === "manager" ? "demo_manager_001" : "demo_promoter_001";
+      const name = role === "manager" ? "Gestor Demo" : "Promotor Demo";
+      const email = role === "manager" ? "gestor@demo.com" : "promotor@demo.com";
+
+      // Ensure demo user exists in DB
+      await upsertUser({ openId, name, email, loginMethod: "demo", lastSignedIn: new Date() });
+      const user = await getUserByOpenId(openId);
+      if (!user) { res.status(500).json({ error: "Failed to create demo user" }); return; }
+
+      // Ensure promoter profile with correct role exists
+      await upsertPromoterProfile({ userId: user.id, appRole: role, status: "active" });
+
+      const sessionToken = await sdk.createSessionToken(openId, { name, expiresInMs: ONE_YEAR_MS });
+      const cookieOptions = getSessionCookieOptions(req);
+      res.cookie(COOKIE_NAME, sessionToken, { ...cookieOptions, maxAge: ONE_YEAR_MS });
+      res.json({ app_session_id: sessionToken, user: buildUserResponse(user), appRole: role });
+    } catch (error) {
+      console.error("[Auth] Demo login failed", error);
+      res.status(500).json({ error: "Demo login failed" });
     }
   });
 

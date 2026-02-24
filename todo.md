@@ -318,3 +318,13 @@
 - [x] Filtro de status passado como parâmetro server-side para o endpoint
 - [x] Downgrade react-native-webview para 13.15.0 (compatível com Expo Go SDK 54)
 - [x] Downgrade @react-native-community/netinfo para 11.4.1 (compatível com Expo Go SDK 54)
+
+## Fase 14 — Login de Demonstração
+
+- [x] Endpoint POST /api/auth/demo-login no servidor (cria usuários demo no banco e gera token JWT)
+- [x] Função demoLogin() no api.ts
+- [x] Botões "Promotor Demo" e "Gestor Demo" na tela de login
+- [x] Separador visual entre login OAuth e login demo
+- [x] Fluxo completo: token salvo no SecureStore + role definido + navegação para o app
+- [x] Loading state individual por botão de demo
+- [x] Role pré-definido no login demo (sem passar pela tela de seleção de role)
