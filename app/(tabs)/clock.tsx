@@ -2,10 +2,11 @@ import { ScreenContainer } from "@/components/screen-container";
 import { useColors } from "@/hooks/use-colors";
 import { useRole } from "@/lib/role-context";
 import { trpc } from "@/lib/trpc";
+import { useOfflineQueue } from "@/hooks/use-offline-queue";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import * as Location from "expo-location";
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -30,10 +31,11 @@ export default function ClockScreen() {
   const utils = trpc.useUtils();
   const { data: lastEntry } = trpc.timeEntries.lastOpenEntry.useQuery();
   const { data: dailySummary, refetch: refetchSummary } = trpc.timeEntries.dailySummary.useQuery({ date: selectedDate.toISOString() });
-  const { data: allEntries, refetch: refetchAll } = trpc.timeEntries.allForDate.useQuery({ date: selectedDate.toISOString() }, { enabled: isManager });
+  const { data: allEntries } = trpc.timeEntries.allForDate.useQuery({ date: selectedDate.toISOString() }, { enabled: isManager });
   const { data: myEntries, refetch: refetchMy } = trpc.timeEntries.list.useQuery({ startDate: selectedDate.toISOString(), endDate: selectedDate.toISOString() }, { enabled: !isManager });
   const { data: stores } = trpc.stores.list.useQuery();
   const createEntryMutation = trpc.timeEntries.create.useMutation();
+  const { isOnline, enqueue, pendingCount } = useOfflineQueue();
 
   const hasOpenEntry = !!lastEntry;
   const displayEntries = isManager ? allEntries : myEntries;
@@ -94,6 +96,27 @@ export default function ClockScreen() {
           onPress: async () => {
             setRegistering(true);
             try {
+              // Se offline, enfileirar para sincronização posterior
+              if (!isOnline) {
+                await enqueue(entryType === "entry" ? "clock_entry" : "clock_exit", {
+                  storeId: stores[0].id,
+                  entryType,
+                  latitude: loc.latitude,
+                  longitude: loc.longitude,
+                  accuracy: loc.accuracy,
+                });
+                if (Platform.OS !== "web") {
+                  await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                }
+                Alert.alert(
+                  "📥 Salvo offline",
+                  `${entryType === "entry" ? "Entrada" : "Saída"} salva localmente. Será sincronizada quando você reconectar.`,
+                  [{ text: "OK" }]
+                );
+                setRegistering(false);
+                return;
+              }
+
               const result = await createEntryMutation.mutateAsync({
                 storeId: stores[0].id,
                 entryType,
@@ -123,7 +146,19 @@ export default function ClockScreen() {
               if (Platform.OS !== "web") {
                 await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
               }
-              Alert.alert("Erro", "Não foi possível registrar o ponto. Tente novamente.");
+              // Falha de rede — enfileirar offline automaticamente
+              await enqueue(entryType === "entry" ? "clock_entry" : "clock_exit", {
+                storeId: stores[0].id,
+                entryType,
+                latitude: loc.latitude,
+                longitude: loc.longitude,
+                accuracy: loc.accuracy,
+              });
+              Alert.alert(
+                "📥 Salvo offline",
+                "Não foi possível conectar ao servidor. O registro foi salvo localmente e será sincronizado quando a conexão for restaurada.",
+                [{ text: "OK" }]
+              );
             } finally {
               setRegistering(false);
             }

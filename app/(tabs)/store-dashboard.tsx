@@ -13,6 +13,9 @@ import {
 } from "react-native";
 import { ScreenContainer } from "@/components/screen-container";
 import { useState } from "react";
+import * as Sharing from "expo-sharing";
+import * as FileSystem from "expo-file-system/legacy";
+import { Platform } from "react-native";
 
 // ─── Score color helper ───────────────────────────────────────────────────────
 function scoreColor(score: number, colors: ReturnType<typeof useColors>) {
@@ -198,8 +201,126 @@ export default function StoreDashboardScreen() {
   const maxVisits = Math.max(...stores.map((s) => s.totalVisits), 1);
   const maxPhotos = Math.max(...stores.map((s) => s.totalPhotos), 1);
   const maxCoverage = Math.max(...stores.map((s) => s.totalCoverageMinutes), 1);
+  const [exporting, setExporting] = useState(false);
 
   const MONTHS = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
+
+  const handleExportPDF = async () => {
+    if (stores.length === 0) return;
+    setExporting(true);
+    try {
+      const monthName = MONTHS[month - 1];
+      const generatedAt = new Date().toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
+      const verificationCode = `PMH-${year}${String(month).padStart(2, "0")}-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
+
+      const tableRows = stores.map((s, i) => {
+        const medal = i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 ? "🥉" : `#${i + 1}`;
+        const coverage = (s.totalCoverageMinutes / 60).toFixed(1);
+        const approvalRate = Math.round(s.photoApprovalRate * 100);
+        return `
+          <tr style="background:${i % 2 === 0 ? "#f9fafb" : "#ffffff"}">
+            <td style="padding:10px 12px;text-align:center;font-size:18px">${medal}</td>
+            <td style="padding:10px 12px;font-weight:600;color:#111827">${s.storeName}</td>
+            <td style="padding:10px 12px;text-align:center">${s.totalVisits}</td>
+            <td style="padding:10px 12px;text-align:center">${s.totalPhotos}</td>
+            <td style="padding:10px 12px;text-align:center">${approvalRate}%</td>
+            <td style="padding:10px 12px;text-align:center">${coverage}h</td>
+            <td style="padding:10px 12px;text-align:center">${Math.round(s.materialApprovalRate * 100)}%</td>
+            <td style="padding:10px 12px;text-align:center">
+              <span style="background:${s.score >= 70 ? "#d1fae5" : s.score >= 40 ? "#fef3c7" : "#fee2e2"};color:${s.score >= 70 ? "#065f46" : s.score >= 40 ? "#92400e" : "#991b1b"};padding:4px 10px;border-radius:20px;font-weight:700">${s.score}</span>
+            </td>
+          </tr>`;
+      }).join("");
+
+      const totalVisits = stores.reduce((a, s) => a + s.totalVisits, 0);
+      const totalPhotos = stores.reduce((a, s) => a + s.totalPhotos, 0);
+      const totalCoverage = (stores.reduce((a, s) => a + s.totalCoverageMinutes, 0) / 60).toFixed(1);
+      const avgScore = Math.round(stores.reduce((a, s) => a + s.score, 0) / stores.length);
+
+      const html = `<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Ranking de PDVs — ${monthName} ${year}</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, Arial, sans-serif; color: #374151; background: #fff; }
+  .header { background: linear-gradient(135deg, #1e40af, #0e7490); color: white; padding: 32px 40px; }
+  .header h1 { font-size: 26px; font-weight: 800; margin-bottom: 4px; }
+  .header p { font-size: 14px; opacity: 0.85; }
+  .summary { display: flex; gap: 16px; padding: 24px 40px; background: #f8fafc; border-bottom: 1px solid #e5e7eb; }
+  .summary-card { flex: 1; background: white; border-radius: 12px; padding: 16px; text-align: center; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
+  .summary-card .num { font-size: 28px; font-weight: 800; color: #1e40af; }
+  .summary-card .label { font-size: 12px; color: #6b7280; margin-top: 4px; }
+  .section { padding: 24px 40px; }
+  .section h2 { font-size: 18px; font-weight: 700; color: #111827; margin-bottom: 16px; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  thead tr { background: #1e40af; color: white; }
+  thead th { padding: 12px; text-align: center; font-weight: 600; }
+  thead th:nth-child(2) { text-align: left; }
+  tbody tr:hover { background: #eff6ff !important; }
+  .footer { padding: 24px 40px; border-top: 1px solid #e5e7eb; display: flex; justify-content: space-between; align-items: center; font-size: 12px; color: #9ca3af; }
+  .formula { background: #f0f9ff; border: 1px solid #bae6fd; border-radius: 8px; padding: 12px 16px; font-size: 12px; color: #0369a1; margin-top: 16px; }
+</style>
+</head>
+<body>
+<div class="header">
+  <h1>PromoterHub — Ranking de PDVs</h1>
+  <p>${monthName} ${year} &nbsp;·&nbsp; ${stores.length} pontos de venda &nbsp;·&nbsp; Score médio: ${avgScore} pts</p>
+</div>
+<div class="summary">
+  <div class="summary-card"><div class="num">${stores.length}</div><div class="label">PDVs avaliados</div></div>
+  <div class="summary-card"><div class="num">${totalVisits}</div><div class="label">Visitas totais</div></div>
+  <div class="summary-card"><div class="num">${totalPhotos}</div><div class="label">Fotos enviadas</div></div>
+  <div class="summary-card"><div class="num">${totalCoverage}h</div><div class="label">Cobertura total</div></div>
+  <div class="summary-card"><div class="num">${avgScore}</div><div class="label">Score médio</div></div>
+</div>
+<div class="section">
+  <h2>Ranking Completo</h2>
+  <table>
+    <thead><tr>
+      <th>Pos.</th><th style="text-align:left">PDV</th><th>Visitas</th><th>Fotos</th><th>Aprovação</th><th>Cobertura</th><th>Materiais</th><th>Score</th>
+    </tr></thead>
+    <tbody>${tableRows}</tbody>
+  </table>
+  <div class="formula">
+    <strong>Fórmula do score composto:</strong> Visitas 25% + Fotos 20% + Qualidade de fotos 20% + Cobertura 20% + Materiais 10% − Alertas 5%
+  </div>
+</div>
+<div class="footer">
+  <span>Gerado em ${generatedAt} &nbsp;·&nbsp; PromoterHub</span>
+  <span>Cód. verificação: <strong>${verificationCode}</strong></span>
+</div>
+</body></html>`;
+
+      if (Platform.OS === "web") {
+        // Web: abrir em nova aba para impressão
+        const blob = new Blob([html], { type: "text/html" });
+        const url = URL.createObjectURL(blob);
+        window.open(url, "_blank");
+        setExporting(false);
+        return;
+      }
+
+      // Mobile: salvar HTML como arquivo e compartilhar
+      const fileUri = `${FileSystem.cacheDirectory}ranking_pdvs_${monthName}_${year}.html`;
+      await FileSystem.writeAsStringAsync(fileUri, html, { encoding: FileSystem.EncodingType.UTF8 });
+
+      const canShare = await Sharing.isAvailableAsync();
+      if (canShare) {
+        await Sharing.shareAsync(fileUri, {
+          mimeType: "text/html",
+          dialogTitle: `Ranking de PDVs — ${monthName} ${year}`,
+          UTI: "public.html",
+        });
+      }
+    } catch (err) {
+      console.error("Erro ao exportar PDF:", err);
+    } finally {
+      setExporting(false);
+    }
+  };
 
   function prevMonth() {
     if (month === 1) { setMonth(12); setYear((y) => y - 1); }
@@ -216,8 +337,31 @@ export default function StoreDashboardScreen() {
     <ScreenContainer>
       {/* Header */}
       <View style={[styles.header, { backgroundColor: colors.primary }]}>
-        <Text style={styles.headerTitle}>Dashboard de PDVs</Text>
-        <Text style={styles.headerSub}>Ranking de desempenho composto</Text>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.headerTitle}>Dashboard de PDVs</Text>
+          <Text style={styles.headerSub}>Ranking de desempenho composto</Text>
+        </View>
+        {stores.length > 0 && (
+          <Pressable
+            onPress={handleExportPDF}
+            disabled={exporting}
+            style={({ pressed }) => [{
+              backgroundColor: "rgba(255,255,255,0.2)",
+              borderRadius: 10,
+              paddingHorizontal: 12,
+              paddingVertical: 8,
+              flexDirection: "row",
+              alignItems: "center",
+              gap: 6,
+              opacity: pressed || exporting ? 0.7 : 1,
+            }]}
+          >
+            <Ionicons name="document-text-outline" size={18} color="#fff" />
+            <Text style={{ color: "#fff", fontSize: 13, fontWeight: "600" }}>
+              {exporting ? "Gerando..." : "Exportar"}
+            </Text>
+          </Pressable>
+        )}
       </View>
 
       {/* Month picker */}
@@ -312,6 +456,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingTop: 20,
     paddingBottom: 16,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
   },
   headerTitle: {
     fontSize: 22,

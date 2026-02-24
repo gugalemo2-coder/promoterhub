@@ -2,6 +2,7 @@ import { ScreenContainer } from "@/components/screen-container";
 import { useColors } from "@/hooks/use-colors";
 import { useRole } from "@/lib/role-context";
 import { trpc } from "@/lib/trpc";
+import { useOfflineQueue } from "@/hooks/use-offline-queue";
 import { Ionicons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
 import { Image } from "expo-image";
@@ -37,6 +38,7 @@ export default function PhotosScreen() {
   );
   const uploadMutation = trpc.photos.upload.useMutation();
   const updateStatusMutation = trpc.photos.updateStatus.useMutation();
+  const { isOnline, enqueue } = useOfflineQueue();
 
   const displayPhotos = isManager ? photos : myPhotos;
 
@@ -73,6 +75,20 @@ export default function PhotosScreen() {
 
     setUploading(true);
     try {
+      // Se offline, enfileirar para sincronização posterior
+      if (!isOnline) {
+        await enqueue("photo_upload", {
+          brandId: selectedBrandId,
+          storeId: stores[0].id,
+          photoBase64: asset.base64,
+          fileType: "image/jpeg",
+          latitude: asset.exif?.GPSLatitude,
+          longitude: asset.exif?.GPSLongitude,
+        });
+        Alert.alert("📥 Salvo offline", "Foto salva localmente. Será enviada quando você reconectar.");
+        setUploading(false);
+        return;
+      }
       await uploadMutation.mutateAsync({
         brandId: selectedBrandId,
         storeId: stores[0].id,
@@ -85,7 +101,16 @@ export default function PhotosScreen() {
       Alert.alert("Sucesso!", "Foto enviada com sucesso.");
       isManager ? refetchPhotos() : refetchMyPhotos();
     } catch (err) {
-      Alert.alert("Erro", "Não foi possível enviar a foto. Tente novamente.");
+      // Falha de rede — enfileirar offline automaticamente
+      await enqueue("photo_upload", {
+        brandId: selectedBrandId,
+        storeId: stores[0].id,
+        photoBase64: asset.base64,
+        fileType: "image/jpeg",
+        latitude: asset.exif?.GPSLatitude,
+        longitude: asset.exif?.GPSLongitude,
+      });
+      Alert.alert("📥 Salvo offline", "Não foi possível enviar a foto agora. Ela foi salva localmente e será enviada quando a conexão for restaurada.");
     } finally {
       setUploading(false);
     }
@@ -119,6 +144,18 @@ export default function PhotosScreen() {
 
     setUploading(true);
     try {
+      // Se offline, enfileirar para sincronização posterior
+      if (!isOnline) {
+        await enqueue("photo_upload", {
+          brandId: selectedBrandId,
+          storeId: stores[0].id,
+          photoBase64: asset.base64,
+          fileType: "image/jpeg",
+        });
+        Alert.alert("📥 Salvo offline", "Foto salva localmente. Será enviada quando você reconectar.");
+        setUploading(false);
+        return;
+      }
       await uploadMutation.mutateAsync({
         brandId: selectedBrandId,
         storeId: stores[0].id,
@@ -129,7 +166,14 @@ export default function PhotosScreen() {
       Alert.alert("Sucesso!", "Foto enviada com sucesso.");
       isManager ? refetchPhotos() : refetchMyPhotos();
     } catch (err) {
-      Alert.alert("Erro", "Não foi possível enviar a foto. Tente novamente.");
+      // Falha de rede — enfileirar offline automaticamente
+      await enqueue("photo_upload", {
+        brandId: selectedBrandId,
+        storeId: stores[0].id,
+        photoBase64: asset.base64,
+        fileType: "image/jpeg",
+      });
+      Alert.alert("📥 Salvo offline", "Não foi possível enviar a foto agora. Ela foi salva localmente e será enviada quando a conexão for restaurada.");
     } finally {
       setUploading(false);
     }

@@ -175,3 +175,23 @@
 - [x] Tela de fila offline com status, erros, retry e limpeza
 - [x] Retry automático (máx 3 tentativas) + retry manual
 - [x] Aba "Offline" na navegação do Promotor
+
+## Fase 5 — Novas Funcionalidades
+
+### Integração Offline nas Telas de Ponto e Fotos
+- [x] Detectar ausência de conexão na tela de Registro de Ponto
+- [x] Enfileirar entrada/saída offline via useOfflineQueue em vez de exibir erro
+- [x] Feedback visual ao usuário quando a ação é salva offline (📥 Salvo offline)
+- [x] Detectar ausência de conexão na tela de Fotos (câmera e galeria)
+- [x] Enfileirar upload de foto offline (base64) via useOfflineQueue
+- [x] Fallback automático para offline em caso de falha de rede
+
+### Exportação do Ranking de PDVs em PDF
+- [x] Gerar HTML estilizado com ranking mensal completo
+- [x] Cabeçalho com gradiente, mês/ano, número de PDVs e score médio
+- [x] Cards de sumário (PDVs, visitas, fotos, cobertura, score médio)
+- [x] Tabela com posição (medalhas top 3), PDV, todas as métricas e score colorido
+- [x] Fórmula do score composto no rodapé
+- [x] Código de verificação único por exportação
+- [x] Botão "Exportar" no header da tela de Dashboard de PDVs
+- [x] Compartilhamento nativo no mobile / nova aba no web
