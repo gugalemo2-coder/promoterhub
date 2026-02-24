@@ -5,30 +5,37 @@ import {
   geoAlerts,
   materialRequests,
   materials,
+  notifications,
   photos,
   promoterProfiles,
   pushTokens,
+  signedReports,
   stockFiles,
   stores,
   timeEntries,
   users,
   type Brand,
   type GeoAlert,
+  type InsertBrand,
   type InsertGeoAlert,
   type InsertMaterial,
   type InsertMaterialRequest,
+  type InsertNotification,
   type InsertPhoto,
   type InsertPromoterProfile,
+  type InsertSignedReport,
   type InsertStockFile,
   type InsertStore,
   type InsertTimeEntry,
   type InsertUser,
   type Material,
   type MaterialRequest,
+  type Notification,
   type Photo,
   type PromoterProfile,
   type InsertPushToken,
   type PushToken,
+  type SignedReport,
   type StockFile,
   type Store,
   type TimeEntry,
@@ -472,4 +479,102 @@ export async function getManagerUserIds(): Promise<number[]> {
     .from(promoterProfiles)
     .where(eq(promoterProfiles.appRole, "manager"));
   return managers.map((m) => m.userId);
+}
+
+// ─── NOTIFICATIONS ────────────────────────────────────────────────────────────
+
+export async function createNotification(data: InsertNotification): Promise<number> {
+  const db = await getDb();
+  if (!db) return 0;
+  const result = await db.insert(notifications).values(data);
+  return (result[0] as any).insertId ?? 0;
+}
+
+export async function getNotificationsByUser(userId: number, limit = 50): Promise<Notification[]> {
+  const db = await getDb();
+  if (!db) return [];
+  return db
+    .select()
+    .from(notifications)
+    .where(eq(notifications.userId, userId))
+    .orderBy(desc(notifications.createdAt))
+    .limit(limit);
+}
+
+export async function markNotificationRead(id: number): Promise<void> {
+  const db = await getDb();
+  if (!db) return;
+  await db.update(notifications).set({ isRead: true, readAt: new Date() }).where(eq(notifications.id, id));
+}
+
+export async function markAllNotificationsRead(userId: number): Promise<void> {
+  const db = await getDb();
+  if (!db) return;
+  await db
+    .update(notifications)
+    .set({ isRead: true, readAt: new Date() })
+    .where(and(eq(notifications.userId, userId), eq(notifications.isRead, false)));
+}
+
+export async function getUnreadNotificationCount(userId: number): Promise<number> {
+  const db = await getDb();
+  if (!db) return 0;
+  const result = await db
+    .select({ count: sql<number>`COUNT(*)` })
+    .from(notifications)
+    .where(and(eq(notifications.userId, userId), eq(notifications.isRead, false)));
+  return Number(result[0]?.count ?? 0);
+}
+
+// ─── BRANDS CRUD ──────────────────────────────────────────────────────────────
+
+export async function getAllBrands(): Promise<Brand[]> {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(brands).orderBy(brands.sortOrder);
+}
+
+export async function createBrand(data: Omit<InsertBrand, "id">): Promise<number> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.insert(brands).values(data);
+  return (result[0] as any).insertId ?? 0;
+}
+
+export async function updateBrand(id: number, data: Partial<InsertBrand>): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(brands).set(data).where(eq(brands.id, id));
+}
+
+export async function toggleBrandStatus(id: number, status: "active" | "inactive"): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(brands).set({ status }).where(eq(brands.id, id));
+}
+
+// ─── SIGNED REPORTS ───────────────────────────────────────────────────────────
+
+export async function createSignedReport(data: InsertSignedReport): Promise<number> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.insert(signedReports).values(data);
+  return (result[0] as any).insertId ?? 0;
+}
+
+export async function getSignedReportById(reportId: string): Promise<SignedReport | undefined> {
+  const db = await getDb();
+  if (!db) return undefined;
+  const result = await db.select().from(signedReports).where(eq(signedReports.reportId, reportId)).limit(1);
+  return result[0];
+}
+
+export async function getSignedReportsByManager(managerId: number): Promise<SignedReport[]> {
+  const db = await getDb();
+  if (!db) return [];
+  return db
+    .select()
+    .from(signedReports)
+    .where(eq(signedReports.managerId, managerId))
+    .orderBy(desc(signedReports.signedAt));
 }

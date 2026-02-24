@@ -141,6 +141,35 @@ export default function TabLayout() {
           href: isManager ? undefined : null,
         }}
       />
+      <Tabs.Screen
+        name="brands"
+        options={{
+          title: "Marcas",
+          tabBarIcon: ({ color }) => (
+            <IconSymbol size={26} name="tag.circle.fill" color={color} />
+          ),
+          href: isManager ? undefined : null,
+        }}
+      />
+      <Tabs.Screen
+        name="sign-report"
+        options={{
+          title: "Assinar",
+          tabBarIcon: ({ color }) => (
+            <IconSymbol size={26} name="signature" color={color} />
+          ),
+          href: isManager ? undefined : null,
+        }}
+      />
+      <Tabs.Screen
+        name="notifications"
+        options={{
+          title: "Avisos",
+          tabBarIcon: ({ color }) => (
+            <IconSymbol size={26} name="bell.badge.fill" color={color} />
+          ),
+        }}
+      />
     </Tabs>
   );
 }

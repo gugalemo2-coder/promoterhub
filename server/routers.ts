@@ -186,6 +186,38 @@ export const appRouter = router({
       .input(z.object({ year: z.number().int().min(2020).max(2100), month: z.number().int().min(1).max(12), userId: z.number().optional() }))
       .query(({ input }) => db.getMonthlyReport(input.year, input.month, input.userId)),
   }),
+  notifications: router({
+    list: protectedProcedure.input(z.object({ limit: z.number().default(50) })).query(({ ctx, input }) => db.getNotificationsByUser(ctx.user.id, input.limit)),
+    unreadCount: protectedProcedure.query(({ ctx }) => db.getUnreadNotificationCount(ctx.user.id)),
+    markRead: protectedProcedure.input(z.object({ id: z.number() })).mutation(({ input }) => db.markNotificationRead(input.id)),
+    markAllRead: protectedProcedure.mutation(({ ctx }) => db.markAllNotificationsRead(ctx.user.id)),
+  }),
+  brandsAdmin: router({
+    listAll: protectedProcedure.query(() => db.getAllBrands()),
+    create: protectedProcedure
+      .input(z.object({ name: z.string().min(1).max(100), description: z.string().optional(), colorHex: z.string().regex(/^#[0-9A-Fa-f]{6}$/).optional(), logoUrl: z.string().url().optional(), iconName: z.string().optional(), sortOrder: z.number().int().default(0) }))
+      .mutation(async ({ input }) => { const id = await db.createBrand(input); return { id }; }),
+    update: protectedProcedure
+      .input(z.object({ id: z.number(), name: z.string().min(1).max(100).optional(), description: z.string().optional(), colorHex: z.string().regex(/^#[0-9A-Fa-f]{6}$/).optional(), logoUrl: z.string().url().optional(), iconName: z.string().optional(), sortOrder: z.number().int().optional() }))
+      .mutation(({ input }) => db.updateBrand(input.id, input)),
+    toggleStatus: protectedProcedure
+      .input(z.object({ id: z.number(), status: z.enum(["active", "inactive"]) }))
+      .mutation(({ input }) => db.toggleBrandStatus(input.id, input.status)),
+    uploadLogo: protectedProcedure
+      .input(z.object({ fileBase64: z.string(), fileType: z.string().default("image/png"), fileName: z.string().default("logo.png") }))
+      .mutation(async ({ input }) => { const buffer = Buffer.from(input.fileBase64, "base64"); const fileKey = `brands/${Date.now()}-${input.fileName}`; const { url } = await storagePut(fileKey, buffer, input.fileType); return { url }; }),
+  }),
+  signedReports: router({
+    create: protectedProcedure
+      .input(z.object({ promoterId: z.number().optional(), month: z.number().int().min(1).max(12), year: z.number().int().min(2020).max(2100), signatureData: z.string().min(10), reportHash: z.string() }))
+      .mutation(async ({ ctx, input }) => {
+        const reportId = `RPT-${ctx.user.id}-${input.year}${String(input.month).padStart(2, "0")}-${Date.now()}`;
+        const id = await db.createSignedReport({ ...input, managerId: ctx.user.id, reportId, signedAt: new Date() });
+        return { id, reportId };
+      }),
+    verify: publicProcedure.input(z.object({ reportId: z.string() })).query(({ input }) => db.getSignedReportById(input.reportId)),
+    listByManager: protectedProcedure.query(({ ctx }) => db.getSignedReportsByManager(ctx.user.id)),
+  }),
 });
 
 export type AppRouter = typeof appRouter;

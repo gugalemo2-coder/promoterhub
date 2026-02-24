@@ -59,8 +59,12 @@ export default function RootLayout() {
           queries: {
             // Disable automatic refetching on window focus for mobile
             refetchOnWindowFocus: false,
-            // Retry failed requests once
-            retry: 1,
+            // Never retry on auth errors (UNAUTHORIZED), retry once for other errors
+            retry: (failureCount, error: unknown) => {
+              const trpcError = error as { data?: { code?: string } } | null;
+              if (trpcError?.data?.code === "UNAUTHORIZED") return false;
+              return failureCount < 1;
+            },
           },
         },
       }),

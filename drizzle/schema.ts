@@ -238,3 +238,47 @@ export const pushTokens = mysqlTable("push_tokens", {
 
 export type PushToken = typeof pushTokens.$inferSelect;
 export type InsertPushToken = typeof pushTokens.$inferInsert;
+
+// ─── NOTIFICATIONS ────────────────────────────────────────────────────────────
+export const notifications = mysqlTable("notifications", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  title: varchar("title", { length: 255 }).notNull(),
+  body: text("body").notNull(),
+  type: mysqlEnum("type", [
+    "geo_alert",
+    "material_request",
+    "material_approved",
+    "material_rejected",
+    "new_file",
+    "photo_approved",
+    "photo_rejected",
+    "system",
+  ]).notNull(),
+  relatedId: int("relatedId"),
+  relatedType: varchar("relatedType", { length: 50 }),
+  isRead: boolean("isRead").default(false).notNull(),
+  readAt: timestamp("readAt"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type Notification = typeof notifications.$inferSelect;
+export type InsertNotification = typeof notifications.$inferInsert;
+
+// ─── SIGNED REPORTS ───────────────────────────────────────────────────────────
+export const signedReports = mysqlTable("signed_reports", {
+  id: int("id").autoincrement().primaryKey(),
+  reportId: varchar("reportId", { length: 64 }).notNull().unique(),
+  managerId: int("managerId").notNull(),
+  promoterId: int("promoterId"),
+  month: int("month").notNull(),
+  year: int("year").notNull(),
+  signatureData: text("signatureData").notNull(),
+  signedAt: timestamp("signedAt").defaultNow().notNull(),
+  reportHash: varchar("reportHash", { length: 128 }).notNull(),
+  pdfUrl: varchar("pdfUrl", { length: 500 }),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type SignedReport = typeof signedReports.$inferSelect;
+export type InsertSignedReport = typeof signedReports.$inferInsert;

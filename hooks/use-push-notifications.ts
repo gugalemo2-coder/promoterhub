@@ -7,7 +7,6 @@
 
 import { trpc } from "@/lib/trpc";
 import Constants from "expo-constants";
-import * as Device from "expo-device";
 import * as Notifications from "expo-notifications";
 import { useEffect, useRef } from "react";
 import { Platform } from "react-native";
@@ -49,10 +48,9 @@ export function usePushNotifications() {
   }, []);
 
   async function registerForPushNotifications() {
-    if (!Device.isDevice) {
-      // Push notifications only work on physical devices
-      return;
-    }
+    // Push notifications only work on physical devices (not simulators/emulators)
+    // We check by attempting to get permissions — simulators will fail gracefully
+    if (Platform.OS === "web") return;
 
     // Set up Android notification channel
     if (Platform.OS === "android") {

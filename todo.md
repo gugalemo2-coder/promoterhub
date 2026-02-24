@@ -119,3 +119,36 @@
 - [x] Notificação ao promotor: novo arquivo disponível
 - [x] Integração no _layout.tsx (PushNotificationSetup)
 - [x] Plugin expo-notifications no app.config.ts
+
+## Fase 3 — Novas Funcionalidades
+
+### Central de Histórico de Notificações
+- [x] Tabela `notifications` no banco de dados (título, corpo, tipo, lida, userId)
+- [x] Salvar notificações no banco ao disparar push
+- [x] Router tRPC: listar, marcar como lida, marcar todas como lidas, contar não lidas
+- [x] Tela de histórico de notificações (aba para gestor e promotor)
+- [x] Filtros por tipo e por não lidas
+- [x] Marcar como lida ao tocar na notificação
+
+### Cadastro e Gestão de Marcas
+- [x] Router tRPC: criar, editar, desativar marca, upload de logo
+- [x] Tela de listagem de marcas para o Gestor
+- [x] Formulário de criação/edição de marca (nome, cor, logo)
+- [x] Upload de logo da marca via galeria com preview
+- [x] Ativar/desativar marca com toggle
+- [x] Seletor de 10 cores predefinidas + campo hex personalizado
+
+### Assinatura Digital de Relatório
+- [x] Tela de assinatura digital com canvas de desenho (WebView)
+- [x] Geração de código único de verificação por relatório
+- [x] Tabela signed_reports no banco de dados
+- [x] Router tRPC: criar, verificar, listar por gestor
+- [x] Histórico de relatórios assinados
+- [x] Exportação via compartilhamento nativo
+
+### Correção de Erros no Expo Go
+- [x] Investigar Console Error ao abrir o app (push token sem projectId no Expo Go)
+- [x] Investigar Uncaught Error ao abrir o app (tRPC UNAUTHORIZED antes da autenticação)
+- [x] Corrigir retry do QueryClient para não repetir em erros UNAUTHORIZED
+- [x] Adicionar enabled: !!user em todas as queries da tela Home
+- [x] Remover expo-device do hook de push notifications

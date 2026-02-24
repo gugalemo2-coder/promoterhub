@@ -50,6 +50,8 @@ const MAPPING = {
   "chart.line.uptrend.xyaxis": "trending-up",
   "chart.pie.fill": "pie-chart",
   "bell.badge.fill": "notifications-active",
+  "tag.circle.fill": "local-offer",
+  "signature": "draw",
 } as IconMapping;
 
 /**

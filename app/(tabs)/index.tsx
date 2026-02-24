@@ -14,11 +14,12 @@ export default function HomeScreen() {
   const router = useRouter();
   const isManager = appRole === "manager";
 
-  const { data: dailySummary } = trpc.timeEntries.dailySummary.useQuery({ date: new Date().toISOString() });
-  const { data: brands } = trpc.brands.list.useQuery();
-  const { data: pendingRequests } = trpc.materialRequests.list.useQuery({ status: "pending" });
-  const { data: dailyReport } = trpc.reports.daily.useQuery({ date: new Date().toISOString() }, { enabled: isManager });
-  const { data: unacknowledgedAlerts } = trpc.geoAlerts.list.useQuery({ acknowledged: false, limit: 5 }, { enabled: isManager });
+  const isReady = !!user;
+  const { data: dailySummary } = trpc.timeEntries.dailySummary.useQuery({ date: new Date().toISOString() }, { enabled: isReady });
+  const { data: brands } = trpc.brands.list.useQuery(undefined, { enabled: isReady });
+  const { data: pendingRequests } = trpc.materialRequests.list.useQuery({ status: "pending" }, { enabled: isReady });
+  const { data: dailyReport } = trpc.reports.daily.useQuery({ date: new Date().toISOString() }, { enabled: isReady && isManager });
+  const { data: unacknowledgedAlerts } = trpc.geoAlerts.list.useQuery({ acknowledged: false, limit: 5 }, { enabled: isReady && isManager });
 
   const firstName = user?.name?.split(" ")[0] ?? "Promotor";
   const now = new Date();
