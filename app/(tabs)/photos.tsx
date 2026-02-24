@@ -42,6 +42,13 @@ export default function PhotosScreen() {
 
   const displayPhotos = isManager ? photos : myPhotos;
 
+  // Contagem de fotos por marca (client-side)
+  const photoCountByBrand = (displayPhotos ?? []).reduce<Record<number, number>>((acc, p) => {
+    acc[p.brandId] = (acc[p.brandId] ?? 0) + 1;
+    return acc;
+  }, {});
+  const totalPhotos = (displayPhotos ?? []).length;
+
   const handleTakePhoto = async () => {
     if (!selectedBrandId) {
       Alert.alert("Selecione uma marca", "Por favor, selecione uma marca antes de tirar a foto.");
@@ -229,24 +236,59 @@ export default function PhotosScreen() {
         )}
       </View>
 
-      {/* Brand Filter */}
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={[styles.brandFilter, { borderBottomColor: colors.border }]}>
+      {/* Brand Filter — Pill Chips */}
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        style={[styles.brandFilterBar, { borderBottomColor: colors.border }]}
+        contentContainerStyle={styles.brandFilterContent}
+      >
+        {/* Chip "Todas" */}
         <Pressable
-          style={[styles.brandTab, !selectedBrandId && { borderBottomColor: colors.primary, borderBottomWidth: 2 }]}
+          style={({ pressed }) => [
+            styles.brandChip,
+            !selectedBrandId
+              ? { backgroundColor: colors.primary }
+              : { backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1 },
+            pressed && { opacity: 0.75 },
+          ]}
           onPress={() => setSelectedBrandId(null)}
         >
-          <Text style={[styles.brandTabText, { color: !selectedBrandId ? colors.primary : colors.muted }]}>Todas</Text>
+          <Text style={[styles.brandChipText, { color: !selectedBrandId ? "#fff" : colors.muted }]}>Todas</Text>
+          {totalPhotos > 0 && (
+            <View style={[styles.brandChipBadge, { backgroundColor: !selectedBrandId ? "rgba(255,255,255,0.3)" : colors.border }]}>
+              <Text style={[styles.brandChipBadgeText, { color: !selectedBrandId ? "#fff" : colors.muted }]}>{totalPhotos}</Text>
+            </View>
+          )}
         </Pressable>
-        {brands?.map((brand) => (
-          <Pressable
-            key={brand.id}
-            style={[styles.brandTab, selectedBrandId === brand.id && { borderBottomColor: brand.colorHex ?? colors.primary, borderBottomWidth: 2 }]}
-            onPress={() => setSelectedBrandId(brand.id)}
-          >
-            <View style={[styles.brandDot, { backgroundColor: brand.colorHex ?? colors.primary }]} />
-            <Text style={[styles.brandTabText, { color: selectedBrandId === brand.id ? (brand.colorHex ?? colors.primary) : colors.muted }]}>{brand.name}</Text>
-          </Pressable>
-        ))}
+
+        {/* Chips por marca */}
+        {brands?.map((brand) => {
+          const isActive = selectedBrandId === brand.id;
+          const brandColor = brand.colorHex ?? colors.primary;
+          const count = photoCountByBrand[brand.id] ?? 0;
+          return (
+            <Pressable
+              key={brand.id}
+              style={({ pressed }) => [
+                styles.brandChip,
+                isActive
+                  ? { backgroundColor: brandColor }
+                  : { backgroundColor: brandColor + "18", borderColor: brandColor + "50", borderWidth: 1 },
+                pressed && { opacity: 0.75 },
+              ]}
+              onPress={() => setSelectedBrandId(brand.id)}
+            >
+              <View style={[styles.brandChipDot, { backgroundColor: isActive ? "rgba(255,255,255,0.7)" : brandColor }]} />
+              <Text style={[styles.brandChipText, { color: isActive ? "#fff" : brandColor }]}>{brand.name}</Text>
+              {count > 0 && (
+                <View style={[styles.brandChipBadge, { backgroundColor: isActive ? "rgba(255,255,255,0.25)" : brandColor + "30" }]}>
+                  <Text style={[styles.brandChipBadgeText, { color: isActive ? "#fff" : brandColor }]}>{count}</Text>
+                </View>
+              )}
+            </Pressable>
+          );
+        })}
       </ScrollView>
 
       {/* Photos Grid */}
@@ -309,10 +351,13 @@ const styles = StyleSheet.create({
   headerTitle: { fontSize: 20, fontWeight: "700", color: "#FFFFFF" },
   headerActions: { flexDirection: "row", gap: 8 },
   headerBtn: { padding: 8, borderRadius: 10 },
-  brandFilter: { borderBottomWidth: 1, paddingHorizontal: 8 },
-  brandTab: { paddingHorizontal: 16, paddingVertical: 12, flexDirection: "row", alignItems: "center", gap: 6 },
-  brandTabText: { fontSize: 14, fontWeight: "600" },
-  brandDot: { width: 8, height: 8, borderRadius: 4 },
+  brandFilterBar: { borderBottomWidth: 0.5, maxHeight: 60 },
+  brandFilterContent: { paddingHorizontal: 14, paddingVertical: 10, gap: 8, alignItems: "center" },
+  brandChip: { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20 },
+  brandChipDot: { width: 7, height: 7, borderRadius: 4 },
+  brandChipText: { fontSize: 13, fontWeight: "600" },
+  brandChipBadge: { paddingHorizontal: 6, paddingVertical: 1, borderRadius: 10 },
+  brandChipBadgeText: { fontSize: 10, fontWeight: "700" },
   grid: { padding: 12 },
   gridRow: { gap: 12, marginBottom: 12 },
   photoCard: { flex: 1, borderRadius: 16, overflow: "hidden", borderWidth: 1 },

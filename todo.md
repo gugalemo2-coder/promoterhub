@@ -284,3 +284,13 @@
 - [x] Remover aba "Offline" da barra de navegação inferior do Promotor
 - [x] Manter a funcionalidade de fila offline funcionando em segundo plano
 - [x] Remover card de horas trabalhadas da tela de Perfil do Promotor
+
+## Fase 11 — Filtro de Marca nas Fotos
+
+- [x] Barra de filtro horizontal com chips pill de marca na tela de Fotos do Promotor
+- [x] Opção "Todas" selecionada por padrão com contador total
+- [x] Filtrar a listagem de fotos pela marca selecionada (server-side via brandId)
+- [x] Chip ativo com cor de fundo sólida da marca
+- [x] Chip inativo com fundo translucido e borda colorida da marca
+- [x] Contador de fotos por marca exibido em badge no chip
+- [x] Ponto colorido da marca ao lado do nome no chip
