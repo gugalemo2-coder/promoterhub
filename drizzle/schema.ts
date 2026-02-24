@@ -282,3 +282,25 @@ export const signedReports = mysqlTable("signed_reports", {
 
 export type SignedReport = typeof signedReports.$inferSelect;
 export type InsertSignedReport = typeof signedReports.$inferInsert;
+
+// ─── APP SETTINGS ─────────────────────────────────────────────────────────────
+export const appSettings = mysqlTable("app_settings", {
+  id: int("id").autoincrement().primaryKey(),
+  managerId: int("managerId").notNull().unique(),
+  // Geofencing
+  geoRadiusKm: decimal("geoRadiusKm", { precision: 5, scale: 2 }).default("0.50").notNull(),
+  // Score weights (must sum to 100)
+  weightPhotos: int("weightPhotos").default(30).notNull(),
+  weightHours: int("weightHours").default(25).notNull(),
+  weightVisits: int("weightVisits").default(25).notNull(),
+  weightMaterials: int("weightMaterials").default(10).notNull(),
+  weightQuality: int("weightQuality").default(10).notNull(),
+  // Notification toggles
+  notifyGeoAlert: boolean("notifyGeoAlert").default(true).notNull(),
+  notifyLowHours: boolean("notifyLowHours").default(true).notNull(),
+  notifyMaterialRequest: boolean("notifyMaterialRequest").default(true).notNull(),
+  notifyPhotoRejected: boolean("notifyPhotoRejected").default(true).notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type AppSettings = typeof appSettings.$inferSelect;
+export type InsertAppSettings = typeof appSettings.$inferInsert;

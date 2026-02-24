@@ -303,3 +303,18 @@
 - [x] Limpar estado de role e cache ao fazer logout
 - [x] Corrigir react-native-maps para versão compatível com Expo Go SDK 54 (1.20.1)
 - [x] Adicionar confirmação de logout (Alert) antes de sair da conta
+
+## Fase 13 — Configurações do Gestor e Status Visual de Fotos
+
+- [x] Tabela appSettings no banco de dados (raio geofencing, pesos do score, notificações)
+- [x] Endpoint tRPC: settings.get e settings.save
+- [x] Tela de Configurações do Gestor com raio de geofencing (chips pill 0.1km–10km)
+- [x] Pesos do score compostos com controles +/- e validação de soma = 100%
+- [x] Indicador visual de pesos válidos/inválidos
+- [x] Toggles de notificações push por tipo de evento
+- [x] Botão Salvar com estado dirty (só ativo quando há alterações)
+- [x] Aba "Config" visível apenas para gestores na barra de navegação
+- [x] Filtro de status (Todos/Pendente/Aprovada/Rejeitada) na tela de Fotos
+- [x] Filtro de status passado como parâmetro server-side para o endpoint
+- [x] Downgrade react-native-webview para 13.15.0 (compatível com Expo Go SDK 54)
+- [x] Downgrade @react-native-community/netinfo para 11.4.1 (compatível com Expo Go SDK 54)

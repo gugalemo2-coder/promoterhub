@@ -24,16 +24,17 @@ export default function PhotosScreen() {
   const isManager = appRole === "manager";
 
   const [selectedBrandId, setSelectedBrandId] = useState<number | null>(null);
+  const [selectedStatus, setSelectedStatus] = useState<"pending" | "approved" | "rejected" | null>(null);
   const [uploading, setUploading] = useState(false);
 
   const { data: brands } = trpc.brands.list.useQuery();
   const { data: stores } = trpc.stores.list.useQuery();
   const { data: photos, refetch: refetchPhotos } = trpc.photos.listAll.useQuery(
-    { brandId: selectedBrandId ?? undefined, limit: 50 },
+    { brandId: selectedBrandId ?? undefined, status: selectedStatus ?? undefined, limit: 50 },
     { enabled: isManager }
   );
   const { data: myPhotos, refetch: refetchMyPhotos } = trpc.photos.list.useQuery(
-    { brandId: selectedBrandId ?? undefined, limit: 50 },
+    { brandId: selectedBrandId ?? undefined, status: selectedStatus ?? undefined, limit: 50 },
     { enabled: !isManager }
   );
   const uploadMutation = trpc.photos.upload.useMutation();
@@ -236,6 +237,37 @@ export default function PhotosScreen() {
         )}
       </View>
 
+      {/* Status Filter */}
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        style={[styles.brandFilterBar, { borderBottomColor: colors.border }]}
+        contentContainerStyle={styles.brandFilterContent}
+      >
+        {([
+          { key: null, label: "Todos", color: colors.primary },
+          { key: "pending" as const, label: "Pendente", color: colors.warning },
+          { key: "approved" as const, label: "Aprovada", color: colors.success },
+          { key: "rejected" as const, label: "Rejeitada", color: colors.error },
+        ]).map(({ key, label, color }) => {
+          const isActive = selectedStatus === key;
+          return (
+            <Pressable
+              key={String(key)}
+              style={({ pressed }) => [
+                styles.brandChip,
+                isActive
+                  ? { backgroundColor: color }
+                  : { backgroundColor: color + "18", borderColor: color + "60", borderWidth: 1 },
+                pressed && { opacity: 0.75 },
+              ]}
+              onPress={() => setSelectedStatus(key)}
+            >
+              <Text style={[styles.brandChipText, { color: isActive ? "#fff" : color }]}>{label}</Text>
+            </Pressable>
+          );
+        })}
+      </ScrollView>
       {/* Brand Filter — Pill Chips */}
       <ScrollView
         horizontal

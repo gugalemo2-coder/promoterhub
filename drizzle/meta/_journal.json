@@ -29,6 +29,13 @@
       "when": 1771945815144,
       "tag": "0003_clammy_mad_thinker",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "5",
+      "when": 1771956906091,
+      "tag": "0004_fuzzy_falcon",
+      "breakpoints": true
     }
   ]
 }

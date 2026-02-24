@@ -40,6 +40,8 @@ import {
   type Store,
   type TimeEntry,
   type User,
+  appSettings,
+  type AppSettings,
 } from "../drizzle/schema";
 import { ENV } from "./_core/env";
 
@@ -1423,4 +1425,19 @@ export async function getPromoterDetail(
     storeBreakdown,
     monthlyTrend,
   };
+}
+
+// ─── APP SETTINGS ─────────────────────────────────────────────────────────────
+
+export async function getAppSettings(managerId: number): Promise<AppSettings | null> {
+  const db = await getDb();
+  if (!db) return null;
+  const result = await db.select().from(appSettings).where(eq(appSettings.managerId, managerId)).limit(1);
+  return result.length > 0 ? result[0] : null;
+}
+
+export async function upsertAppSettings(managerId: number, data: Partial<Omit<AppSettings, "id" | "managerId" | "updatedAt">>): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.insert(appSettings).values({ managerId, ...data }).onDuplicateKeyUpdate({ set: data });
 }

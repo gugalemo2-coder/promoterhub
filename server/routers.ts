@@ -282,5 +282,23 @@ export const appRouter = router({
       }))
       .query(({ input }) => db.getPromoterDetail(input.promoterId, input.year, input.month)),
   }),
+  settings: router({
+    get: protectedProcedure
+      .query(({ ctx }) => db.getAppSettings(ctx.user.id)),
+    save: protectedProcedure
+      .input(z.object({
+        geoRadiusKm: z.string().optional(),
+        weightPhotos: z.number().int().min(0).max(100).optional(),
+        weightHours: z.number().int().min(0).max(100).optional(),
+        weightVisits: z.number().int().min(0).max(100).optional(),
+        weightMaterials: z.number().int().min(0).max(100).optional(),
+        weightQuality: z.number().int().min(0).max(100).optional(),
+        notifyGeoAlert: z.boolean().optional(),
+        notifyLowHours: z.boolean().optional(),
+        notifyMaterialRequest: z.boolean().optional(),
+        notifyPhotoRejected: z.boolean().optional(),
+      }))
+      .mutation(({ ctx, input }) => db.upsertAppSettings(ctx.user.id, input)),
+  }),
 });
 export type AppRouter = typeof appRouter;

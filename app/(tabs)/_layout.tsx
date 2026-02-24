@@ -220,6 +220,16 @@ export default function TabLayout() {
           ),
         }}
       />
+      <Tabs.Screen
+        name="settings"
+        options={{
+          title: "Config",
+          tabBarIcon: ({ color }) => (
+            <IconSymbol size={26} name="gear" color={color} />
+          ),
+          href: isManager ? undefined : null,
+        }}
+      />
     </Tabs>
   );
 }
