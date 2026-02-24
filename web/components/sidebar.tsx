@@ -17,6 +17,7 @@ import {
   Menu,
   X,
   ChevronRight,
+  Tag,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import { useState } from "react";
@@ -28,6 +29,7 @@ const navItems = [
   { href: "/stores", icon: MapPin, label: "PDVs" },
   { href: "/photos", icon: Camera, label: "Fotos" },
   { href: "/materials", icon: Package, label: "Materiais" },
+  { href: "/brands", icon: Tag, label: "Marcas" },
   { href: "/alerts", icon: Bell, label: "Alertas" },
   { href: "/reports", icon: BarChart3, label: "Relatórios" },
   { href: "/settings", icon: Settings, label: "Configurações" },

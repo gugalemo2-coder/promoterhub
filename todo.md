@@ -346,3 +346,12 @@
 - [x] Página de Configurações: raio geofencing, pesos do score, notificações
 - [x] Conexão com o mesmo banco de dados do app mobile via tRPC
 - [x] Zero erros TypeScript no painel web
+
+## Fase 16 — Gerenciamento de Marcas no Painel Web
+
+- [x] Página de Marcas no painel web: listagem com logo, cor, status e ordem
+- [x] Modal de criação de marca: nome, descrição, cor hex, ordem
+- [x] Modal de edição de marca: pré-preencher campos existentes
+- [x] Upload de logo da marca via arquivo (input file)
+- [x] Toggle ativar/desativar marca com confirmação
+- [x] Link "Marcas" na sidebar do painel web
