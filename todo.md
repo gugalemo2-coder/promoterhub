@@ -195,3 +195,21 @@
 - [x] Código de verificação único por exportação
 - [x] Botão "Exportar" no header da tela de Dashboard de PDVs
 - [x] Compartilhamento nativo no mobile / nova aba no web
+
+## Fase 6 — Novas Funcionalidades
+
+### Filtro de PDV por Promotor no Dashboard
+- [x] Endpoint tRPC: storePerformance.promoters (listar promotores ativos)
+- [x] Seletor de promotor com dropdown no Dashboard de PDVs
+- [x] Filtrar ranking de PDVs pelas lojas cobertas pelo promotor selecionado
+- [x] Opção "Todos os promotores" como padrão
+- [x] Botão de limpar filtro (X) quando promotor está selecionado
+
+### Perfil do Promotor
+- [x] Endpoint tRPC: promoterProfile.myStats (fotos aprovadas, materiais solicitados, horas, visitas)
+- [x] Endpoint tRPC: promoterProfile.weeklyTrend (últimas 4 semanas)
+- [x] Tela de perfil com 4 cards de estatísticas (fotos aprovadas, materiais, horas, visitas)
+- [x] Gráfico de barras semanal com seletor de métrica (fotos/materiais/horas)
+- [x] Breakdown de fotos aprovadas por marca com barras de progresso
+- [x] Seletor de mês/ano para filtrar os dados
+- [x] Aba "Meu Perfil" na navegação do Promotor

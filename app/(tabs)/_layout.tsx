@@ -182,6 +182,16 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
+        name="my-profile"
+        options={{
+          title: "Meu Perfil",
+          tabBarIcon: ({ color }) => (
+            <IconSymbol size={26} name="person.crop.circle.fill" color={color} />
+          ),
+          href: isManager ? null : undefined,
+        }}
+      />
+      <Tabs.Screen
         name="notifications"
         options={{
           title: "Avisos",

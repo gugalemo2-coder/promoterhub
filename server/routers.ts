@@ -220,8 +220,21 @@ export const appRouter = router({
   }),
   storePerformance: router({
     ranking: protectedProcedure
+      .input(z.object({
+        year: z.number().int().min(2020).max(2100),
+        month: z.number().int().min(1).max(12),
+        promoterId: z.number().int().positive().optional(),
+      }))
+      .query(({ input }) => db.getStorePerformance(input.year, input.month, input.promoterId)),
+    promoters: protectedProcedure
+      .query(() => db.getAllPromoterUsers()),
+  }),
+  promoterProfile: router({
+    myStats: protectedProcedure
       .input(z.object({ year: z.number().int().min(2020).max(2100), month: z.number().int().min(1).max(12) }))
-      .query(({ input }) => db.getStorePerformance(input.year, input.month)),
+      .query(({ ctx, input }) => db.getPromoterMonthlyStats(ctx.user.id, input.year, input.month)),
+    weeklyTrend: protectedProcedure
+      .query(({ ctx }) => db.getPromoterWeeklyTrend(ctx.user.id)),
   }),
 });
 export type AppRouter = typeof appRouter;

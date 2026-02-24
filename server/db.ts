@@ -604,7 +604,7 @@ export interface StorePerformanceData {
   rank: number;
 }
 
-export async function getStorePerformance(year: number, month: number): Promise<StorePerformanceData[]> {
+export async function getStorePerformance(year: number, month: number, promoterId?: number): Promise<StorePerformanceData[]> {
   const db = await getDb();
   if (!db) return [];
 
@@ -620,54 +620,67 @@ export async function getStorePerformance(year: number, month: number): Promise<
 
   if (allStores.length === 0) return [];
 
-  // Fetch time entries for the period
-  const entries = await db
+  // Fetch time entries for the period (optionally filtered by promoter)
+  const entriesQuery = db
     .select()
     .from(timeEntries)
     .where(
       and(
         gte(timeEntries.entryTime, startDate),
-        lte(timeEntries.entryTime, endDate)
+        lte(timeEntries.entryTime, endDate),
+        promoterId ? eq(timeEntries.userId, promoterId) : undefined
       )
     );
+  const entries = await entriesQuery;
 
-  // Fetch photos for the period
+  // Fetch photos for the period (optionally filtered by promoter)
   const photoData = await db
     .select()
     .from(photos)
     .where(
       and(
         gte(photos.photoTimestamp, startDate),
-        lte(photos.photoTimestamp, endDate)
+        lte(photos.photoTimestamp, endDate),
+        promoterId ? eq(photos.userId, promoterId) : undefined
       )
     );
 
-  // Fetch material requests for the period
+  // Fetch material requests for the period (optionally filtered by promoter)
   const matRequests = await db
     .select()
     .from(materialRequests)
     .where(
       and(
         gte(materialRequests.requestedAt, startDate),
-        lte(materialRequests.requestedAt, endDate)
+        lte(materialRequests.requestedAt, endDate),
+        promoterId ? eq(materialRequests.userId, promoterId) : undefined
       )
     );
 
-  // Fetch geo alerts for the period
+  // Fetch geo alerts for the period (optionally filtered by promoter)
   const alerts = await db
     .select()
     .from(geoAlerts)
     .where(
       and(
         gte(geoAlerts.alertTimestamp, startDate),
-        lte(geoAlerts.alertTimestamp, endDate)
+        lte(geoAlerts.alertTimestamp, endDate),
+        promoterId ? eq(geoAlerts.userId, promoterId) : undefined
       )
     );
+
+  // If filtering by promoter, only include stores they visited
+  const relevantStoreIds = promoterId
+    ? new Set(entries.map((e) => e.storeId))
+    : null;
 
   // Compute per-store metrics
   const storeMap = new Map<number, StorePerformanceData>();
 
   for (const store of allStores) {
+    // Skip stores not visited by the filtered promoter
+    if (relevantStoreIds && !relevantStoreIds.has(store.id)) continue;
+
     // Visits = number of "entry" time entries for this store
     const storeEntries = entries.filter((e) => e.storeId === store.id);
     const totalVisits = storeEntries.filter((e) => e.entryType === "entry").length;
@@ -759,4 +772,146 @@ export async function getStorePerformance(year: number, month: number): Promise<
   });
 
   return results;
+}
+
+// ─── Promoter Profile Stats ────────────────────────────────────────────────────
+
+export interface PromoterMonthlyStats {
+  totalApprovedPhotos: number;
+  totalMaterialRequests: number;
+  totalHoursWorked: number;
+  totalVisits: number;
+  avgScoreStores: number;
+  brandBreakdown: { brandId: number; brandName: string; approvedPhotos: number }[];
+}
+
+export async function getPromoterMonthlyStats(
+  userId: number,
+  year: number,
+  month: number
+): Promise<PromoterMonthlyStats> {
+  const db = await getDb();
+  if (!db) return { totalApprovedPhotos: 0, totalMaterialRequests: 0, totalHoursWorked: 0, totalVisits: 0, avgScoreStores: 0, brandBreakdown: [] };
+
+  const startDate = new Date(year, month - 1, 1);
+  const endDate = new Date(year, month, 0, 23, 59, 59);
+
+  // Fetch approved photos for the month
+  const approvedPhotos = await db
+    .select()
+    .from(photos)
+    .where(
+      and(
+        eq(photos.userId, userId),
+        eq(photos.status, "approved"),
+        gte(photos.photoTimestamp, startDate),
+        lte(photos.photoTimestamp, endDate)
+      )
+    );
+
+  // Fetch material requests for the month
+  const matReqs = await db
+    .select()
+    .from(materialRequests)
+    .where(
+      and(
+        eq(materialRequests.userId, userId),
+        gte(materialRequests.requestedAt, startDate),
+        lte(materialRequests.requestedAt, endDate)
+      )
+    );
+
+  // Fetch time entries for the month
+  const entries = await db
+    .select()
+    .from(timeEntries)
+    .where(
+      and(
+        eq(timeEntries.userId, userId),
+        gte(timeEntries.entryTime, startDate),
+        lte(timeEntries.entryTime, endDate)
+      )
+    );
+
+  // Compute hours worked from entry/exit pairs
+  const entryTimes = entries.filter((e) => e.entryType === "entry").map((e) => e.entryTime.getTime());
+  const exitTimes = entries.filter((e) => e.entryType === "exit").map((e) => e.entryTime.getTime());
+  let totalMinutes = 0;
+  const pairs = Math.min(entryTimes.length, exitTimes.length);
+  for (let i = 0; i < pairs; i++) {
+    const diff = (exitTimes[i] - entryTimes[i]) / 60000;
+    if (diff > 0 && diff < 720) totalMinutes += diff;
+  }
+
+  const totalVisits = entries.filter((e) => e.entryType === "entry").length;
+
+  // Brand breakdown of approved photos
+  const allBrands = await db.select().from(brands).where(eq(brands.status, "active"));
+  const brandBreakdown = allBrands
+    .map((b) => ({
+      brandId: b.id,
+      brandName: b.name,
+      approvedPhotos: approvedPhotos.filter((p) => p.brandId === b.id).length,
+    }))
+    .filter((b) => b.approvedPhotos > 0);
+
+  return {
+    totalApprovedPhotos: approvedPhotos.length,
+    totalMaterialRequests: matReqs.length,
+    totalHoursWorked: Math.round((totalMinutes / 60) * 10) / 10,
+    totalVisits,
+    avgScoreStores: 0, // computed on client from store performance
+    brandBreakdown,
+  };
+}
+
+export interface WeeklyTrendPoint {
+  weekLabel: string;
+  approvedPhotos: number;
+  materialRequests: number;
+  hoursWorked: number;
+}
+
+export async function getPromoterWeeklyTrend(userId: number): Promise<WeeklyTrendPoint[]> {
+  const db = await getDb();
+  if (!db) return [];
+
+  const now = new Date();
+  const result: WeeklyTrendPoint[] = [];
+
+  for (let w = 3; w >= 0; w--) {
+    const weekStart = new Date(now);
+    weekStart.setDate(now.getDate() - now.getDay() - w * 7);
+    weekStart.setHours(0, 0, 0, 0);
+    const weekEnd = new Date(weekStart);
+    weekEnd.setDate(weekStart.getDate() + 6);
+    weekEnd.setHours(23, 59, 59, 999);
+
+    const [weekPhotos, weekMat, weekEntries] = await Promise.all([
+      db.select().from(photos).where(and(eq(photos.userId, userId), eq(photos.status, "approved"), gte(photos.photoTimestamp, weekStart), lte(photos.photoTimestamp, weekEnd))),
+      db.select().from(materialRequests).where(and(eq(materialRequests.userId, userId), gte(materialRequests.requestedAt, weekStart), lte(materialRequests.requestedAt, weekEnd))),
+      db.select().from(timeEntries).where(and(eq(timeEntries.userId, userId), gte(timeEntries.entryTime, weekStart), lte(timeEntries.entryTime, weekEnd))),
+    ]);
+
+    const entryTs = weekEntries.filter((e) => e.entryType === "entry").map((e) => e.entryTime.getTime());
+    const exitTs = weekEntries.filter((e) => e.entryType === "exit").map((e) => e.entryTime.getTime());
+    let mins = 0;
+    const p = Math.min(entryTs.length, exitTs.length);
+    for (let i = 0; i < p; i++) {
+      const d = (exitTs[i] - entryTs[i]) / 60000;
+      if (d > 0 && d < 720) mins += d;
+    }
+
+    const dayNames = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
+    const weekLabel = w === 0 ? "Esta sem." : `${weekStart.getDate()}/${weekStart.getMonth() + 1}`;
+
+    result.push({
+      weekLabel,
+      approvedPhotos: weekPhotos.length,
+      materialRequests: weekMat.length,
+      hoursWorked: Math.round((mins / 60) * 10) / 10,
+    });
+  }
+
+  return result;
 }

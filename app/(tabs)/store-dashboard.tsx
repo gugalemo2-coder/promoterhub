@@ -191,11 +191,23 @@ export default function StoreDashboardScreen() {
   const now = new Date();
   const [year, setYear] = useState(now.getFullYear());
   const [month, setMonth] = useState(now.getMonth() + 1);
+  const [selectedPromoterId, setSelectedPromoterId] = useState<number | undefined>(undefined);
+  const [showPromoterPicker, setShowPromoterPicker] = useState(false);
 
-  const { data, isLoading, refetch } = trpc.storePerformance.ranking.useQuery(
-    { year, month },
+  // Fetch promoters list for the filter
+  const { data: promoters } = trpc.storePerformance.promoters.useQuery(
+    undefined,
     { enabled: !!user }
   );
+
+  const { data, isLoading, refetch } = trpc.storePerformance.ranking.useQuery(
+    { year, month, promoterId: selectedPromoterId },
+    { enabled: !!user }
+  );
+
+  const selectedPromoterName = selectedPromoterId
+    ? promoters?.find((p) => p.id === selectedPromoterId)?.name ?? "Promotor"
+    : "Todos os promotores";
 
   const stores = data ?? [];
   const maxVisits = Math.max(...stores.map((s) => s.totalVisits), 1);
@@ -376,6 +388,55 @@ export default function StoreDashboardScreen() {
           <Ionicons name="chevron-forward" size={20} color={colors.primary} />
         </Pressable>
       </View>
+
+      {/* Promoter filter */}
+      <View style={[styles.promoterFilter, { backgroundColor: colors.surface, borderBottomColor: colors.border }]}>
+        <Ionicons name="people-outline" size={16} color={colors.muted} />
+        <Pressable
+          onPress={() => setShowPromoterPicker(!showPromoterPicker)}
+          style={({ pressed }) => [styles.promoterBtn, { opacity: pressed ? 0.7 : 1 }]}
+        >
+          <Text style={[styles.promoterBtnText, { color: selectedPromoterId ? colors.primary : colors.muted }]}>
+            {selectedPromoterName}
+          </Text>
+          <Ionicons name={showPromoterPicker ? "chevron-up" : "chevron-down"} size={14} color={colors.muted} />
+        </Pressable>
+        {selectedPromoterId && (
+          <Pressable
+            onPress={() => setSelectedPromoterId(undefined)}
+            style={({ pressed }) => [{ opacity: pressed ? 0.6 : 1 }]}
+          >
+            <Ionicons name="close-circle" size={18} color={colors.error} />
+          </Pressable>
+        )}
+      </View>
+
+      {/* Promoter picker dropdown */}
+      {showPromoterPicker && (
+        <View style={[styles.promoterDropdown, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+          <Pressable
+            onPress={() => { setSelectedPromoterId(undefined); setShowPromoterPicker(false); }}
+            style={({ pressed }) => [styles.promoterOption, { opacity: pressed ? 0.7 : 1, backgroundColor: !selectedPromoterId ? colors.primary + "20" : "transparent" }]}
+          >
+            <Ionicons name="people" size={16} color={!selectedPromoterId ? colors.primary : colors.muted} />
+            <Text style={[styles.promoterOptionText, { color: !selectedPromoterId ? colors.primary : colors.foreground, fontWeight: !selectedPromoterId ? "700" : "400" }]}>
+              Todos os promotores
+            </Text>
+          </Pressable>
+          {(promoters ?? []).map((p) => (
+            <Pressable
+              key={p.id}
+              onPress={() => { setSelectedPromoterId(p.id); setShowPromoterPicker(false); }}
+              style={({ pressed }) => [styles.promoterOption, { opacity: pressed ? 0.7 : 1, backgroundColor: selectedPromoterId === p.id ? colors.primary + "20" : "transparent" }]}
+            >
+              <Ionicons name="person" size={16} color={selectedPromoterId === p.id ? colors.primary : colors.muted} />
+              <Text style={[styles.promoterOptionText, { color: selectedPromoterId === p.id ? colors.primary : colors.foreground, fontWeight: selectedPromoterId === p.id ? "700" : "400" }]}>
+                {p.name ?? p.email}
+              </Text>
+            </Pressable>
+          ))}
+        </View>
+      )}
 
       {/* Summary bar */}
       {stores.length > 0 && (
@@ -674,5 +735,43 @@ const styles = StyleSheet.create({
   expandHint: {
     alignItems: "center",
     paddingBottom: 6,
+  },
+  promoterFilter: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    gap: 8,
+    borderBottomWidth: 0.5,
+  },
+  promoterBtn: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 6,
+  },
+  promoterBtnText: {
+    fontSize: 13,
+    fontWeight: "500",
+    flex: 1,
+  },
+  promoterDropdown: {
+    marginHorizontal: 16,
+    marginTop: 4,
+    borderRadius: 12,
+    borderWidth: 1,
+    overflow: "hidden",
+    zIndex: 10,
+  },
+  promoterOption: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+  },
+  promoterOptionText: {
+    fontSize: 14,
   },
 });

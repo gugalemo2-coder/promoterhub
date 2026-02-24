@@ -54,6 +54,7 @@ const MAPPING = {
   "signature": "draw",
   "chart.bar.xaxis.ascending": "leaderboard",
   "arrow.triangle.2.circlepath": "sync",
+  "person.crop.circle.fill": "account-circle",
 } as IconMapping;
 
 /**
