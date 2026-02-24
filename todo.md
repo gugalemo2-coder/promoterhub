@@ -254,3 +254,26 @@
 - [x] Lista de lojas visitadas no mês com horas e fotos por loja
 - [x] Gráfico de evolução mensal (últimos 6 meses)
 - [x] Histórico de fotos aprovadas e rejeitadas
+
+## Fase 9 — Novas Funcionalidades
+
+### Exportação PDF do Ranking de Promotores
+- [x] Botão "Exportar" no header da tela de Ranking de Promotores
+- [x] Gerar HTML estilizado com ranking mensal completo de promotores
+- [x] Cabeçalho com mês/ano, número de promotores e score médio
+- [x] Tabela com posição (medalhas top 3), nome, todas as métricas e score colorido
+- [x] Fórmula do score composto no rodapé
+- [x] Código de verificação único por exportação
+- [x] Compartilhamento nativo no mobile / nova aba no web
+
+### Card de Evolução de Posição no Detalhe do Promotor
+- [x] Endpoint tRPC: promoterRanking.rankPosition (posição atual vs mês anterior)
+- [x] Card "Posição no Ranking" com posição atual e variação (subiu/desceu X posições)
+- [x] Indicador visual com seta e cor (verde = subiu, vermelho = desceu, cinza = igual)
+- [x] Total de promotores no ranking exibido no card
+
+### Filtro de Mês/Ano na Tela de Equipe
+- [x] Substituir seletor de data diário por seletor de mês/ano
+- [x] Exibir resumo mensal da equipe: horas, fotos, dias trabalhados, solicitações
+- [x] Cards de sumário mensal da equipe no topo
+- [x] Navegação para Detalhe do Promotor ao tocar no card

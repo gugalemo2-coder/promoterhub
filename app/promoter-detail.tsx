@@ -89,6 +89,11 @@ export default function PromoterDetailScreen() {
     { enabled: !!promoterId }
   );
 
+  const { data: rankPos } = trpc.promoterRanking.rankPosition.useQuery(
+    { promoterId: Number(promoterId), year, month },
+    { enabled: !!promoterId }
+  );
+
   const prevMonth = () => { if (month === 1) { setMonth(12); setYear(y => y - 1); } else setMonth(m => m - 1); };
   const nextMonth = () => {
     const n = new Date(); if (year > n.getFullYear() || (year === n.getFullYear() && month >= n.getMonth() + 1)) return;
@@ -188,6 +193,53 @@ export default function PromoterDetailScreen() {
               </View>
             )}
           </View>
+
+          {/* Rank Evolution Card */}
+          {rankPos && rankPos.currentRank !== null && (
+            <View style={[styles.section, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+              <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Posição no Ranking</Text>
+              <View style={styles.rankEvolutionRow}>
+                <View style={styles.rankEvolutionItem}>
+                  <Text style={[styles.rankEvolutionValue, { color: colors.primary }]}>#{rankPos.currentRank}</Text>
+                  <Text style={[styles.rankEvolutionLabel, { color: colors.muted }]}>Posição atual</Text>
+                </View>
+                <View style={styles.rankEvolutionDivider} />
+                <View style={styles.rankEvolutionItem}>
+                  <Text style={[styles.rankEvolutionValue, { color: colors.muted }]}>
+                    {rankPos.prevRank !== null ? `#${rankPos.prevRank}` : "—"}
+                  </Text>
+                  <Text style={[styles.rankEvolutionLabel, { color: colors.muted }]}>Mês anterior</Text>
+                </View>
+                <View style={styles.rankEvolutionDivider} />
+                <View style={styles.rankEvolutionItem}>
+                  {rankPos.change === null ? (
+                    <Text style={[styles.rankEvolutionValue, { color: colors.muted }]}>—</Text>
+                  ) : rankPos.change > 0 ? (
+                    <View style={styles.rankChangeRow}>
+                      <Ionicons name="arrow-up" size={18} color="#22C55E" />
+                      <Text style={[styles.rankEvolutionValue, { color: "#22C55E" }]}>{rankPos.change}</Text>
+                    </View>
+                  ) : rankPos.change < 0 ? (
+                    <View style={styles.rankChangeRow}>
+                      <Ionicons name="arrow-down" size={18} color="#EF4444" />
+                      <Text style={[styles.rankEvolutionValue, { color: "#EF4444" }]}>{Math.abs(rankPos.change)}</Text>
+                    </View>
+                  ) : (
+                    <View style={styles.rankChangeRow}>
+                      <Ionicons name="remove" size={18} color={colors.muted} />
+                      <Text style={[styles.rankEvolutionValue, { color: colors.muted }]}>0</Text>
+                    </View>
+                  )}
+                  <Text style={[styles.rankEvolutionLabel, { color: colors.muted }]}>Variação</Text>
+                </View>
+                <View style={styles.rankEvolutionDivider} />
+                <View style={styles.rankEvolutionItem}>
+                  <Text style={[styles.rankEvolutionValue, { color: colors.foreground }]}>{rankPos.totalPromoters}</Text>
+                  <Text style={[styles.rankEvolutionLabel, { color: colors.muted }]}>Total</Text>
+                </View>
+              </View>
+            </View>
+          )}
 
           {/* Score Metrics */}
           <View style={[styles.section, { backgroundColor: colors.surface, borderColor: colors.border }]}>
@@ -324,4 +376,10 @@ const styles = StyleSheet.create({
   storeStats: { fontSize: 11, marginTop: 2 },
   visitsChip: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12 },
   visitsChipText: { fontSize: 13, fontWeight: "700" },
+  rankEvolutionRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-around" },
+  rankEvolutionItem: { flex: 1, alignItems: "center", gap: 4 },
+  rankEvolutionValue: { fontSize: 20, fontWeight: "800" },
+  rankEvolutionLabel: { fontSize: 10, textAlign: "center" },
+  rankEvolutionDivider: { width: 1, height: 36, backgroundColor: "#E5E7EB" },
+  rankChangeRow: { flexDirection: "row", alignItems: "center", gap: 2 },
 });

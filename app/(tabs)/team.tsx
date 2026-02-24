@@ -5,43 +5,45 @@ import { trpc } from "@/lib/trpc";
 import { Ionicons } from "@expo/vector-icons";
 import { Redirect, useRouter } from "expo-router";
 import { useState } from "react";
-import { FlatList, Pressable, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from "react-native";
+
+const MONTHS_FULL = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
+const MONTHS_SHORT = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
 
 export default function TeamScreen() {
   const colors = useColors();
   const { appRole } = useRole();
   const router = useRouter();
-  const [selectedUserId, setSelectedUserId] = useState<number | null>(null);
-  const [selectedDate, setSelectedDate] = useState(new Date());
+  const now = new Date();
+  const [year, setYear] = useState(now.getFullYear());
+  const [month, setMonth] = useState(now.getMonth() + 1);
 
   if (appRole !== "manager") {
     return <Redirect href="/(tabs)" />;
   }
 
   const { data: promoters } = trpc.reports.allPromoters.useQuery();
-  const { data: dailyReport } = trpc.reports.daily.useQuery({ date: selectedDate.toISOString() });
-  const { data: promoterSummary } = trpc.reports.promoterSummary.useQuery(
-    { userId: selectedUserId ?? undefined, date: selectedDate.toISOString() },
-    { enabled: !!selectedUserId }
+  const { data: monthlyReport, isLoading: loadingReport } = trpc.reports.monthly.useQuery(
+    { year, month },
+    { enabled: true }
   );
 
-  const formatHours = (minutes: number) => {
-    const h = Math.floor(minutes / 60);
-    const m = Math.floor(minutes % 60);
-    return `${h}h ${m.toString().padStart(2, "0")}m`;
+  const prevMonth = () => {
+    if (month === 1) { setMonth(12); setYear((y) => y - 1); }
+    else setMonth((m) => m - 1);
+  };
+  const nextMonth = () => {
+    if (year > now.getFullYear() || (year === now.getFullYear() && month >= now.getMonth() + 1)) return;
+    if (month === 12) { setMonth(1); setYear((y) => y + 1); }
+    else setMonth((m) => m + 1);
   };
 
-  const formatDate = (date: Date) => {
-    return date.toLocaleDateString("pt-BR", { day: "2-digit", month: "long", year: "numeric" });
-  };
+  const isCurrentMonth = year === now.getFullYear() && month === now.getMonth() + 1;
 
-  const changeDate = (days: number) => {
-    const newDate = new Date(selectedDate);
-    newDate.setDate(newDate.getDate() + days);
-    if (newDate <= new Date()) setSelectedDate(newDate);
-  };
-
-  const isToday = selectedDate.toDateString() === new Date().toDateString();
+  const totalHours = monthlyReport?.totalHours ?? 0;
+  const totalPhotos = monthlyReport?.totalPhotos ?? 0;
+  const totalRequests = monthlyReport?.totalRequests ?? 0;
+  const workingDays = monthlyReport?.workingDays ?? 0;
 
   return (
     <ScreenContainer>
@@ -51,36 +53,45 @@ export default function TeamScreen() {
         <Text style={styles.headerSub}>{promoters?.length ?? 0} promotores cadastrados</Text>
       </View>
 
-      {/* Date Navigation */}
-      <View style={[styles.dateNav, { backgroundColor: colors.surface, borderBottomColor: colors.border }]}>
-        <Pressable style={({ pressed }) => [styles.dateNavBtn, pressed && { opacity: 0.6 }]} onPress={() => changeDate(-1)}>
+      {/* Month Picker */}
+      <View style={[styles.monthPicker, { backgroundColor: colors.surface, borderBottomColor: colors.border }]}>
+        <Pressable onPress={prevMonth} style={({ pressed }) => [styles.monthBtn, pressed && { opacity: 0.6 }]}>
           <Ionicons name="chevron-back" size={20} color={colors.primary} />
         </Pressable>
-        <Text style={[styles.dateNavText, { color: colors.foreground }]}>{formatDate(selectedDate)}</Text>
+        <Text style={[styles.monthLabel, { color: colors.foreground }]}>
+          {MONTHS_FULL[month - 1]} {year}
+        </Text>
         <Pressable
-          style={({ pressed }) => [styles.dateNavBtn, pressed && { opacity: 0.6 }, isToday && { opacity: 0.3 }]}
-          onPress={() => changeDate(1)}
-          disabled={isToday}
+          onPress={nextMonth}
+          style={({ pressed }) => [styles.monthBtn, pressed && { opacity: 0.6 }, isCurrentMonth && { opacity: 0.3 }]}
+          disabled={isCurrentMonth}
         >
           <Ionicons name="chevron-forward" size={20} color={colors.primary} />
         </Pressable>
       </View>
 
-      {/* Daily Summary */}
-      {dailyReport && (
-        <View style={[styles.dailySummary, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-          {[
-            { label: "Registros", value: dailyReport.totalEntries, icon: "time-outline", color: "#3B82F6" },
-            { label: "Fotos", value: dailyReport.totalPhotos, icon: "camera-outline", color: "#10B981" },
-            { label: "Solicitações", value: dailyReport.totalRequests, icon: "cube-outline", color: "#F59E0B" },
-            { label: "Alertas", value: dailyReport.totalAlerts, icon: "warning-outline", color: "#EF4444" },
-          ].map((stat) => (
-            <View key={stat.label} style={styles.dailyStat}>
-              <Ionicons name={stat.icon as any} size={18} color={stat.color} />
-              <Text style={[styles.dailyStatValue, { color: colors.foreground }]}>{stat.value}</Text>
-              <Text style={[styles.dailyStatLabel, { color: colors.muted }]}>{stat.label}</Text>
-            </View>
-          ))}
+      {/* Monthly Summary */}
+      {loadingReport ? (
+        <View style={[styles.summaryCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+          <ActivityIndicator size="small" color={colors.primary} />
+        </View>
+      ) : (
+        <View style={[styles.summaryCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+          <Text style={[styles.summaryTitle, { color: colors.foreground }]}>Resumo do Mês</Text>
+          <View style={styles.summaryGrid}>
+            {[
+              { label: "Horas Trabalhadas", value: `${totalHours.toFixed(1)}h`, icon: "time-outline", color: "#3B82F6" },
+              { label: "Fotos Enviadas", value: totalPhotos, icon: "camera-outline", color: "#10B981" },
+              { label: "Dias Trabalhados", value: workingDays, icon: "calendar-outline", color: "#8B5CF6" },
+              { label: "Solicitações", value: totalRequests, icon: "cube-outline", color: "#F59E0B" },
+            ].map((stat) => (
+              <View key={stat.label} style={[styles.summaryItem, { backgroundColor: colors.background, borderColor: colors.border }]}>
+                <Ionicons name={stat.icon as any} size={20} color={stat.color} />
+                <Text style={[styles.summaryValue, { color: colors.foreground }]}>{stat.value}</Text>
+                <Text style={[styles.summaryLabel, { color: colors.muted }]}>{stat.label}</Text>
+              </View>
+            ))}
+          </View>
         </View>
       )}
 
@@ -89,6 +100,11 @@ export default function TeamScreen() {
         data={promoters}
         keyExtractor={(item) => item.id.toString()}
         contentContainerStyle={styles.list}
+        ListHeaderComponent={
+          <Text style={[styles.listHeader, { color: colors.muted }]}>
+            Toque em um promotor para ver o detalhe completo
+          </Text>
+        }
         ListEmptyComponent={
           <View style={styles.emptyState}>
             <Ionicons name="people-outline" size={56} color={colors.muted} />
@@ -98,76 +114,33 @@ export default function TeamScreen() {
             </Text>
           </View>
         }
-        renderItem={({ item }) => {
-          const isSelected = selectedUserId === item.id;
-          return (
-            <Pressable
-              style={({ pressed }) => [
-                styles.promoterCard,
-                { backgroundColor: isSelected ? colors.primary + "10" : colors.surface, borderColor: isSelected ? colors.primary : colors.border },
-                pressed && { opacity: 0.8 },
-              ]}
-              onPress={() => router.push({ pathname: "/promoter-detail" as any, params: { promoterId: String(item.id), promoterName: item.name ?? `Promotor ${item.id}` } })}
-            >
-              <View style={[styles.avatar, { backgroundColor: colors.primary + "20" }]}>
-                <Text style={[styles.avatarText, { color: colors.primary }]}>
-                  {(item.name ?? "?")[0].toUpperCase()}
-                </Text>
-              </View>
-              <View style={styles.promoterInfo}>
-                <Text style={[styles.promoterName, { color: colors.foreground }]}>{item.name ?? "Sem nome"}</Text>
-                <Text style={[styles.promoterEmail, { color: colors.muted }]}>{item.email ?? "—"}</Text>
-              </View>
-              <Ionicons
-                name={isSelected ? "chevron-up" : "chevron-down"}
-                size={18}
-                color={colors.muted}
-              />
-            </Pressable>
-          );
-        }}
-        ListFooterComponent={
-          selectedUserId && promoterSummary ? (
-            <View style={[styles.promoterDetail, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-              <Text style={[styles.detailTitle, { color: colors.foreground }]}>Detalhes do Dia</Text>
-              <View style={styles.detailStats}>
-                <View style={styles.detailStat}>
-                  <Text style={[styles.detailStatValue, { color: colors.foreground }]}>
-                    {formatHours(promoterSummary.totalMinutes)}
-                  </Text>
-                  <Text style={[styles.detailStatLabel, { color: colors.muted }]}>Horas trabalhadas</Text>
-                </View>
-                <View style={styles.detailStat}>
-                  <Text style={[styles.detailStatValue, { color: promoterSummary.hasOpenEntry ? "#0E9F6E" : colors.muted }]}>
-                    {promoterSummary.hasOpenEntry ? "Ativo" : "Inativo"}
-                  </Text>
-                  <Text style={[styles.detailStatLabel, { color: colors.muted }]}>Status atual</Text>
-                </View>
-                <View style={styles.detailStat}>
-                  <Text style={[styles.detailStatValue, { color: colors.foreground }]}>
-                    {promoterSummary.entries.length}
-                  </Text>
-                  <Text style={[styles.detailStatLabel, { color: colors.muted }]}>Registros</Text>
-                </View>
-              </View>
-              {promoterSummary.entries.length > 0 && (
-                <View style={styles.entriesTimeline}>
-                  {promoterSummary.entries.map((entry: any, idx: number) => (
-                    <View key={entry.id} style={styles.timelineItem}>
-                      <View style={[styles.timelineDot, { backgroundColor: entry.entryType === "entry" ? "#0E9F6E" : "#EF4444" }]} />
-                      <Text style={[styles.timelineText, { color: colors.foreground }]}>
-                        {entry.entryType === "entry" ? "Entrada" : "Saída"} — {new Date(entry.entryTime).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
-                      </Text>
-                      {!entry.isWithinRadius && (
-                        <Ionicons name="warning" size={14} color="#D97706" />
-                      )}
-                    </View>
-                  ))}
-                </View>
-              )}
+        renderItem={({ item }) => (
+          <Pressable
+            style={({ pressed }) => [
+              styles.promoterCard,
+              { backgroundColor: colors.surface, borderColor: colors.border },
+              pressed && { opacity: 0.8 },
+            ]}
+            onPress={() =>
+              router.push({
+                pathname: "/promoter-detail" as any,
+                params: { promoterId: String(item.id), promoterName: item.name ?? `Promotor ${item.id}` },
+              })
+            }
+          >
+            <View style={[styles.avatar, { backgroundColor: colors.primary + "20" }]}>
+              <Text style={[styles.avatarText, { color: colors.primary }]}>
+                {(item.name ?? "?")[0].toUpperCase()}
+              </Text>
             </View>
-          ) : null
-        }
+            <View style={styles.promoterInfo}>
+              <Text style={[styles.promoterName, { color: colors.foreground }]}>{item.name ?? "Sem nome"}</Text>
+              <Text style={[styles.promoterEmail, { color: colors.muted }]}>{item.email ?? "—"}</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color={colors.muted} />
+          </Pressable>
+        )}
+        ListFooterComponent={<View style={{ height: 32 }} />}
       />
     </ScreenContainer>
   );
@@ -177,30 +150,51 @@ const styles = StyleSheet.create({
   header: { paddingTop: 16, paddingBottom: 16, paddingHorizontal: 20 },
   headerTitle: { fontSize: 20, fontWeight: "700", color: "#FFFFFF" },
   headerSub: { fontSize: 13, color: "rgba(255,255,255,0.75)", marginTop: 2 },
-  dateNav: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1 },
-  dateNavBtn: { padding: 8 },
-  dateNavText: { fontSize: 14, fontWeight: "600" },
-  dailySummary: { flexDirection: "row", margin: 16, borderRadius: 16, padding: 16, borderWidth: 1 },
-  dailyStat: { flex: 1, alignItems: "center", gap: 4 },
-  dailyStatValue: { fontSize: 20, fontWeight: "800" },
-  dailyStatLabel: { fontSize: 11 },
+  monthPicker: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderBottomWidth: 0.5,
+  },
+  monthBtn: { padding: 8 },
+  monthLabel: { fontSize: 15, fontWeight: "600" },
+  summaryCard: {
+    margin: 16,
+    borderRadius: 16,
+    padding: 16,
+    borderWidth: 1,
+    gap: 12,
+  },
+  summaryTitle: { fontSize: 15, fontWeight: "700" },
+  summaryGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  summaryItem: {
+    flex: 1,
+    minWidth: "44%",
+    alignItems: "center",
+    padding: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    gap: 4,
+  },
+  summaryValue: { fontSize: 20, fontWeight: "800" },
+  summaryLabel: { fontSize: 10, textAlign: "center" },
   list: { paddingHorizontal: 16, paddingBottom: 24, gap: 10 },
-  promoterCard: { flexDirection: "row", alignItems: "center", borderRadius: 14, padding: 14, borderWidth: 1, gap: 12 },
+  listHeader: { fontSize: 12, textAlign: "center", marginBottom: 8 },
+  promoterCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    borderRadius: 14,
+    padding: 14,
+    borderWidth: 1,
+    gap: 12,
+  },
   avatar: { width: 44, height: 44, borderRadius: 22, alignItems: "center", justifyContent: "center" },
   avatarText: { fontSize: 18, fontWeight: "700" },
   promoterInfo: { flex: 1 },
   promoterName: { fontSize: 15, fontWeight: "600" },
   promoterEmail: { fontSize: 13, marginTop: 2 },
-  promoterDetail: { margin: 0, marginTop: 4, borderRadius: 14, padding: 16, borderWidth: 1, gap: 12 },
-  detailTitle: { fontSize: 15, fontWeight: "700" },
-  detailStats: { flexDirection: "row", gap: 8 },
-  detailStat: { flex: 1, alignItems: "center", gap: 4 },
-  detailStatValue: { fontSize: 18, fontWeight: "800" },
-  detailStatLabel: { fontSize: 11, textAlign: "center" },
-  entriesTimeline: { gap: 8 },
-  timelineItem: { flexDirection: "row", alignItems: "center", gap: 10 },
-  timelineDot: { width: 10, height: 10, borderRadius: 5 },
-  timelineText: { flex: 1, fontSize: 14 },
   emptyState: { flex: 1, alignItems: "center", justifyContent: "center", gap: 12, padding: 40, paddingTop: 60 },
   emptyTitle: { fontSize: 18, fontWeight: "700" },
   emptyDesc: { fontSize: 14, textAlign: "center", lineHeight: 21 },

@@ -243,6 +243,26 @@ export const appRouter = router({
         month: z.number().int().min(1).max(12),
       }))
       .query(({ input }) => db.getPromoterRanking(input.year, input.month)),
+    rankPosition: protectedProcedure
+      .input(z.object({
+        promoterId: z.number().int().positive(),
+        year: z.number().int().min(2020).max(2100),
+        month: z.number().int().min(1).max(12),
+      }))
+      .query(async ({ input }) => {
+        const { promoterId, year, month } = input;
+        const currentRanking = await db.getPromoterRanking(year, month);
+        const currentEntry = currentRanking.find((r) => r.userId === promoterId);
+        const currentRank = currentEntry?.rank ?? null;
+        const totalPromoters = currentRanking.length;
+        const prevMonth = month === 1 ? 12 : month - 1;
+        const prevYear = month === 1 ? year - 1 : year;
+        const prevRanking = await db.getPromoterRanking(prevYear, prevMonth);
+        const prevEntry = prevRanking.find((r) => r.userId === promoterId);
+        const prevRank = prevEntry?.rank ?? null;
+        const change = (currentRank !== null && prevRank !== null) ? prevRank - currentRank : null;
+        return { currentRank, prevRank, change, totalPromoters };
+      }),
   }),
   storeVisits: router({
     history: protectedProcedure
