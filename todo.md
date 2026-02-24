@@ -355,3 +355,60 @@
 - [x] Upload de logo da marca via arquivo (input file)
 - [x] Toggle ativar/desativar marca com confirmação
 - [x] Link "Marcas" na sidebar do painel web
+
+## Fase 17 — Paridade Total do Painel Web com o App do Gestor
+
+### Controle de Ponto (clock)
+- [ ] Página /clock no painel web: tabela de registros de ponto de todos os promotores por data
+- [ ] Seletor de data com navegação anterior/próximo
+- [ ] Exibir: promotor, loja, tipo (entrada/saída), horário, distância, status dentro do raio
+- [ ] Resumo do dia: total de registros, promotores ativos, alertas de geofencing
+
+### Arquivos (files)
+- [ ] Página /files no painel web: listagem de arquivos por marca
+- [ ] Upload de arquivo (PDF, Excel, imagem) vinculado a uma marca
+- [ ] Filtro por marca com chips
+- [ ] Exibir: nome, tipo, tamanho, data de upload, marca
+- [ ] Botão de download/visualização de cada arquivo
+
+### Dashboard de PDVs (store-dashboard)
+- [ ] Página /store-dashboard no painel web: ranking de PDVs com score composto
+- [ ] Seletor de mês/ano e filtro por promotor
+- [ ] Cards de top 3 com medalhas, score ring e métricas
+- [ ] Tabela completa com todas as métricas e barras de progresso
+- [ ] Botão de exportar ranking em CSV
+
+### Visitas por PDV (store-visits)
+- [ ] Página /store-visits no painel web: histórico de visitas por loja
+- [ ] Seletor de loja e mês/ano
+- [ ] Cards de sumário: total de visitas, horas, fotos aprovadas, materiais
+- [ ] Tabela de visitas com promotor, data, horários, horas, fotos e materiais
+
+### Notificações (notifications)
+- [ ] Página /notifications no painel web: histórico de notificações do gestor
+- [ ] Filtro por tipo e por não lidas
+- [ ] Marcar como lida individualmente e marcar todas como lidas
+- [ ] Badge de não lidas no link da sidebar
+
+### Assinatura de Relatório (sign-report)
+- [ ] Página /sign-report no painel web: assinar relatório mensal digitalmente
+- [ ] Seletor de promotor e mês/ano
+- [ ] Canvas de assinatura digital com mouse/touch
+- [ ] Gerar código de verificação único
+- [ ] Histórico de relatórios assinados com link de verificação
+
+### Melhorias nas páginas existentes
+- [ ] Página de Relatórios: adicionar gráfico de horas por dia (barras) e fotos por marca (pizza)
+- [ ] Página de PDVs (stores): adicionar botão de cadastrar nova loja com formulário completo
+- [ ] Detalhe do Promotor: acessível via clique na tabela de Equipe e Ranking
+
+## Fase 17 — Paridade Total do Painel Web com o App do Gestor
+
+- [x] Página de Controle de Ponto: tabela diária de entradas/saídas de todos os promotores
+- [x] Página de Arquivos: listagem por marca + upload de arquivo (PDF, imagem, Excel)
+- [x] Página de Dashboard de PDVs: ranking mensal com score composto + exportação HTML
+- [x] Página de Visitas por PDV: histórico detalhado de visitas por loja e mês
+- [x] Página de Notificações: histórico com filtros e marcar como lida
+- [x] Página de Assinar Relatório: canvas de assinatura digital + histórico + exportação
+- [x] Sidebar reorganizada em grupos (Visão Geral, PDVs & Visitas, Promotores, Conteúdo, Gestão)
+- [x] Zero erros TypeScript após todas as novas páginas
