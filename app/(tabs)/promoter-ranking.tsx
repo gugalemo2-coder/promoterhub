@@ -2,9 +2,12 @@ import { useColors } from "@/hooks/use-colors";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/hooks/use-auth";
 import { Ionicons } from "@expo/vector-icons";
+import { useRouter } from "expo-router";
 import {
   ActivityIndicator,
+  Alert,
   FlatList,
+  Platform,
   StyleSheet,
   Text,
   View,
@@ -12,6 +15,8 @@ import {
 } from "react-native";
 import { ScreenContainer } from "@/components/screen-container";
 import { useState } from "react";
+import * as FileSystem from "expo-file-system/legacy";
+import * as Sharing from "expo-sharing";
 
 // ─── Score Ring ───────────────────────────────────────────────────────────────
 function ScoreRing({ score, size = 52 }: { score: number; size?: number }) {
@@ -94,6 +99,7 @@ function PromoterCard({
   const colors = useColors();
   const [expanded, setExpanded] = useState(false);
 
+  const router = useRouter();
   const initials = item.userName
     .split(" ")
     .slice(0, 2)
@@ -111,7 +117,7 @@ function PromoterCard({
 
   return (
     <Pressable
-      onPress={() => setExpanded((e) => !e)}
+      onPress={() => router.push({ pathname: "/promoter-detail" as any, params: { promoterId: String(item.userId), promoterName: item.userName ?? `Promotor ${item.userId}` } })}
       style={({ pressed }) => [
         styles.card,
         {
@@ -226,13 +232,94 @@ export default function PromoterRankingScreen() {
   const now = new Date();
   const [year, setYear] = useState(now.getFullYear());
   const [month, setMonth] = useState(now.getMonth() + 1);
+  const [exporting, setExporting] = useState(false);
 
   const MONTHS = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
+  const MONTHS_FULL = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
 
   const { data: ranking, isLoading } = trpc.promoterRanking.monthly.useQuery(
     { year, month },
     { enabled: !!user }
   );
+
+  const handleExportPDF = async () => {
+    if (!ranking || ranking.length === 0) {
+      Alert.alert("Sem dados", "Não há promotores para exportar neste mês.");
+      return;
+    }
+    setExporting(true);
+    try {
+      const verifyCode = `PRK-${year}${String(month).padStart(2, "0")}-${Math.random().toString(36).slice(2, 8).toUpperCase()}`;
+      const avgScore = Math.round(ranking.reduce((s, r) => s + r.score, 0) / ranking.length);
+      const medalEmoji = (rank: number) => rank === 1 ? "🥇" : rank === 2 ? "🥈" : rank === 3 ? "🥉" : `${rank}°`;
+      const scoreColor = (s: number) => s >= 70 ? "#22C55E" : s >= 40 ? "#F59E0B" : "#EF4444";
+
+      const rows = ranking.map((p) => `
+        <tr>
+          <td style="text-align:center;font-size:18px">${medalEmoji(p.rank)}</td>
+          <td style="font-weight:600">${p.userName}</td>
+          <td style="text-align:center">${p.totalApprovedPhotos}</td>
+          <td style="text-align:center">${p.totalHoursWorked}h</td>
+          <td style="text-align:center">${p.totalVisits}</td>
+          <td style="text-align:center">${p.totalMaterialRequests}</td>
+          <td style="text-align:center;font-weight:700;color:${scoreColor(p.score)}">${p.score}</td>
+        </tr>`).join("");
+
+      const html = `<!DOCTYPE html><html><head><meta charset="utf-8">
+        <style>
+          body { font-family: -apple-system, Arial, sans-serif; margin: 0; padding: 0; background: #f8fafc; }
+          .header { background: linear-gradient(135deg, #1e40af 0%, #3b82f6 100%); color: white; padding: 32px 24px; }
+          .header h1 { margin: 0 0 4px; font-size: 24px; }
+          .header p { margin: 0; opacity: 0.85; font-size: 14px; }
+          .summary { display: flex; gap: 16px; padding: 20px 24px; background: white; border-bottom: 1px solid #e5e7eb; }
+          .summary-card { flex: 1; text-align: center; }
+          .summary-card .val { font-size: 22px; font-weight: 800; color: #1e40af; }
+          .summary-card .lbl { font-size: 11px; color: #6b7280; margin-top: 2px; }
+          .content { padding: 24px; }
+          table { width: 100%; border-collapse: collapse; background: white; border-radius: 12px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+          th { background: #1e40af; color: white; padding: 12px 10px; font-size: 12px; text-align: center; }
+          td { padding: 10px; border-bottom: 1px solid #f3f4f6; font-size: 13px; }
+          tr:last-child td { border-bottom: none; }
+          tr:nth-child(even) { background: #f8fafc; }
+          .formula { background: white; border-radius: 10px; padding: 14px 20px; margin-top: 20px; font-size: 12px; color: #6b7280; text-align: center; border: 1px solid #e5e7eb; }
+          .footer { text-align: center; padding: 20px; font-size: 11px; color: #9ca3af; }
+        </style></head><body>
+        <div class="header">
+          <h1>Ranking de Promotores</h1>
+          <p>${MONTHS_FULL[month - 1]} ${year} &nbsp;·&nbsp; ${ranking.length} promotores &nbsp;·&nbsp; Score médio: ${avgScore}</p>
+        </div>
+        <div class="summary">
+          <div class="summary-card"><div class="val">${ranking.length}</div><div class="lbl">Promotores</div></div>
+          <div class="summary-card"><div class="val">${ranking.reduce((s, r) => s + r.totalApprovedPhotos, 0)}</div><div class="lbl">Fotos Aprovadas</div></div>
+          <div class="summary-card"><div class="val">${ranking.reduce((s, r) => s + r.totalHoursWorked, 0)}h</div><div class="lbl">Horas Totais</div></div>
+          <div class="summary-card"><div class="val">${ranking.reduce((s, r) => s + r.totalVisits, 0)}</div><div class="lbl">Visitas</div></div>
+          <div class="summary-card"><div class="val">${avgScore}</div><div class="lbl">Score Médio</div></div>
+        </div>
+        <div class="content">
+          <table>
+            <thead><tr><th>#</th><th style="text-align:left">Promotor</th><th>Fotos</th><th>Horas</th><th>Visitas</th><th>Materiais</th><th>Score</th></tr></thead>
+            <tbody>${rows}</tbody>
+          </table>
+          <div class="formula">Score = Fotos Aprovadas 30% + Horas Trabalhadas 25% + Visitas a PDVs 25% + Materiais Solicitados 10% + Qualidade das Fotos 10% − Alertas de Geo</div>
+        </div>
+        <div class="footer">Gerado em ${new Date().toLocaleDateString("pt-BR", { day: "2-digit", month: "long", year: "numeric" })} &nbsp;·&nbsp; Código: ${verifyCode}</div>
+      </body></html>`;
+
+      if (Platform.OS === "web") {
+        const w = window.open("", "_blank");
+        w?.document.write(html);
+        w?.document.close();
+      } else {
+        const path = `${FileSystem.cacheDirectory}ranking-promotores-${MONTHS[month - 1]}-${year}.html`;
+        await FileSystem.writeAsStringAsync(path, html, { encoding: FileSystem.EncodingType.UTF8 });
+        await Sharing.shareAsync(path, { mimeType: "text/html", dialogTitle: "Exportar Ranking de Promotores" });
+      }
+    } catch (e) {
+      Alert.alert("Erro", "Não foi possível exportar o ranking.");
+    } finally {
+      setExporting(false);
+    }
+  };
 
   const prevMonth = () => {
     if (month === 1) { setMonth(12); setYear((y) => y - 1); }
@@ -259,7 +346,7 @@ export default function PromoterRankingScreen() {
     <ScreenContainer>
       {/* Header */}
       <View style={[styles.header, { backgroundColor: colors.surface, borderBottomColor: colors.border }]}>
-        <View>
+        <View style={{ flex: 1 }}>
           <Text style={[styles.headerTitle, { color: colors.foreground }]}>Ranking de Promotores</Text>
           {(ranking ?? []).length > 0 && (
             <Text style={[styles.headerSub, { color: colors.muted }]}>
@@ -267,7 +354,20 @@ export default function PromoterRankingScreen() {
             </Text>
           )}
         </View>
-        <Ionicons name="trophy" size={28} color="#F59E0B" />
+        <Pressable
+          onPress={handleExportPDF}
+          disabled={exporting || isLoading || (ranking ?? []).length === 0}
+          style={({ pressed }) => [styles.exportBtn, { backgroundColor: colors.primary, opacity: pressed || exporting ? 0.7 : 1 }]}
+        >
+          {exporting ? (
+            <ActivityIndicator size="small" color="#fff" />
+          ) : (
+            <>
+              <Ionicons name="share-outline" size={16} color="#fff" />
+              <Text style={styles.exportBtnText}>PDF</Text>
+            </>
+          )}
+        </Pressable>
       </View>
 
       {/* Month picker */}
@@ -433,4 +533,15 @@ const styles = StyleSheet.create({
   emptyState: { flex: 1, alignItems: "center", justifyContent: "center", gap: 12, padding: 32 },
   emptyTitle: { fontSize: 18, fontWeight: "700" },
   emptyText: { fontSize: 14, textAlign: "center", lineHeight: 20, maxWidth: 280 },
+  exportBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 20,
+    minWidth: 60,
+    justifyContent: "center",
+  },
+  exportBtnText: { color: "#fff", fontSize: 13, fontWeight: "700" },
 });

@@ -253,5 +253,14 @@ export const appRouter = router({
       }))
       .query(({ input }) => db.getStoreVisitHistory(input.storeId, input.year, input.month)),
   }),
+  promoterDetail: router({
+    get: protectedProcedure
+      .input(z.object({
+        promoterId: z.number().int().positive(),
+        year: z.number().int().min(2020).max(2100),
+        month: z.number().int().min(1).max(12),
+      }))
+      .query(({ input }) => db.getPromoterDetail(input.promoterId, input.year, input.month)),
+  }),
 });
 export type AppRouter = typeof appRouter;

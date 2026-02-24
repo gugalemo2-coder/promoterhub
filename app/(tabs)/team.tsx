@@ -3,13 +3,14 @@ import { useColors } from "@/hooks/use-colors";
 import { useRole } from "@/lib/role-context";
 import { trpc } from "@/lib/trpc";
 import { Ionicons } from "@expo/vector-icons";
-import { Redirect } from "expo-router";
+import { Redirect, useRouter } from "expo-router";
 import { useState } from "react";
 import { FlatList, Pressable, StyleSheet, Text, View } from "react-native";
 
 export default function TeamScreen() {
   const colors = useColors();
   const { appRole } = useRole();
+  const router = useRouter();
   const [selectedUserId, setSelectedUserId] = useState<number | null>(null);
   const [selectedDate, setSelectedDate] = useState(new Date());
 
@@ -106,7 +107,7 @@ export default function TeamScreen() {
                 { backgroundColor: isSelected ? colors.primary + "10" : colors.surface, borderColor: isSelected ? colors.primary : colors.border },
                 pressed && { opacity: 0.8 },
               ]}
-              onPress={() => setSelectedUserId(isSelected ? null : item.id)}
+              onPress={() => router.push({ pathname: "/promoter-detail" as any, params: { promoterId: String(item.id), promoterName: item.name ?? `Promotor ${item.id}` } })}
             >
               <View style={[styles.avatar, { backgroundColor: colors.primary + "20" }]}>
                 <Text style={[styles.avatarText, { color: colors.primary }]}>

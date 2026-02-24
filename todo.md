@@ -233,3 +233,24 @@
 - [x] Cards expandíveis com taxa de aprovação de fotos e alertas de geo
 - [x] Cards de sumário: total de visitas, horas, fotos aprovadas, materiais
 - [x] Aba "Visitas" na navegação do Gestor
+
+## Fase 8 — Novas Funcionalidades
+
+### Exportação do Ranking de Promotores em PDF
+- [ ] Botão "Exportar" no header da tela de Ranking de Promotores
+- [ ] Gerar HTML estilizado com ranking mensal completo de promotores
+- [ ] Cabeçalho com mês/ano, número de promotores e score médio
+- [ ] Tabela com posição (medalhas top 3), nome, todas as métricas e score colorido
+- [ ] Fórmula do score composto no rodapé
+- [ ] Código de verificação único por exportação
+- [ ] Compartilhamento nativo no mobile / nova aba no web
+
+### Tela de Detalhe do Promotor para o Gestor
+- [x] Endpoint tRPC: promoterRanking.detail (histórico completo do promotor)
+- [x] Acesso via tela de Ranking (tap no card do promotor)
+- [x] Acesso via tela de Equipe (tap no card do promotor)
+- [x] Cabeçalho com avatar, nome, score do mês e posição no ranking
+- [x] Cards de métricas: fotos aprovadas, materiais, horas, visitas
+- [x] Lista de lojas visitadas no mês com horas e fotos por loja
+- [x] Gráfico de evolução mensal (últimos 6 meses)
+- [x] Histórico de fotos aprovadas e rejeitadas

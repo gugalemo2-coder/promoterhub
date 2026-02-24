@@ -1214,3 +1214,213 @@ export async function getStoreVisitHistory(
 
   return visits;
 }
+
+// ─── PROMOTER DETAIL (para o Gestor) ─────────────────────────────────────────
+
+export interface PromoterDetailStats {
+  userId: number;
+  userName: string;
+  userEmail: string;
+  score: number;
+  rank: number;
+  totalApprovedPhotos: number;
+  totalRejectedPhotos: number;
+  totalMaterialRequests: number;
+  totalHoursWorked: number;
+  totalVisits: number;
+  avgQualityRating: number;
+  geoAlertCount: number;
+  brandBreakdown: { brandId: number; brandName: string; approvedPhotos: number; rejectedPhotos: number }[];
+  storeBreakdown: { storeId: number; storeName: string; visits: number; hoursWorked: number; photos: number }[];
+  monthlyTrend: { month: string; score: number; approvedPhotos: number; hoursWorked: number; visits: number }[];
+}
+
+export async function getPromoterDetail(
+  promoterId: number,
+  year: number,
+  month: number
+): Promise<PromoterDetailStats | null> {
+  const db = await getDb();
+  if (!db) return null;
+
+  const { and, gte, lte, eq, count, avg } = await import("drizzle-orm");
+
+  // Get promoter info
+  const promoterRows = await db
+    .select({ id: users.id, name: users.name, email: users.email })
+    .from(users)
+    .where(eq(users.id, promoterId));
+  if (!promoterRows.length) return null;
+  const promoter = promoterRows[0];
+
+  const startDate = new Date(year, month - 1, 1);
+  const endDate = new Date(year, month, 0, 23, 59, 59);
+
+  // Approved photos
+  const approvedRows = await db
+    .select({ cnt: count() })
+    .from(photos)
+    .where(and(eq(photos.userId, promoterId), eq(photos.status, "approved"), gte(photos.photoTimestamp, startDate), lte(photos.photoTimestamp, endDate)));
+  const totalApprovedPhotos = Number(approvedRows[0]?.cnt ?? 0);
+
+  // Rejected photos
+  const rejectedRows = await db
+    .select({ cnt: count() })
+    .from(photos)
+    .where(and(eq(photos.userId, promoterId), eq(photos.status, "rejected"), gte(photos.photoTimestamp, startDate), lte(photos.photoTimestamp, endDate)));
+  const totalRejectedPhotos = Number(rejectedRows[0]?.cnt ?? 0);
+
+  // Avg quality
+  const qualityRows = await db
+    .select({ avgQ: avg(photos.qualityRating) })
+    .from(photos)
+    .where(and(eq(photos.userId, promoterId), eq(photos.status, "approved"), gte(photos.photoTimestamp, startDate), lte(photos.photoTimestamp, endDate)));
+  const avgQualityRating = Math.round(Number(qualityRows[0]?.avgQ ?? 0) * 10) / 10;
+
+  // Material requests
+  const matRows = await db
+    .select({ cnt: count() })
+    .from(materialRequests)
+    .where(and(eq(materialRequests.userId, promoterId), gte(materialRequests.requestedAt, startDate), lte(materialRequests.requestedAt, endDate)));
+  const totalMaterialRequests = Number(matRows[0]?.cnt ?? 0);
+
+  // Time entries
+  const timeRows = await db
+    .select({ entryType: timeEntries.entryType, entryTime: timeEntries.entryTime, storeId: timeEntries.storeId })
+    .from(timeEntries)
+    .where(and(eq(timeEntries.userId, promoterId), gte(timeEntries.entryTime, startDate), lte(timeEntries.entryTime, endDate)))
+    .orderBy(timeEntries.entryTime);
+
+  let totalHoursWorked = 0;
+  let totalVisits = 0;
+  let lastEntry: Date | null = null;
+  let lastStoreId: number | null = null;
+  const storeHours: Record<number, number> = {};
+  const storeVisits: Record<number, number> = {};
+
+  for (const row of timeRows) {
+    if (row.entryType === "entry") {
+      lastEntry = new Date(row.entryTime);
+      lastStoreId = row.storeId;
+      totalVisits++;
+      if (row.storeId) storeVisits[row.storeId] = (storeVisits[row.storeId] ?? 0) + 1;
+    } else if (row.entryType === "exit" && lastEntry) {
+      const diffH = (new Date(row.entryTime).getTime() - lastEntry.getTime()) / (1000 * 60 * 60);
+      if (diffH > 0 && diffH < 24) {
+        totalHoursWorked += diffH;
+        if (lastStoreId) storeHours[lastStoreId] = (storeHours[lastStoreId] ?? 0) + diffH;
+      }
+      lastEntry = null;
+    }
+  }
+  totalHoursWorked = Math.round(totalHoursWorked * 10) / 10;
+
+  // Geo alerts
+  const alertRows = await db
+    .select({ cnt: count() })
+    .from(geoAlerts)
+    .where(and(eq(geoAlerts.userId, promoterId), gte(geoAlerts.createdAt, startDate), lte(geoAlerts.createdAt, endDate)));
+  const geoAlertCount = Number(alertRows[0]?.cnt ?? 0);
+
+  // Score
+  const photoScore = Math.min(totalApprovedPhotos / 50, 1) * 30;
+  const hoursScore = Math.min(totalHoursWorked / 160, 1) * 25;
+  const visitsScore = Math.min(totalVisits / 80, 1) * 25;
+  const materialsScore = Math.min(totalMaterialRequests / 20, 1) * 10;
+  const qualityScore = avgQualityRating > 0 ? (avgQualityRating / 5) * 10 : 0;
+  const alertPenalty = Math.min(geoAlertCount * 2, 10);
+  const score = Math.max(0, Math.round(photoScore + hoursScore + visitsScore + materialsScore + qualityScore - alertPenalty));
+
+  // Get rank from full ranking
+  const fullRanking = await getPromoterRanking(year, month);
+  const rankEntry = fullRanking.find((r) => r.userId === promoterId);
+  const rank = rankEntry?.rank ?? 0;
+
+  // Brand breakdown
+  const allBrands = await db.select().from(brands).where(eq(brands.status, "active"));
+  const allPhotos = await db
+    .select({ brandId: photos.brandId, status: photos.status })
+    .from(photos)
+    .where(and(eq(photos.userId, promoterId), gte(photos.photoTimestamp, startDate), lte(photos.photoTimestamp, endDate)));
+
+  const brandBreakdown = allBrands
+    .map((b) => ({
+      brandId: b.id,
+      brandName: b.name,
+      approvedPhotos: allPhotos.filter((p) => p.brandId === b.id && p.status === "approved").length,
+      rejectedPhotos: allPhotos.filter((p) => p.brandId === b.id && p.status === "rejected").length,
+    }))
+    .filter((b) => b.approvedPhotos > 0 || b.rejectedPhotos > 0);
+
+  // Store breakdown
+  const allStores = await db.select().from(stores);
+  const storePhotos = await db
+    .select({ storeId: photos.storeId, status: photos.status })
+    .from(photos)
+    .where(and(eq(photos.userId, promoterId), gte(photos.photoTimestamp, startDate), lte(photos.photoTimestamp, endDate)));
+
+  const storeBreakdown = allStores
+    .filter((s) => storeVisits[s.id] || storeHours[s.id])
+    .map((s) => ({
+      storeId: s.id,
+      storeName: s.name,
+      visits: storeVisits[s.id] ?? 0,
+      hoursWorked: Math.round((storeHours[s.id] ?? 0) * 10) / 10,
+      photos: storePhotos.filter((p) => p.storeId === s.id && p.status === "approved").length,
+    }));
+
+  // Monthly trend (last 6 months)
+  const MONTH_NAMES = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
+  const monthlyTrend: PromoterDetailStats["monthlyTrend"] = [];
+  for (let i = 5; i >= 0; i--) {
+    const d = new Date(year, month - 1 - i, 1);
+    const m = d.getMonth() + 1;
+    const y = d.getFullYear();
+    const mStart = new Date(y, m - 1, 1);
+    const mEnd = new Date(y, m, 0, 23, 59, 59);
+
+    const mPhotos = await db.select({ cnt: count() }).from(photos)
+      .where(and(eq(photos.userId, promoterId), eq(photos.status, "approved"), gte(photos.photoTimestamp, mStart), lte(photos.photoTimestamp, mEnd)));
+    const mMat = await db.select({ cnt: count() }).from(materialRequests)
+      .where(and(eq(materialRequests.userId, promoterId), gte(materialRequests.requestedAt, mStart), lte(materialRequests.requestedAt, mEnd)));
+    const mTime = await db.select({ entryType: timeEntries.entryType, entryTime: timeEntries.entryTime })
+      .from(timeEntries).where(and(eq(timeEntries.userId, promoterId), gte(timeEntries.entryTime, mStart), lte(timeEntries.entryTime, mEnd))).orderBy(timeEntries.entryTime);
+
+    let mHours = 0; let mVisits = 0; let mLast: Date | null = null;
+    for (const r of mTime) {
+      if (r.entryType === "entry") { mLast = new Date(r.entryTime); mVisits++; }
+      else if (r.entryType === "exit" && mLast) { mHours += (new Date(r.entryTime).getTime() - mLast.getTime()) / (1000 * 60 * 60); mLast = null; }
+    }
+    mHours = Math.round(mHours * 10) / 10;
+
+    const mApproved = Number(mPhotos[0]?.cnt ?? 0);
+    const mMaterials = Number(mMat[0]?.cnt ?? 0);
+    const mAlerts = 0;
+    const mScore = Math.max(0, Math.round(
+      Math.min(mApproved / 50, 1) * 30 +
+      Math.min(mHours / 160, 1) * 25 +
+      Math.min(mVisits / 80, 1) * 25 +
+      Math.min(mMaterials / 20, 1) * 10 - mAlerts
+    ));
+
+    monthlyTrend.push({ month: `${MONTH_NAMES[m - 1]}/${y}`, score: mScore, approvedPhotos: mApproved, hoursWorked: mHours, visits: mVisits });
+  }
+
+  return {
+    userId: promoter.id,
+    userName: (promoter.name ?? promoter.email) as string,
+    userEmail: promoter.email as string,
+    score,
+    rank,
+    totalApprovedPhotos,
+    totalRejectedPhotos,
+    totalMaterialRequests,
+    totalHoursWorked,
+    totalVisits,
+    avgQualityRating,
+    geoAlertCount,
+    brandBreakdown,
+    storeBreakdown,
+    monthlyTrend,
+  };
+}
