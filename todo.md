@@ -152,3 +152,26 @@
 - [x] Corrigir retry do QueryClient para não repetir em erros UNAUTHORIZED
 - [x] Adicionar enabled: !!user em todas as queries da tela Home
 - [x] Remover expo-device do hook de push notifications
+
+## Fase 4 — Novas Funcionalidades
+
+### Dashboard de Desempenho por PDV
+- [x] Query de desempenho por loja: visitas, fotos, materiais, horas de cobertura
+- [x] Algoritmo de score composto ponderado por PDV (visitas 25%, fotos 20%, qualidade 20%, cobertura 20%, materiais 10%, alertas -5%)
+- [x] Router tRPC: storePerformance.ranking (mensal, com ranking)
+- [x] Tela Dashboard de PDVs para o Gestor
+- [x] Ranking visual com médalhas top 3, score ring e cards expandíveis
+- [x] Barras de progresso por métrica com breakdown do score
+- [x] Filtro por mês e ano com navegação
+
+### Modo Offline para o Promotor
+- [x] Fila local de ações offline (AsyncStorage, persistência entre sessões)
+- [x] Suporte offline: registro de ponto (entrada e saída)
+- [x] Suporte offline: envio de fotos (base64 local)
+- [x] Suporte offline: solicitação de materiais
+- [x] Detecção de conectividade (@react-native-community/netinfo)
+- [x] Sincronização automática ao reconectar e ao voltar ao foreground
+- [x] Banner animado de status offline/sincronizando no topo do app
+- [x] Tela de fila offline com status, erros, retry e limpeza
+- [x] Retry automático (máx 3 tentativas) + retry manual
+- [x] Aba "Offline" na navegação do Promotor

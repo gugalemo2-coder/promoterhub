@@ -52,6 +52,8 @@ const MAPPING = {
   "bell.badge.fill": "notifications-active",
   "tag.circle.fill": "local-offer",
   "signature": "draw",
+  "chart.bar.xaxis.ascending": "leaderboard",
+  "arrow.triangle.2.circlepath": "sync",
 } as IconMapping;
 
 /**

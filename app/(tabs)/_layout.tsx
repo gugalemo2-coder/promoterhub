@@ -162,6 +162,26 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
+        name="store-dashboard"
+        options={{
+          title: "PDVs",
+          tabBarIcon: ({ color }) => (
+            <IconSymbol size={26} name="chart.bar.xaxis.ascending" color={color} />
+          ),
+          href: isManager ? undefined : null,
+        }}
+      />
+      <Tabs.Screen
+        name="offline-queue"
+        options={{
+          title: "Offline",
+          tabBarIcon: ({ color }) => (
+            <IconSymbol size={26} name="arrow.triangle.2.circlepath" color={color} />
+          ),
+          href: isManager ? null : undefined,
+        }}
+      />
+      <Tabs.Screen
         name="notifications"
         options={{
           title: "Avisos",

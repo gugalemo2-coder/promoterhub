@@ -578,3 +578,185 @@ export async function getSignedReportsByManager(managerId: number): Promise<Sign
     .where(eq(signedReports.managerId, managerId))
     .orderBy(desc(signedReports.signedAt));
 }
+
+// ─── STORE PERFORMANCE DASHBOARD ─────────────────────────────────────────────
+
+export interface StorePerformanceData {
+  storeId: number;
+  storeName: string;
+  city: string | null;
+  state: string | null;
+  // Raw metrics
+  totalVisits: number;
+  totalPhotos: number;
+  approvedPhotos: number;
+  totalMaterialRequests: number;
+  approvedMaterialRequests: number;
+  totalCoverageMinutes: number;
+  totalAlerts: number;
+  // Computed
+  avgPhotosPerVisit: number;
+  photoApprovalRate: number;
+  materialApprovalRate: number;
+  avgCoverageHoursPerVisit: number;
+  // Score composto (0-100)
+  score: number;
+  rank: number;
+}
+
+export async function getStorePerformance(year: number, month: number): Promise<StorePerformanceData[]> {
+  const db = await getDb();
+  if (!db) return [];
+
+  // Date range for the month
+  const startDate = new Date(year, month - 1, 1);
+  const endDate = new Date(year, month, 0, 23, 59, 59);
+
+  // Fetch all active stores
+  const allStores = await db
+    .select({ id: stores.id, name: stores.name, city: stores.city, state: stores.state })
+    .from(stores)
+    .where(eq(stores.status, "active"));
+
+  if (allStores.length === 0) return [];
+
+  // Fetch time entries for the period
+  const entries = await db
+    .select()
+    .from(timeEntries)
+    .where(
+      and(
+        gte(timeEntries.entryTime, startDate),
+        lte(timeEntries.entryTime, endDate)
+      )
+    );
+
+  // Fetch photos for the period
+  const photoData = await db
+    .select()
+    .from(photos)
+    .where(
+      and(
+        gte(photos.photoTimestamp, startDate),
+        lte(photos.photoTimestamp, endDate)
+      )
+    );
+
+  // Fetch material requests for the period
+  const matRequests = await db
+    .select()
+    .from(materialRequests)
+    .where(
+      and(
+        gte(materialRequests.requestedAt, startDate),
+        lte(materialRequests.requestedAt, endDate)
+      )
+    );
+
+  // Fetch geo alerts for the period
+  const alerts = await db
+    .select()
+    .from(geoAlerts)
+    .where(
+      and(
+        gte(geoAlerts.alertTimestamp, startDate),
+        lte(geoAlerts.alertTimestamp, endDate)
+      )
+    );
+
+  // Compute per-store metrics
+  const storeMap = new Map<number, StorePerformanceData>();
+
+  for (const store of allStores) {
+    // Visits = number of "entry" time entries for this store
+    const storeEntries = entries.filter((e) => e.storeId === store.id);
+    const totalVisits = storeEntries.filter((e) => e.entryType === "entry").length;
+
+    // Coverage: pair entry/exit to compute minutes
+    const entryTimes = storeEntries
+      .filter((e) => e.entryType === "entry")
+      .map((e) => e.entryTime.getTime());
+    const exitTimes = storeEntries
+      .filter((e) => e.entryType === "exit")
+      .map((e) => e.entryTime.getTime());
+    let totalCoverageMinutes = 0;
+    const pairs = Math.min(entryTimes.length, exitTimes.length);
+    for (let i = 0; i < pairs; i++) {
+      const diff = (exitTimes[i] - entryTimes[i]) / 60000;
+      if (diff > 0 && diff < 720) totalCoverageMinutes += diff; // cap at 12h
+    }
+
+    // Photos
+    const storePhotos = photoData.filter((p) => p.storeId === store.id);
+    const totalPhotos = storePhotos.length;
+    const approvedPhotos = storePhotos.filter((p) => p.status === "approved").length;
+
+    // Material requests
+    const storeMat = matRequests.filter((r) => r.storeId === store.id);
+    const totalMaterialRequests = storeMat.length;
+    const approvedMaterialRequests = storeMat.filter(
+      (r) => r.status === "approved" || r.status === "delivered"
+    ).length;
+
+    // Alerts
+    const storeAlerts = alerts.filter((a) => a.storeId === store.id).length;
+
+    // Derived
+    const avgPhotosPerVisit = totalVisits > 0 ? totalPhotos / totalVisits : 0;
+    const photoApprovalRate = totalPhotos > 0 ? approvedPhotos / totalPhotos : 0;
+    const materialApprovalRate =
+      totalMaterialRequests > 0 ? approvedMaterialRequests / totalMaterialRequests : 0;
+    const avgCoverageHoursPerVisit =
+      totalVisits > 0 ? totalCoverageMinutes / 60 / totalVisits : 0;
+
+    storeMap.set(store.id, {
+      storeId: store.id,
+      storeName: store.name,
+      city: store.city,
+      state: store.state,
+      totalVisits,
+      totalPhotos,
+      approvedPhotos,
+      totalMaterialRequests,
+      approvedMaterialRequests,
+      totalCoverageMinutes,
+      totalAlerts: storeAlerts,
+      avgPhotosPerVisit,
+      photoApprovalRate,
+      materialApprovalRate,
+      avgCoverageHoursPerVisit,
+      score: 0,
+      rank: 0,
+    });
+  }
+
+  const results = Array.from(storeMap.values());
+
+  // Normalize each metric to 0-1 range across all stores, then compute weighted score
+  const maxVisits = Math.max(...results.map((r) => r.totalVisits), 1);
+  const maxPhotos = Math.max(...results.map((r) => r.totalPhotos), 1);
+  const maxCoverage = Math.max(...results.map((r) => r.totalCoverageMinutes), 1);
+
+  for (const r of results) {
+    // Weights: visits 25%, photos 20%, photo approval 20%, coverage 20%, materials 10%, alerts penalty 5%
+    const visitScore = (r.totalVisits / maxVisits) * 25;
+    const photoVolumeScore = (r.totalPhotos / maxPhotos) * 20;
+    const photoQualityScore = r.photoApprovalRate * 20;
+    const coverageScore = (r.totalCoverageMinutes / maxCoverage) * 20;
+    const materialScore = r.materialApprovalRate * 10;
+    const alertPenalty = Math.min(r.totalAlerts * 1.5, 5); // max -5 points
+
+    r.score = Math.max(
+      0,
+      Math.round(visitScore + photoVolumeScore + photoQualityScore + coverageScore + materialScore - alertPenalty)
+    );
+  }
+
+  // Sort by score descending and assign rank
+  results.sort((a, b) => b.score - a.score);
+  results.forEach((r, i) => {
+    r.rank = i + 1;
+  });
+
+  return results;
+}

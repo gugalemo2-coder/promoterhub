@@ -207,7 +207,7 @@ export const appRouter = router({
       .input(z.object({ fileBase64: z.string(), fileType: z.string().default("image/png"), fileName: z.string().default("logo.png") }))
       .mutation(async ({ input }) => { const buffer = Buffer.from(input.fileBase64, "base64"); const fileKey = `brands/${Date.now()}-${input.fileName}`; const { url } = await storagePut(fileKey, buffer, input.fileType); return { url }; }),
   }),
-  signedReports: router({
+   signedReports: router({
     create: protectedProcedure
       .input(z.object({ promoterId: z.number().optional(), month: z.number().int().min(1).max(12), year: z.number().int().min(2020).max(2100), signatureData: z.string().min(10), reportHash: z.string() }))
       .mutation(async ({ ctx, input }) => {
@@ -218,6 +218,10 @@ export const appRouter = router({
     verify: publicProcedure.input(z.object({ reportId: z.string() })).query(({ input }) => db.getSignedReportById(input.reportId)),
     listByManager: protectedProcedure.query(({ ctx }) => db.getSignedReportsByManager(ctx.user.id)),
   }),
+  storePerformance: router({
+    ranking: protectedProcedure
+      .input(z.object({ year: z.number().int().min(2020).max(2100), month: z.number().int().min(1).max(12) }))
+      .query(({ input }) => db.getStorePerformance(input.year, input.month)),
+  }),
 });
-
 export type AppRouter = typeof appRouter;
