@@ -214,13 +214,6 @@ export default function MyProfileScreen() {
               sub={stats?.totalMaterialRequests === 0 ? undefined : "no mês"}
             />
             <StatCard
-              icon="time"
-              label="Horas trabalhadas"
-              value={`${stats?.totalHoursWorked ?? 0}h`}
-              color={colors.success}
-              sub={stats?.totalVisits === 0 ? undefined : `${stats?.totalVisits} visitas`}
-            />
-            <StatCard
               icon="storefront"
               label="Visitas a PDVs"
               value={stats?.totalVisits ?? 0}

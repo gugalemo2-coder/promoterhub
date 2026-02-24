@@ -178,7 +178,7 @@ export default function TabLayout() {
           tabBarIcon: ({ color }) => (
             <IconSymbol size={26} name="arrow.triangle.2.circlepath" color={color} />
           ),
-          href: isManager ? null : undefined,
+          href: null,
         }}
       />
       <Tabs.Screen

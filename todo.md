@@ -277,3 +277,10 @@
 - [x] Exibir resumo mensal da equipe: horas, fotos, dias trabalhados, solicitações
 - [x] Cards de sumário mensal da equipe no topo
 - [x] Navegação para Detalhe do Promotor ao tocar no card
+
+## Fase 10 — Ajustes de UX
+
+### Limpeza da Navegação e Perfil
+- [x] Remover aba "Offline" da barra de navegação inferior do Promotor
+- [x] Manter a funcionalidade de fila offline funcionando em segundo plano
+- [x] Remover card de horas trabalhadas da tela de Perfil do Promotor
