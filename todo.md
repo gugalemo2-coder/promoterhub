@@ -294,3 +294,12 @@
 - [x] Chip inativo com fundo translucido e borda colorida da marca
 - [x] Contador de fotos por marca exibido em badge no chip
 - [x] Ponto colorido da marca ao lado do nome no chip
+
+## Fase 12 — Correção de Autenticação e Fluxo de Role
+
+- [x] Corrigir fluxo pós-logout: usuário deve voltar para tela de login normalmente
+- [x] Corrigir seleção de role após novo login (promotor/gestor)
+- [x] App não deve ir direto para tela de promotor sem passar pela seleção de role
+- [x] Limpar estado de role e cache ao fazer logout
+- [x] Corrigir react-native-maps para versão compatível com Expo Go SDK 54 (1.20.1)
+- [x] Adicionar confirmação de logout (Alert) antes de sair da conta

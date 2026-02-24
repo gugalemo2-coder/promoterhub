@@ -5,11 +5,11 @@ import { useRole } from "@/lib/role-context";
 import { trpc } from "@/lib/trpc";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 
 export default function HomeScreen() {
   const colors = useColors();
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
   const { appRole, clearRole } = useRole();
   const router = useRouter();
   const isManager = appRole === "manager";
@@ -32,8 +32,27 @@ export default function HomeScreen() {
   };
 
   const handleLogout = async () => {
-    await clearRole();
-    router.replace("/login");
+    Alert.alert(
+      "Sair da conta",
+      "Deseja sair e trocar de perfil?",
+      [
+        { text: "Cancelar", style: "cancel" },
+        {
+          text: "Sair",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              await clearRole();
+              await logout();
+            } catch {
+              // ignora erros de rede no logout
+            } finally {
+              router.replace("/login");
+            }
+          },
+        },
+      ]
+    );
   };
 
   if (isManager) {

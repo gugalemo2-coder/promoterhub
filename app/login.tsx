@@ -1,5 +1,6 @@
 import { useAuth } from "@/hooks/use-auth";
 import { useColors } from "@/hooks/use-colors";
+import { useRole } from "@/lib/role-context";
 import { Ionicons } from "@expo/vector-icons";
 import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
@@ -10,13 +11,14 @@ import { startOAuthLogin } from "@/constants/oauth";
 
 export default function LoginScreen() {
   const { isAuthenticated, loading } = useAuth();
+  const { appRole, isRoleLoading } = useRole();
   const colors = useColors();
 
   const handleSignIn = async () => {
     await startOAuthLogin();
   };
 
-  if (loading) {
+  if (loading || isRoleLoading) {
     return (
       <View style={[styles.container, { backgroundColor: colors.background }]}>
         <ActivityIndicator size="large" color={colors.primary} />
@@ -25,7 +27,11 @@ export default function LoginScreen() {
   }
 
   if (isAuthenticated) {
-    return <Redirect href="/(tabs)" />;
+    // Se já tem role salvo, vai direto para o app; senão, vai para seleção de perfil
+    if (appRole) {
+      return <Redirect href="/(tabs)" />;
+    }
+    return <Redirect href="/role-select" />;
   }
 
   return (
