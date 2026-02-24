@@ -328,3 +328,21 @@
 - [x] Fluxo completo: token salvo no SecureStore + role definido + navegação para o app
 - [x] Loading state individual por botão de demo
 - [x] Role pré-definido no login demo (sem passar pela tela de seleção de role)
+
+## Fase 15 — Painel Web do Gestor (Desktop/iPad)
+
+- [x] Estrutura base: Next.js 16 + Tailwind CSS + shadcn/ui
+- [x] Layout com sidebar colapsável, header e área de conteúdo
+- [x] Autenticação: login demo (Gestor Demo) + OAuth Manus
+- [x] Dashboard principal: KPIs do dia, gráficos de desempenho, alertas recentes
+- [x] Página de Equipe: tabela de promotores com status, horas e métricas do mês
+- [x] Página de Ranking de Promotores: tabela com score, posição e evolução
+- [x] Página de Detalhe do Promotor: métricas, gráfico de evolução, lojas visitadas
+- [x] Página de PDVs: lista de lojas com status e coordenadas
+- [x] Página de Fotos: galeria com aprovação/rejeição
+- [x] Página de Materiais: gestão de solicitações e catálogo
+- [x] Página de Alertas: tabela de alertas com reconhecimento
+- [x] Página de Relatórios: relatório mensal com exportação CSV
+- [x] Página de Configurações: raio geofencing, pesos do score, notificações
+- [x] Conexão com o mesmo banco de dados do app mobile via tRPC
+- [x] Zero erros TypeScript no painel web
