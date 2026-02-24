@@ -55,6 +55,8 @@ const MAPPING = {
   "chart.bar.xaxis.ascending": "leaderboard",
   "arrow.triangle.2.circlepath": "sync",
   "person.crop.circle.fill": "account-circle",
+  "trophy.fill": "emoji-events",
+  "clock.arrow.circlepath": "history",
 } as IconMapping;
 
 /**

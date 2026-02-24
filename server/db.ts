@@ -915,3 +915,302 @@ export async function getPromoterWeeklyTrend(userId: number): Promise<WeeklyTren
 
   return result;
 }
+
+// ─── PROMOTER RANKING ────────────────────────────────────────────────────────
+
+export interface PromoterRankingEntry {
+  userId: number;
+  userName: string;
+  userEmail: string;
+  totalApprovedPhotos: number;
+  totalMaterialRequests: number;
+  totalHoursWorked: number;
+  totalVisits: number;
+  avgQualityRating: number;
+  geoAlertCount: number;
+  score: number;
+  rank: number;
+}
+
+export async function getPromoterRanking(
+  year: number,
+  month: number
+): Promise<PromoterRankingEntry[]> {
+  const db = await getDb();
+  if (!db) return [];
+
+  const { and, gte, lte, eq, count, avg, sum } = await import("drizzle-orm");
+
+  const startDate = new Date(year, month - 1, 1);
+  const endDate = new Date(year, month, 0, 23, 59, 59);
+
+  // Get all promoters
+  const allPromoters = await db
+    .select({ id: users.id, name: users.name, email: users.email })
+    .from(users)
+    .innerJoin(promoterProfiles, eq(promoterProfiles.userId, users.id));
+
+  const results: PromoterRankingEntry[] = [];
+
+  for (const promoter of allPromoters) {
+    // Approved photos
+    const photoRows = await db
+      .select({ cnt: count() })
+      .from(photos)
+      .where(
+        and(
+          eq(photos.userId, promoter.id),
+          eq(photos.status, "approved"),
+          gte(photos.photoTimestamp, startDate),
+          lte(photos.photoTimestamp, endDate)
+        )
+      );
+    const totalApprovedPhotos = Number(photoRows[0]?.cnt ?? 0);
+
+    // Avg quality rating of approved photos
+    const qualityRows = await db
+      .select({ avgQ: avg(photos.qualityRating) })
+      .from(photos)
+      .where(
+        and(
+          eq(photos.userId, promoter.id),
+          eq(photos.status, "approved"),
+          gte(photos.photoTimestamp, startDate),
+          lte(photos.photoTimestamp, endDate)
+        )
+      );
+    const avgQualityRating = Number(qualityRows[0]?.avgQ ?? 0);
+
+    // Material requests
+    const matRows = await db
+      .select({ cnt: count() })
+      .from(materialRequests)
+      .where(
+        and(
+          eq(materialRequests.userId, promoter.id),
+          gte(materialRequests.requestedAt, startDate),
+          lte(materialRequests.requestedAt, endDate)
+        )
+      );
+    const totalMaterialRequests = Number(matRows[0]?.cnt ?? 0);
+
+    // Time entries — calculate hours worked
+    const timeRows = await db
+      .select({ entryType: timeEntries.entryType, entryTime: timeEntries.entryTime })
+      .from(timeEntries)
+      .where(
+        and(
+          eq(timeEntries.userId, promoter.id),
+          gte(timeEntries.entryTime, startDate),
+          lte(timeEntries.entryTime, endDate)
+        )
+      )
+      .orderBy(timeEntries.entryTime);
+
+    let totalHoursWorked = 0;
+    let totalVisits = 0;
+    let lastEntry: Date | null = null;
+    for (const row of timeRows) {
+      if (row.entryType === "entry") {
+        lastEntry = new Date(row.entryTime);
+        totalVisits++;
+      } else if (row.entryType === "exit" && lastEntry) {
+        const diffMs = new Date(row.entryTime).getTime() - lastEntry.getTime();
+        totalHoursWorked += diffMs / (1000 * 60 * 60);
+        lastEntry = null;
+      }
+    }
+    totalHoursWorked = Math.round(totalHoursWorked * 10) / 10;
+
+    // Geo alerts (negative factor)
+    const alertRows = await db
+      .select({ cnt: count() })
+      .from(geoAlerts)
+      .where(
+        and(
+          eq(geoAlerts.userId, promoter.id),
+          gte(geoAlerts.createdAt, startDate),
+          lte(geoAlerts.createdAt, endDate)
+        )
+      );
+    const geoAlertCount = Number(alertRows[0]?.cnt ?? 0);
+
+    // Score composto: fotos 30%, horas 25%, visitas 25%, materiais 10%, qualidade 10%, alertas -5%
+    const maxPhotos = 50;
+    const maxHours = 160;
+    const maxVisits = 80;
+    const maxMaterials = 20;
+    const maxQuality = 5;
+
+    const photoScore = Math.min(totalApprovedPhotos / maxPhotos, 1) * 30;
+    const hoursScore = Math.min(totalHoursWorked / maxHours, 1) * 25;
+    const visitsScore = Math.min(totalVisits / maxVisits, 1) * 25;
+    const materialsScore = Math.min(totalMaterialRequests / maxMaterials, 1) * 10;
+    const qualityScore = maxQuality > 0 ? (avgQualityRating / maxQuality) * 10 : 0;
+    const alertPenalty = Math.min(geoAlertCount * 2, 10);
+
+    const score = Math.max(
+      0,
+      Math.round(photoScore + hoursScore + visitsScore + materialsScore + qualityScore - alertPenalty)
+    );
+
+    results.push({
+      userId: promoter.id,
+      userName: (promoter.name ?? promoter.email) as string,
+      userEmail: promoter.email as string,
+      totalApprovedPhotos,
+      totalMaterialRequests,
+      totalHoursWorked,
+      totalVisits,
+      avgQualityRating: Math.round(avgQualityRating * 10) / 10,
+      geoAlertCount,
+      score,
+      rank: 0,
+    });
+  }
+
+  // Sort by score descending and assign ranks
+  results.sort((a, b) => b.score - a.score);
+  results.forEach((r, i) => (r.rank = i + 1));
+
+  return results;
+}
+
+// ─── STORE VISIT HISTORY ─────────────────────────────────────────────────────
+
+export interface StoreVisitEntry {
+  visitDate: string;
+  userId: number;
+  userName: string;
+  entryTime: Date;
+  exitTime: Date | null;
+  hoursWorked: number;
+  photosCount: number;
+  approvedPhotosCount: number;
+  materialsCount: number;
+  hasGeoAlert: boolean;
+}
+
+export async function getStoreVisitHistory(
+  storeId: number,
+  year: number,
+  month: number
+): Promise<StoreVisitEntry[]> {
+  const db = await getDb();
+  if (!db) return [];
+
+  const { and, gte, lte, eq, count } = await import("drizzle-orm");
+
+  const startDate = new Date(year, month - 1, 1);
+  const endDate = new Date(year, month, 0, 23, 59, 59);
+
+  // Get all entries for this store in the period
+  const entries = await db
+    .select({
+      id: timeEntries.id,
+      userId: timeEntries.userId,
+      entryType: timeEntries.entryType,
+      entryTime: timeEntries.entryTime,
+      userName: users.name,
+      userEmail: users.email,
+    })
+    .from(timeEntries)
+    .innerJoin(users, eq(users.id, timeEntries.userId))
+    .where(
+      and(
+        eq(timeEntries.storeId, storeId),
+        gte(timeEntries.entryTime, startDate),
+        lte(timeEntries.entryTime, endDate)
+      )
+    )
+    .orderBy(timeEntries.entryTime);
+
+  // Group entries into visits (entry + exit pairs)
+  const visitMap = new Map<string, StoreVisitEntry>();
+
+  for (const row of entries) {
+    const dateKey = `${row.userId}-${new Date(row.entryTime).toISOString().split("T")[0]}`;
+
+    if (row.entryType === "entry") {
+      visitMap.set(dateKey, {
+        visitDate: new Date(row.entryTime).toISOString().split("T")[0],
+        userId: row.userId,
+        userName: (row.userName ?? row.userEmail) as string,
+        entryTime: new Date(row.entryTime),
+        exitTime: null,
+        hoursWorked: 0,
+        photosCount: 0,
+        approvedPhotosCount: 0,
+        materialsCount: 0,
+        hasGeoAlert: false,
+      });
+    } else if (row.entryType === "exit") {
+      const visit = visitMap.get(dateKey);
+      if (visit) {
+        visit.exitTime = new Date(row.entryTime);
+        const diffMs = visit.exitTime.getTime() - visit.entryTime.getTime();
+        visit.hoursWorked = Math.round((diffMs / (1000 * 60 * 60)) * 10) / 10;
+      }
+    }
+  }
+
+  const visits = Array.from(visitMap.values());
+
+  // Enrich each visit with photos, materials and alerts
+  for (const visit of visits) {
+    const dayStart = new Date(visit.visitDate + "T00:00:00");
+    const dayEnd = new Date(visit.visitDate + "T23:59:59");
+
+    // Photos
+    const photoRows = await db
+      .select({ cnt: count(), status: photos.status })
+      .from(photos)
+      .where(
+        and(
+          eq(photos.userId, visit.userId),
+          eq(photos.storeId, storeId),
+          gte(photos.photoTimestamp, dayStart),
+          lte(photos.photoTimestamp, dayEnd)
+        )
+      )
+      .groupBy(photos.status);
+
+    for (const row of photoRows) {
+      visit.photosCount += Number(row.cnt);
+      if (row.status === "approved") visit.approvedPhotosCount += Number(row.cnt);
+    }
+
+    // Materials
+    const matRows = await db
+      .select({ cnt: count() })
+      .from(materialRequests)
+      .where(
+        and(
+          eq(materialRequests.userId, visit.userId),
+          eq(materialRequests.storeId, storeId),
+          gte(materialRequests.requestedAt, dayStart),
+          lte(materialRequests.requestedAt, dayEnd)
+        )
+      );
+    visit.materialsCount = Number(matRows[0]?.cnt ?? 0);
+
+    // Geo alerts
+    const alertRows = await db
+      .select({ cnt: count() })
+      .from(geoAlerts)
+      .where(
+        and(
+          eq(geoAlerts.userId, visit.userId),
+          eq(geoAlerts.storeId, storeId),
+          gte(geoAlerts.createdAt, dayStart),
+          lte(geoAlerts.createdAt, dayEnd)
+        )
+      );
+    visit.hasGeoAlert = Number(alertRows[0]?.cnt ?? 0) > 0;
+  }
+
+  // Sort by date descending
+  visits.sort((a, b) => new Date(b.visitDate).getTime() - new Date(a.visitDate).getTime());
+
+  return visits;
+}

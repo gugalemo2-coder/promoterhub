@@ -236,5 +236,22 @@ export const appRouter = router({
     weeklyTrend: protectedProcedure
       .query(({ ctx }) => db.getPromoterWeeklyTrend(ctx.user.id)),
   }),
+  promoterRanking: router({
+    monthly: protectedProcedure
+      .input(z.object({
+        year: z.number().int().min(2020).max(2100),
+        month: z.number().int().min(1).max(12),
+      }))
+      .query(({ input }) => db.getPromoterRanking(input.year, input.month)),
+  }),
+  storeVisits: router({
+    history: protectedProcedure
+      .input(z.object({
+        storeId: z.number().int().positive(),
+        year: z.number().int().min(2020).max(2100),
+        month: z.number().int().min(1).max(12),
+      }))
+      .query(({ input }) => db.getStoreVisitHistory(input.storeId, input.year, input.month)),
+  }),
 });
 export type AppRouter = typeof appRouter;

@@ -213,3 +213,23 @@
 - [x] Breakdown de fotos aprovadas por marca com barras de progresso
 - [x] Seletor de mês/ano para filtrar os dados
 - [x] Aba "Meu Perfil" na navegação do Promotor
+
+## Fase 7 — Novas Funcionalidades
+
+### Ranking Comparativo de Promotores
+- [x] Endpoint tRPC: promoterRanking.monthly (fotos aprovadas, horas, materiais, visitas, score)
+- [x] Algoritmo de score composto por promotor (fotos 30%, horas 25%, visitas 25%, materiais 10%, qualidade 10%, alertas -5%)
+- [x] Tela de ranking de promotores para o Gestor
+- [x] Cards com posição (medalhas top 3), avatar com iniciais, métricas rápidas e score ring
+- [x] Cards expandíveis com barras de progresso por métrica
+- [x] Filtro por mês/ano com navegação
+- [x] Fórmula do score no cabeçalho da lista
+- [x] Aba "Ranking" na navegação do Gestor
+
+### Histórico de Visitas por PDV
+- [x] Endpoint tRPC: storeVisits.history (visitas por loja com detalhes)
+- [x] Tela de histórico de visitas com seletor de loja e mês
+- [x] Cada visita: data, promotor, horário de entrada/saída, horas, fotos aprovadas, materiais
+- [x] Cards expandíveis com taxa de aprovação de fotos e alertas de geo
+- [x] Cards de sumário: total de visitas, horas, fotos aprovadas, materiais
+- [x] Aba "Visitas" na navegação do Gestor

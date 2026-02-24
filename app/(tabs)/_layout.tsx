@@ -192,6 +192,26 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
+        name="promoter-ranking"
+        options={{
+          title: "Ranking",
+          tabBarIcon: ({ color }) => (
+            <IconSymbol size={26} name="trophy.fill" color={color} />
+          ),
+          href: isManager ? undefined : null,
+        }}
+      />
+      <Tabs.Screen
+        name="store-visits"
+        options={{
+          title: "Visitas",
+          tabBarIcon: ({ color }) => (
+            <IconSymbol size={26} name="clock.arrow.circlepath" color={color} />
+          ),
+          href: isManager ? undefined : null,
+        }}
+      />
+      <Tabs.Screen
         name="notifications"
         options={{
           title: "Avisos",
