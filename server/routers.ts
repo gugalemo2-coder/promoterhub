@@ -80,6 +80,7 @@ export const appRouter = router({
     dailySummary: protectedProcedure.input(z.object({ date: z.string().optional() })).query(({ ctx, input }) => db.getDailySummary(ctx.user.id, input.date ? new Date(input.date) : new Date())),
     lastOpenEntry: protectedProcedure.query(({ ctx }) => db.getLastOpenEntry(ctx.user.id)),
     allForDate: protectedProcedure.input(z.object({ date: z.string().optional() })).query(({ input }) => db.getAllTimeEntriesForDate(input.date ? new Date(input.date) : new Date())),
+    allForRange: protectedProcedure.input(z.object({ startDate: z.string(), endDate: z.string() })).query(({ input }) => db.getAllTimeEntriesForRange(new Date(input.startDate), new Date(input.endDate))),
     forUser: protectedProcedure.input(z.object({ userId: z.number(), startDate: z.string().optional(), endDate: z.string().optional() })).query(({ input }) => db.getTimeEntriesByUser(input.userId, input.startDate ? new Date(input.startDate) : undefined, input.endDate ? new Date(input.endDate) : undefined)),
   }),
   photos: router({

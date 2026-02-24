@@ -412,3 +412,11 @@
 - [x] Página de Assinar Relatório: canvas de assinatura digital + histórico + exportação
 - [x] Sidebar reorganizada em grupos (Visão Geral, PDVs & Visitas, Promotores, Conteúdo, Gestão)
 - [x] Zero erros TypeScript após todas as novas páginas
+
+## Fase 18 — Melhorias no Painel Web
+
+- [x] Modal de cadastro de nova loja na página de PDVs (nome, endereço, coordenadas GPS)
+- [x] Gráficos de barras (horas por dia) e pizza (fotos por marca) na página de Relatórios
+- [x] Filtro de mês/ano no Controle de Ponto para ver histórico completo
+- [x] Botão de download individual de foto na página de Fotos
+- [x] Botão de download em massa de todas as fotos filtradas

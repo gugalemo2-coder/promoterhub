@@ -227,6 +227,14 @@ export async function getAllTimeEntriesForDate(date: Date): Promise<TimeEntry[]>
   return db.select().from(timeEntries).where(and(gte(timeEntries.entryTime, dayStart), lte(timeEntries.entryTime, dayEnd))).orderBy(desc(timeEntries.entryTime));
 }
 
+export async function getAllTimeEntriesForRange(startDate: Date, endDate: Date): Promise<TimeEntry[]> {
+  const db = await getDb();
+  if (!db) return [];
+  const rangeStart = new Date(startDate); rangeStart.setHours(0, 0, 0, 0);
+  const rangeEnd = new Date(endDate); rangeEnd.setHours(23, 59, 59, 999);
+  return db.select().from(timeEntries).where(and(gte(timeEntries.entryTime, rangeStart), lte(timeEntries.entryTime, rangeEnd))).orderBy(desc(timeEntries.entryTime));
+}
+
 // ─── PHOTOS ───────────────────────────────────────────────────────────────────
 
 export async function createPhoto(data: InsertPhoto): Promise<number> {
