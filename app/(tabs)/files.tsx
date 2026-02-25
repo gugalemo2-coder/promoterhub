@@ -21,7 +21,7 @@ import {
 export default function FilesScreen() {
   const colors = useColors();
   const { appRole } = useRole();
-  const isManager = appRole === "manager";
+  const isManager = appRole === "manager" || appRole === "master";
 
   const [selectedBrandId, setSelectedBrandId] = useState<number | null>(null);
   const [showUploadModal, setShowUploadModal] = useState(false);

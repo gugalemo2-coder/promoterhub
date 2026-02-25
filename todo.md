@@ -519,3 +519,13 @@
 ## Fase 30 — Correção de Logout
 
 - [x] Corrigir botão de logout na conta Master (router.replace("/") para acionar o fluxo de auth do index raiz)
+
+## Fase 31 — Auditoria e Correção Geral de Roles
+
+- [x] Corrigir isManager em clock.tsx para incluir master
+- [x] Corrigir isManager em files.tsx para incluir master
+- [x] Corrigir isManager em materials.tsx para incluir master
+- [x] Corrigir isManager em photos.tsx para incluir master
+- [x] Verificar aba clock (Ponto): oculta para Gestor/Master via href: isPromoter ? undefined : null
+- [x] Verificar aba photos (Fotos): oculta para Gestor/Master via href: isPromoter ? undefined : null
+- [x] Verificar aba my-profile: oculta para Gestor/Master via href: isPromoter ? undefined : null
