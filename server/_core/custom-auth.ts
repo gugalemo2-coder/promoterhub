@@ -331,4 +331,49 @@ export function registerCustomAuthRoutes(app: Express) {
       res.status(500).json({ error: "Erro interno." });
     }
   });
+
+  // ── PATCH /api/master/users/:id/password ────────────────────────────────────
+  app.patch("/api/master/users/:id/password", async (req: Request, res: Response) => {
+    try {
+      const token =
+        req.headers.authorization?.replace("Bearer ", "") ||
+        req.cookies?.[COOKIE_NAME];
+      if (!token) { res.status(401).json({ error: "Não autenticado." }); return; }
+
+      const session = await sdk.verifySession(token);
+      if (!session) { res.status(401).json({ error: "Sessão inválida." }); return; }
+
+      const match = session.openId.match(/^app_user_(\d+)$/);
+      if (!match) { res.status(403).json({ error: "Acesso negado." }); return; }
+
+      const requesterId = parseInt(match[1]);
+      const targetId = parseInt(req.params.id);
+      const { newPassword } = req.body as { newPassword?: string };
+
+      if (!newPassword || newPassword.trim().length < 4) {
+        res.status(400).json({ error: "A nova senha deve ter pelo menos 4 caracteres." });
+        return;
+      }
+
+      const db = await getDb();
+      if (!db) { res.status(503).json({ error: "Banco de dados indisponível." }); return; }
+
+      const requester = await db.select().from(appUsers).where(eq(appUsers.id, requesterId)).limit(1);
+      if (!requester[0] || requester[0].appRole !== "master") {
+        res.status(403).json({ error: "Apenas o Master pode redefinir senhas." });
+        return;
+      }
+
+      const target = await db.select().from(appUsers).where(eq(appUsers.id, targetId)).limit(1);
+      if (!target[0]) { res.status(404).json({ error: "Usuário não encontrado." }); return; }
+
+      const passwordHash = await bcrypt.hash(newPassword.trim(), 10);
+      await db.update(appUsers).set({ passwordHash }).where(eq(appUsers.id, targetId));
+
+      res.json({ success: true, message: `Senha de "${target[0].name}" redefinida com sucesso.` });
+    } catch (err) {
+      console.error("[CustomAuth] Reset password failed:", err);
+      res.status(500).json({ error: "Erro interno." });
+    }
+  });
 }

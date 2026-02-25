@@ -251,21 +251,50 @@ class SDKServer {
     const signedInAt = new Date();
     let user = await db.getUserByOpenId(sessionUserId);
 
-    // If user not in DB, sync from OAuth server automatically
+    // If user not in DB, handle based on token type
     if (!user) {
-      try {
-        const userInfo = await this.getUserInfoWithJwt(sessionCookie ?? "");
-        await db.upsertUser({
-          openId: userInfo.openId,
-          name: userInfo.name || null,
-          email: userInfo.email ?? null,
-          loginMethod: userInfo.loginMethod ?? userInfo.platform ?? null,
-          lastSignedIn: signedInAt,
-        });
-        user = await db.getUserByOpenId(userInfo.openId);
-      } catch (error) {
-        console.error("[Auth] Failed to sync user from OAuth:", error);
-        throw ForbiddenError("Failed to sync user info");
+      const appUserMatch = sessionUserId.match(/^app_user_(\d+)$/);
+      if (appUserMatch) {
+        // Custom auth user — auto-create in users table so tRPC ctx.user works
+        try {
+          const appUserId = parseInt(appUserMatch[1]);
+          const { getDb } = await import("../db");
+          const { appUsers } = await import("../../drizzle/schema");
+          const { eq } = await import("drizzle-orm");
+          const dbConn = await getDb();
+          if (dbConn) {
+            const rows = await dbConn.select().from(appUsers).where(eq(appUsers.id, appUserId)).limit(1);
+            if (rows[0]) {
+              await db.upsertUser({
+                openId: sessionUserId,
+                name: rows[0].name || null,
+                email: null,
+                loginMethod: "custom",
+                lastSignedIn: signedInAt,
+              });
+              user = await db.getUserByOpenId(sessionUserId);
+            }
+          }
+        } catch (error) {
+          console.error("[Auth] Failed to sync custom app user:", error);
+          throw ForbiddenError("Failed to sync custom user");
+        }
+      } else {
+        // Regular OAuth user — sync from OAuth server
+        try {
+          const userInfo = await this.getUserInfoWithJwt(sessionCookie ?? "");
+          await db.upsertUser({
+            openId: userInfo.openId,
+            name: userInfo.name || null,
+            email: userInfo.email ?? null,
+            loginMethod: userInfo.loginMethod ?? userInfo.platform ?? null,
+            lastSignedIn: signedInAt,
+          });
+          user = await db.getUserByOpenId(userInfo.openId);
+        } catch (error) {
+          console.error("[Auth] Failed to sync user from OAuth:", error);
+          throw ForbiddenError("Failed to sync user info");
+        }
       }
     }
 

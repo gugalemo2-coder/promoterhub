@@ -105,6 +105,39 @@ export default function MasterUsersScreen() {
     []
   );
 
+  const handleResetPassword = useCallback(
+    (user: AppUser) => {
+      let newPassword = "";
+      Alert.prompt(
+        "Redefinir Senha",
+        `Digite a nova senha para ${user.name}:`,
+        [
+          { text: "Cancelar", style: "cancel" },
+          {
+            text: "Redefinir",
+            style: "destructive",
+            onPress: async (value: string | undefined) => {
+              const pwd = (value ?? "").trim();
+              if (pwd.length < 4) {
+                Alert.alert("Erro", "A senha deve ter pelo menos 4 caracteres.");
+                return;
+              }
+              try {
+                const result = await Api.masterResetPassword(user.id, pwd);
+                Alert.alert("Sucesso", result.message);
+              } catch (err) {
+                const msg = err instanceof Error ? err.message : "Erro ao redefinir senha";
+                Alert.alert("Erro", msg);
+              }
+            },
+          },
+        ],
+        "secure-text"
+      );
+    },
+    []
+  );
+
   const handleToggleActive = useCallback(
     async (user: AppUser) => {
       const action = user.active ? "desativar" : "ativar";
@@ -202,6 +235,18 @@ export default function MasterUsersScreen() {
                 />
               </Pressable>
 
+              {/* Reset password */}
+              <Pressable
+                style={({ pressed }) => [
+                  styles.actionBtn,
+                  { backgroundColor: "#FEF3C7" },
+                  pressed && { opacity: 0.7 },
+                ]}
+                onPress={() => handleResetPassword(item)}
+              >
+                <Ionicons name="key-outline" size={16} color="#D97706" />
+              </Pressable>
+
               {/* Active toggle */}
               <Pressable
                 style={({ pressed }) => [
@@ -226,7 +271,7 @@ export default function MasterUsersScreen() {
         </View>
       );
     },
-    [colors, handleRoleChange, handleToggleActive]
+    [colors, handleRoleChange, handleResetPassword, handleToggleActive]
   );
 
   const stats = {

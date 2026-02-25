@@ -448,3 +448,13 @@
 - [x] Navegação condicional: Gestor → painel de gestão
 - [x] Navegação condicional: Promotor → painel do promotor
 - [x] Login demo mantido para testes (pode ser removido futuramente)
+
+## Fase 21 — Vinculação de Dados ao Novo Sistema de Auth e Recuperação de Senha
+
+- [x] Auditar como userId é usado nas tabelas (timeEntries, photos, materialRequests, etc.)
+- [x] SDK auto-cria registro na tabela users ao primeiro login com token app_user_*
+- [x] Dados criados pelo novo login ficam vinculados ao appUser correto via tRPC
+- [x] Endpoint PATCH /api/master/users/:id/password (só Master): redefine senha de qualquer usuário
+- [x] Botão "Redefinir Senha" (chave amarela) no card de cada usuário no painel Master
+- [x] Alert.prompt nativo do iOS para digitar a nova senha com campo seguro
+- [x] Feedback de sucesso/erro na redefinição

@@ -174,6 +174,13 @@ export async function masterToggleActive(userId: number, active: boolean): Promi
   });
 }
 
+export async function masterResetPassword(userId: number, newPassword: string): Promise<{ success: boolean; message: string }> {
+  return apiCall<{ success: boolean; message: string }>(`/api/master/users/${userId}/password`, {
+    method: "PATCH",
+    body: JSON.stringify({ newPassword }),
+  });
+}
+
 // Logout
 export async function logout(): Promise<void> {
   await apiCall<void>("/api/auth/logout", {
