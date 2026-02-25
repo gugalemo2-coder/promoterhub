@@ -417,7 +417,7 @@ export function registerCustomAuthRoutes(app: Express) {
       const target = await db.select().from(appUsers).where(eq(appUsers.id, targetId)).limit(1);
       if (!target[0]) { res.status(404).json({ error: "Usuário não encontrado." }); return; }
 
-      const passwordHash = await bcrypt.hash(newPassword.trim(), 10);
+      const passwordHash = await bcrypt.hash(newPassword.trim(), 6);
       await db.update(appUsers).set({ passwordHash }).where(eq(appUsers.id, targetId));
 
       res.json({ success: true, message: `Senha de "${target[0].name}" redefinida com sucesso.` });

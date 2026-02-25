@@ -18,19 +18,15 @@ import { trpc } from "@/lib/trpc";
 
 // Default values matching the DB defaults
 const DEFAULTS = {
-  geoRadiusKm: 0.5,
   weightPhotos: 30,
   weightHours: 25,
   weightVisits: 25,
   weightMaterials: 10,
   weightQuality: 10,
-  notifyGeoAlert: true,
   notifyLowHours: true,
   notifyMaterialRequest: true,
   notifyPhotoRejected: true,
 };
-
-const GEO_RADIUS_OPTIONS = [0.1, 0.25, 0.5, 1.0, 1.5, 2.0, 3.0, 5.0, 10.0];
 
 export default function SettingsScreen() {
   const colors = useColors();
@@ -42,13 +38,11 @@ export default function SettingsScreen() {
   const saveMutation = trpc.settings.save.useMutation();
   const utils = trpc.useUtils();
 
-  const [geoRadiusKm, setGeoRadiusKm] = useState(DEFAULTS.geoRadiusKm);
   const [weightPhotos, setWeightPhotos] = useState(DEFAULTS.weightPhotos);
   const [weightHours, setWeightHours] = useState(DEFAULTS.weightHours);
   const [weightVisits, setWeightVisits] = useState(DEFAULTS.weightVisits);
   const [weightMaterials, setWeightMaterials] = useState(DEFAULTS.weightMaterials);
   const [weightQuality, setWeightQuality] = useState(DEFAULTS.weightQuality);
-  const [notifyGeoAlert, setNotifyGeoAlert] = useState(DEFAULTS.notifyGeoAlert);
   const [notifyLowHours, setNotifyLowHours] = useState(DEFAULTS.notifyLowHours);
   const [notifyMaterialRequest, setNotifyMaterialRequest] = useState(DEFAULTS.notifyMaterialRequest);
   const [notifyPhotoRejected, setNotifyPhotoRejected] = useState(DEFAULTS.notifyPhotoRejected);
@@ -57,13 +51,11 @@ export default function SettingsScreen() {
 
   useEffect(() => {
     if (savedSettings) {
-      setGeoRadiusKm(parseFloat(savedSettings.geoRadiusKm ?? "0.5"));
       setWeightPhotos(savedSettings.weightPhotos);
       setWeightHours(savedSettings.weightHours);
       setWeightVisits(savedSettings.weightVisits);
       setWeightMaterials(savedSettings.weightMaterials);
       setWeightQuality(savedSettings.weightQuality);
-      setNotifyGeoAlert(savedSettings.notifyGeoAlert);
       setNotifyLowHours(savedSettings.notifyLowHours);
       setNotifyMaterialRequest(savedSettings.notifyMaterialRequest);
       setNotifyPhotoRejected(savedSettings.notifyPhotoRejected);
@@ -84,13 +76,11 @@ export default function SettingsScreen() {
     setSaving(true);
     try {
       await saveMutation.mutateAsync({
-        geoRadiusKm: geoRadiusKm.toFixed(2),
         weightPhotos,
         weightHours,
         weightVisits,
         weightMaterials,
         weightQuality,
-        notifyGeoAlert,
         notifyLowHours,
         notifyMaterialRequest,
         notifyPhotoRejected,
@@ -137,53 +127,8 @@ export default function SettingsScreen() {
         <View style={styles.header}>
           <Text style={[styles.title, { color: colors.foreground }]}>Configurações</Text>
           <Text style={[styles.subtitle, { color: colors.muted }]}>
-            Geofencing, score e notificações
+            Score e notificações
           </Text>
-        </View>
-
-        {/* ── GEOFENCING ── */}
-        <View style={[styles.section, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-          <View style={styles.sectionHeader}>
-            <Ionicons name="location-outline" size={20} color={colors.primary} />
-            <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Raio de Geofencing</Text>
-          </View>
-          <Text style={[styles.sectionDesc, { color: colors.muted }]}>
-            Distância máxima permitida da loja para registrar ponto.
-          </Text>
-          <View style={styles.radiusGrid}>
-            {GEO_RADIUS_OPTIONS.map((r) => {
-              const active = geoRadiusKm === r;
-              return (
-                <TouchableOpacity
-                  key={r}
-                  onPress={() => { setGeoRadiusKm(r); mark(); }}
-                  style={[
-                    styles.radiusChip,
-                    {
-                      backgroundColor: active ? colors.primary : colors.background,
-                      borderColor: active ? colors.primary : colors.border,
-                    },
-                  ]}
-                  activeOpacity={0.7}
-                >
-                  <Text
-                    style={[
-                      styles.radiusChipText,
-                      { color: active ? "#fff" : colors.foreground },
-                    ]}
-                  >
-                    {r < 1 ? `${r * 1000}m` : `${r}km`}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
-          <View style={[styles.radiusInfo, { backgroundColor: colors.primary + "15" }]}>
-            <Ionicons name="information-circle-outline" size={16} color={colors.primary} />
-            <Text style={[styles.radiusInfoText, { color: colors.primary }]}>
-              Raio atual: <Text style={{ fontWeight: "700" }}>{geoRadiusKm < 1 ? `${geoRadiusKm * 1000}m` : `${geoRadiusKm}km`}</Text>
-            </Text>
-          </View>
         </View>
 
         {/* ── PESOS DO SCORE ── */}
@@ -265,7 +210,6 @@ export default function SettingsScreen() {
           </Text>
 
           {[
-            { label: "Alerta de geofencing", value: notifyGeoAlert, setter: setNotifyGeoAlert },
             { label: "Horas insuficientes", value: notifyLowHours, setter: setNotifyLowHours },
             { label: "Solicitação de material", value: notifyMaterialRequest, setter: setNotifyMaterialRequest },
             { label: "Foto rejeitada", value: notifyPhotoRejected, setter: setNotifyPhotoRejected },

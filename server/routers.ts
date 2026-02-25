@@ -9,6 +9,12 @@ import { storagePut } from "./storage";
 
 // haversineDistance removed — geolocation no longer used
 
+/** Extract the app_users.id from the JWT openId (format: "app_user_<id>") or fall back to ctx.user.id */
+function getAppUserId(user: { id: number; openId: string }): number {
+  const match = user.openId.match(/^app_user_(\d+)$/);
+  return match ? parseInt(match[1]) : user.id;
+}
+
 export const appRouter = router({
   system: systemRouter,
   auth: router({
@@ -38,7 +44,7 @@ export const appRouter = router({
   }),
   stores: router({
     list: protectedProcedure.query(() => db.getStores()),
-    listForPromoter: protectedProcedure.query(({ ctx }) => db.getStoresByPromoter(ctx.user.id)),
+    listForPromoter: protectedProcedure.query(({ ctx }) => db.getStoresByPromoter(getAppUserId(ctx.user))),
     listPromoterUsers: protectedProcedure.query(() => db.getAllPromoterUsersWithProfile()),
     getById: protectedProcedure.input(z.object({ id: z.number() })).query(({ input }) => db.getStoreById(input.id)),
     create: protectedProcedure
@@ -66,16 +72,16 @@ export const appRouter = router({
         let photoUrl: string | undefined;
         if (input.photoBase64) {
           const buffer = Buffer.from(input.photoBase64, "base64");
-          const fileKey = `timeentries/${ctx.user.id}/${Date.now()}.jpg`;
+          const fileKey = `timeentries/${getAppUserId(ctx.user)}/${Date.now()}.jpg`;
           const { url } = await storagePut(fileKey, buffer, input.photoFileType ?? "image/jpeg");
           photoUrl = url;
         }
-        const id = await db.createTimeEntry({ userId: ctx.user.id, storeId: input.storeId, entryType: input.entryType, entryTime: new Date(), latitude: "0", longitude: "0", distanceFromStore: "0", isWithinRadius: true, deviceId: input.deviceId, notes: input.notes, photoUrl });
+        const id = await db.createTimeEntry({ userId: getAppUserId(ctx.user), storeId: input.storeId, entryType: input.entryType, entryTime: new Date(), latitude: "0", longitude: "0", distanceFromStore: "0", isWithinRadius: true, deviceId: input.deviceId, notes: input.notes, photoUrl });
         return { id, photoUrl };
       }),
-    list: protectedProcedure.input(z.object({ startDate: z.string().optional(), endDate: z.string().optional() })).query(({ ctx, input }) => db.getTimeEntriesByUser(ctx.user.id, input.startDate ? new Date(input.startDate) : undefined, input.endDate ? new Date(input.endDate) : undefined)),
-    dailySummary: protectedProcedure.input(z.object({ date: z.string().optional() })).query(({ ctx, input }) => db.getDailySummary(ctx.user.id, input.date ? new Date(input.date) : new Date())),
-    lastOpenEntry: protectedProcedure.query(({ ctx }) => db.getLastOpenEntry(ctx.user.id)),
+    list: protectedProcedure.input(z.object({ startDate: z.string().optional(), endDate: z.string().optional() })).query(({ ctx, input }) => db.getTimeEntriesByUser(getAppUserId(ctx.user), input.startDate ? new Date(input.startDate) : undefined, input.endDate ? new Date(input.endDate) : undefined)),
+    dailySummary: protectedProcedure.input(z.object({ date: z.string().optional() })).query(({ ctx, input }) => db.getDailySummary(getAppUserId(ctx.user), input.date ? new Date(input.date) : new Date())),
+    lastOpenEntry: protectedProcedure.query(({ ctx }) => db.getLastOpenEntry(getAppUserId(ctx.user))),
     allForDate: protectedProcedure.input(z.object({ date: z.string().optional() })).query(({ input }) => db.getAllTimeEntriesForDate(input.date ? new Date(input.date) : new Date())),
     allForRange: protectedProcedure.input(z.object({ startDate: z.string(), endDate: z.string() })).query(({ input }) => db.getAllTimeEntriesForRange(new Date(input.startDate), new Date(input.endDate))),
     forUser: protectedProcedure.input(z.object({ userId: z.number(), startDate: z.string().optional(), endDate: z.string().optional() })).query(({ input }) => db.getTimeEntriesByUser(input.userId, input.startDate ? new Date(input.startDate) : undefined, input.endDate ? new Date(input.endDate) : undefined)),
@@ -85,12 +91,12 @@ export const appRouter = router({
       .input(z.object({ brandId: z.number(), storeId: z.number(), description: z.string().optional(), fileBase64: z.string(), fileType: z.string().default("image/jpeg"), fileName: z.string().default("photo.jpg") }))
       .mutation(async ({ ctx, input }) => {
         const buffer = Buffer.from(input.fileBase64, "base64");
-        const fileKey = `photos/${ctx.user.id}/${Date.now()}-${input.fileName}`;
+        const fileKey = `photos/${getAppUserId(ctx.user)}/${Date.now()}-${input.fileName}`;
         const { url } = await storagePut(fileKey, buffer, input.fileType);
-        const id = await db.createPhoto({ userId: ctx.user.id, brandId: input.brandId, storeId: input.storeId, photoUrl: url, photoTimestamp: new Date(), fileSize: buffer.length, fileType: input.fileType, description: input.description });
+        const id = await db.createPhoto({ userId: getAppUserId(ctx.user), brandId: input.brandId, storeId: input.storeId, photoUrl: url, photoTimestamp: new Date(), fileSize: buffer.length, fileType: input.fileType, description: input.description });
         return { id, photoUrl: url };
       }),
-    list: protectedProcedure.input(z.object({ brandId: z.number().optional(), storeId: z.number().optional(), startDate: z.string().optional(), endDate: z.string().optional(), status: z.enum(["pending", "approved", "rejected"]).optional(), limit: z.number().default(50), offset: z.number().default(0) })).query(({ ctx, input }) => db.getPhotos({ ...input, userId: ctx.user.id, startDate: input.startDate ? new Date(input.startDate) : undefined, endDate: input.endDate ? new Date(input.endDate) : undefined })),
+    list: protectedProcedure.input(z.object({ brandId: z.number().optional(), storeId: z.number().optional(), startDate: z.string().optional(), endDate: z.string().optional(), status: z.enum(["pending", "approved", "rejected"]).optional(), limit: z.number().default(50), offset: z.number().default(0) })).query(({ ctx, input }) => db.getPhotos({ ...input, userId: getAppUserId(ctx.user), startDate: input.startDate ? new Date(input.startDate) : undefined, endDate: input.endDate ? new Date(input.endDate) : undefined })),
     listAll: protectedProcedure.input(z.object({ brandId: z.number().optional(), storeId: z.number().optional(), userId: z.number().optional(), startDate: z.string().optional(), endDate: z.string().optional(), status: z.enum(["pending", "approved", "rejected"]).optional(), limit: z.number().default(50), offset: z.number().default(0) })).query(({ input }) => db.getPhotos({ ...input, startDate: input.startDate ? new Date(input.startDate) : undefined, endDate: input.endDate ? new Date(input.endDate) : undefined })),
     updateStatus: protectedProcedure.input(z.object({ id: z.number(), status: z.enum(["pending", "approved", "rejected"]), qualityRating: z.number().min(1).max(5).optional(), managerNotes: z.string().optional() })).mutation(({ input }) => db.updatePhoto(input.id, { status: input.status, qualityRating: input.qualityRating, managerNotes: input.managerNotes })),
   }),
@@ -104,7 +110,7 @@ export const appRouter = router({
     create: protectedProcedure
       .input(z.object({ materialId: z.number(), storeId: z.number(), quantityRequested: z.number().min(1), priority: z.enum(["low", "medium", "high"]).default("medium"), notes: z.string().optional() }))
       .mutation(async ({ ctx, input }) => {
-        const id = await db.createMaterialRequest({ ...input, userId: ctx.user.id });
+        const id = await db.createMaterialRequest({ ...input, userId: getAppUserId(ctx.user) });
         const material = await db.getMaterialById(input.materialId);
         if (material) {
           await db.updateMaterial(input.materialId, { quantityReserved: material.quantityReserved + input.quantityRequested });
@@ -113,7 +119,7 @@ export const appRouter = router({
         }
         return { id };
       }),
-    list: protectedProcedure.input(z.object({ status: z.enum(["pending", "approved", "rejected", "delivered", "cancelled"]).optional(), limit: z.number().default(50), offset: z.number().default(0) })).query(({ ctx, input }) => db.getMaterialRequests({ userId: ctx.user.id, ...input })),
+    list: protectedProcedure.input(z.object({ status: z.enum(["pending", "approved", "rejected", "delivered", "cancelled"]).optional(), limit: z.number().default(50), offset: z.number().default(0) })).query(({ ctx, input }) => db.getMaterialRequests({ userId: getAppUserId(ctx.user), ...input })),
     listAll: protectedProcedure.input(z.object({ status: z.enum(["pending", "approved", "rejected", "delivered", "cancelled"]).optional(), limit: z.number().default(50), offset: z.number().default(0) })).query(({ input }) => db.getMaterialRequests(input)),
     approve: protectedProcedure.input(z.object({ id: z.number(), notes: z.string().optional() })).mutation(async ({ ctx, input }) => {
       const request = await db.getMaterialRequestById(input.id);

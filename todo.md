@@ -626,3 +626,19 @@
 - [x] Causa raíz: na Web, getSessionToken() retornava null (usava cookie) e apiCall não enviava Authorization header
 - [x] Correção: auth.ts agora usa localStorage na Web para getSessionToken/setSessionToken/removeSessionToken
 - [x] Correção: api.ts agora envia Authorization header em todas as plataformas (Web + nativo)
+
+## Fase 42 — Correção dos Botões de Usuários e Remoção de Geofencing das Configurações
+- [x] Investigar e corrigir botão de alterar cargo — causa: bcrypt rounds=10 travava o servidor; reduzido para rounds=6
+- [x] Investigar e corrigir botão de ver/alterar senha — mesma causa do bcrypt; corrigido
+- [x] Investigar e corrigir botão de ativar/desativar conta — funcionava; confirmado com testes diretos na API
+- [x] Remover raio de geofencing da tela de Configurações (settings.tsx)
+- [x] Remover opção de alerta de geofencing da tela de Notificações (settings.tsx)
+
+## Fase 43 — Lojas, Tab Bar e Painel do Promotor
+- [x] Corrigir bug: lojas vinculadas ao promotor não aparecem — causa: listForPromoter usava ctx.user.id (OAuth) em vez do appUserId; corrigido com getAppUserId()
+- [x] Reordenar tab bar: Meu Perfil é agora o último botão da esquerda para direita
+- [x] Adicionar seção "Minhas Lojas" no painel do promotor (abaixo de Ações Rápidas)
+
+## Fase 45 — Card de Fotos Recusadas no Perfil do Promotor
+- [x] Adicionar totalRejectedPhotos ao endpoint promoterProfile.myStats (db.ts + interface)
+- [x] Adicionar card "Fotos Recusadas" (vermelho) ao lado de "Fotos Aprovadas" (verde) na tela de perfil do promotor

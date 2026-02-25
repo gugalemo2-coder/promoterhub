@@ -198,8 +198,15 @@ export default function MyProfileScreen() {
               icon="checkmark-circle"
               label="Fotos aprovadas"
               value={stats?.totalApprovedPhotos ?? 0}
-              color="#8B5CF6"
+              color="#10B981"
               sub={stats?.totalApprovedPhotos === 0 ? undefined : "no mês"}
+            />
+            <StatCard
+              icon="close-circle"
+              label="Fotos recusadas"
+              value={stats?.totalRejectedPhotos ?? 0}
+              color="#EF4444"
+              sub={stats?.totalRejectedPhotos === 0 ? undefined : "no mês"}
             />
             <StatCard
               icon="cube"

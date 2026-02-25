@@ -67,7 +67,7 @@ export default function TabLayout() {
         }}
       />
 
-      {/* ─── PROMOTER-ONLY TABS ──────────────────────────────────────────── */}
+      {/* ─── PROMOTER: Ponto ────────────────────────────────────────────── */}
       <Tabs.Screen
         name="clock"
         options={{
@@ -78,16 +78,8 @@ export default function TabLayout() {
           href: isPromoter ? undefined : null,
         }}
       />
-      <Tabs.Screen
-        name="my-profile"
-        options={{
-          title: "Meu Perfil",
-          tabBarIcon: ({ color }) => (
-            <IconSymbol size={26} name="person.crop.circle.fill" color={color} />
-          ),
-          href: isPromoter ? undefined : null,
-        }}
-      />
+
+      {/* ─── PROMOTER: Fotos ────────────────────────────────────────────── */}
       <Tabs.Screen
         name="photos"
         options={{
@@ -140,6 +132,18 @@ export default function TabLayout() {
             <IconSymbol size={26} name="line.3.horizontal" color={color} />
           ),
           href: isManager ? undefined : null,
+        }}
+      />
+
+      {/* ─── PROMOTER: Meu Perfil (ÚLTIMO) ──────────────────────────────── */}
+      <Tabs.Screen
+        name="my-profile"
+        options={{
+          title: "Meu Perfil",
+          tabBarIcon: ({ color }) => (
+            <IconSymbol size={26} name="person.crop.circle.fill" color={color} />
+          ),
+          href: isPromoter ? undefined : null,
         }}
       />
 

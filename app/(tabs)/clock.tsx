@@ -313,21 +313,26 @@ export default function ClockScreen() {
       await createEntryMutation.mutateAsync({
         storeId,
         entryType,
-        latitude: 0,
-        longitude: 0,
         photoBase64: photoBase64 || undefined,
         photoFileType: photoFileType || undefined,
       });
 
       if (Platform.OS !== "web") await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      Alert.alert("✅ Registrado!", `${entryType === "entry" ? "Entrada" : "Saída"} registrada com sucesso!`);
 
-      utils.timeEntries.lastOpenEntry.invalidate();
-      refetchSummary();
-      refetchMy();
+      // Invalidate all time entry queries so the button state updates immediately
+      await utils.timeEntries.lastOpenEntry.invalidate();
+      await utils.timeEntries.dailySummary.invalidate();
+      await utils.timeEntries.list.invalidate();
+
+      if (Platform.OS === "web") {
+        // Alert.alert doesn't work on web — show nothing (state update is enough)
+      } else {
+        Alert.alert("✅ Registrado!", `${entryType === "entry" ? "Entrada" : "Saída"} registrada com sucesso!`);
+      }
     } catch (err: any) {
       if (Platform.OS !== "web") await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      Alert.alert("Erro", err?.message ?? "Não foi possível registrar o ponto. Tente novamente.");
+      const msg = err?.message ?? "Não foi possível registrar o ponto. Tente novamente.";
+      if (Platform.OS !== "web") Alert.alert("Erro", msg);
     } finally {
       setRegistering(false);
     }

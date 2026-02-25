@@ -237,19 +237,11 @@ async function processAction(
       const p = action.payload as {
         storeId: number;
         entryType: "entry" | "exit";
-        latitude: number;
-        longitude: number;
-        accuracy?: number;
-        distanceFromStore?: number;
-        isWithinRadius?: boolean;
         notes?: string;
       };
       await utils.client.timeEntries.create.mutate({
         storeId: p.storeId,
         entryType: p.entryType,
-        latitude: p.latitude,
-        longitude: p.longitude,
-        accuracy: p.accuracy,
         notes: p.notes,
       });
       break;
@@ -279,8 +271,6 @@ async function processAction(
         photoBase64: string;
         fileType: string;
         description?: string;
-        latitude?: number;
-        longitude?: number;
       };
       await utils.client.photos.upload.mutate({
         brandId: p.brandId,
@@ -288,8 +278,6 @@ async function processAction(
         fileBase64: p.photoBase64,
         fileType: p.fileType ?? "image/jpeg",
         description: p.description,
-        latitude: p.latitude,
-        longitude: p.longitude,
       });
       break;
     }

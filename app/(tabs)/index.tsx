@@ -48,6 +48,10 @@ export default function HomeScreen() {
     { status: "pending" },
     { enabled: isReady && !isManager }
   );
+  const { data: myStores } = trpc.stores.listForPromoter.useQuery(
+    undefined,
+    { enabled: isReady && !isManager }
+  );
 
   // ── Manager/Master queries ────────────────────────────────────────────────
   const { data: dailyReport } = trpc.reports.daily.useQuery(
@@ -377,6 +381,47 @@ export default function HomeScreen() {
             </Pressable>
           ))}
         </View>
+
+        {/* My Stores */}
+        <Text style={[styles.sectionTitle, { color: colors.foreground, marginTop: 8 }]}>Minhas Lojas</Text>
+        {!myStores || myStores.length === 0 ? (
+          <View style={[styles.emptyStores, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+            <Ionicons name="storefront-outline" size={32} color={colors.muted} />
+            <Text style={[styles.emptyStoresText, { color: colors.muted }]}>
+              Nenhuma loja vinculada.{"\n"}Contate o gestor.
+            </Text>
+          </View>
+        ) : (
+          <View style={styles.storesList}>
+            {myStores.map((store) => (
+              <View
+                key={store.id}
+                style={[styles.storeCard, { backgroundColor: colors.surface, borderColor: colors.border }]}
+              >
+                <View style={[styles.storeIconBg, { backgroundColor: colors.primary + "15" }]}>
+                  <Ionicons name="storefront-outline" size={22} color={colors.primary} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.storeName, { color: colors.foreground }]} numberOfLines={1}>
+                    {store.name}
+                  </Text>
+                  {store.city && (
+                    <Text style={[styles.storeCity, { color: colors.muted }]} numberOfLines={1}>
+                      {store.city}
+                    </Text>
+                  )}
+                </View>
+                <Pressable
+                  style={({ pressed }) => [styles.storeClockBtn, { backgroundColor: colors.primary, opacity: pressed ? 0.8 : 1 }]}
+                  onPress={() => router.push("/(tabs)/clock" as any)}
+                >
+                  <Ionicons name="time-outline" size={16} color="#fff" />
+                  <Text style={styles.storeClockBtnText}>Ponto</Text>
+                </Pressable>
+              </View>
+            ))}
+          </View>
+        )}
       </ScrollView>
     </ScreenContainer>
   );
@@ -463,8 +508,19 @@ const styles = StyleSheet.create({
   clockCtaText: { fontSize: 18, fontWeight: "700", color: "#FFFFFF" },
 
   // Quick actions
-  quickActions: { flexDirection: "row", flexWrap: "wrap", paddingHorizontal: 16, paddingBottom: 24, gap: 12 },
+  quickActions: { flexDirection: "row", flexWrap: "wrap", paddingHorizontal: 16, paddingBottom: 16, gap: 12 },
   quickAction: { flex: 1, minWidth: "44%", borderRadius: 16, padding: 16, alignItems: "center", gap: 10, borderWidth: 1 },
   quickActionIcon: { width: 52, height: 52, borderRadius: 16, alignItems: "center", justifyContent: "center" },
   quickActionLabel: { fontSize: 13, fontWeight: "600", textAlign: "center" },
+
+  // My Stores section
+  emptyStores: { marginHorizontal: 16, borderRadius: 16, borderWidth: 1, padding: 24, alignItems: "center", gap: 10, marginBottom: 24 },
+  emptyStoresText: { fontSize: 14, textAlign: "center", lineHeight: 20 },
+  storesList: { paddingHorizontal: 16, gap: 10, marginBottom: 24 },
+  storeCard: { flexDirection: "row", alignItems: "center", borderRadius: 14, padding: 14, borderWidth: 1, gap: 12 },
+  storeIconBg: { width: 42, height: 42, borderRadius: 12, alignItems: "center", justifyContent: "center" },
+  storeName: { fontSize: 15, fontWeight: "600" },
+  storeCity: { fontSize: 12, marginTop: 2 },
+  storeClockBtn: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 12, paddingVertical: 7, borderRadius: 10 },
+  storeClockBtnText: { fontSize: 13, fontWeight: "600", color: "#fff" },
 });

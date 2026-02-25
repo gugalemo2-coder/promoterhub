@@ -812,6 +812,7 @@ export async function getStorePerformance(year: number, month: number, promoterI
 
 export interface PromoterMonthlyStats {
   totalApprovedPhotos: number;
+  totalRejectedPhotos: number;
   totalMaterialRequests: number;
   totalHoursWorked: number;
   totalVisits: number;
@@ -825,7 +826,7 @@ export async function getPromoterMonthlyStats(
   month: number
 ): Promise<PromoterMonthlyStats> {
   const db = await getDb();
-  if (!db) return { totalApprovedPhotos: 0, totalMaterialRequests: 0, totalHoursWorked: 0, totalVisits: 0, avgScoreStores: 0, brandBreakdown: [] };
+  if (!db) return { totalApprovedPhotos: 0, totalRejectedPhotos: 0, totalMaterialRequests: 0, totalHoursWorked: 0, totalVisits: 0, avgScoreStores: 0, brandBreakdown: [] };
 
   const startDate = new Date(year, month - 1, 1);
   const endDate = new Date(year, month, 0, 23, 59, 59);
@@ -838,6 +839,19 @@ export async function getPromoterMonthlyStats(
       and(
         eq(photos.userId, userId),
         eq(photos.status, "approved"),
+        gte(photos.photoTimestamp, startDate),
+        lte(photos.photoTimestamp, endDate)
+      )
+    );
+
+  // Fetch rejected photos for the month
+  const rejectedPhotos = await db
+    .select()
+    .from(photos)
+    .where(
+      and(
+        eq(photos.userId, userId),
+        eq(photos.status, "rejected"),
         gte(photos.photoTimestamp, startDate),
         lte(photos.photoTimestamp, endDate)
       )
@@ -891,6 +905,7 @@ export async function getPromoterMonthlyStats(
 
   return {
     totalApprovedPhotos: approvedPhotos.length,
+    totalRejectedPhotos: rejectedPhotos.length,
     totalMaterialRequests: matReqs.length,
     totalHoursWorked: Math.round((totalMinutes / 60) * 10) / 10,
     totalVisits,
