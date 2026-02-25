@@ -568,3 +568,6 @@
 - [x] Verificado: apple-touch-icon (180x180) carregando corretamente
 - [x] Verificado: icon-192x192.png (192x192) carregando corretamente
 - [x] Verificado: app funcionando normalmente após as mudanças
+
+## Fase 36 — Ajuste de Tamanho da Logo nos Ícones PWA
+- [x] Aumentar o tamanho da logo da Dinâmica nos ícones PWA (192x192, 512x512, maskable, apple-touch-icon)
