@@ -509,3 +509,9 @@
 
 - [x] Investigar por que botões de Equipe e Relatórios não funcionam na conta Master
 - [x] Corrigir navegação para que Master acesse as mesmas telas que o Gestor via Acesso Rápido (alerts, reports, stores, team)
+
+## Fase 29 — Login e Remoção de Demos
+
+- [x] Corrigir redirecionamento: criado index.tsx na raiz com lógica de auth, removido anchor "(tabs)" do _layout.tsx
+- [x] Remover endpoint /api/auth/demo-login do servidor (botões já não existiam na tela de login)
+- [x] Verificar banco de dados: não há usuários demo cadastrados (tabela limpa)

@@ -1,0 +1,8 @@
+{
+  "query": "\nDELETE FROM promoter_profiles WHERE userId IN (\n  SELECT id FROM app_users WHERE openId IN ('demo_manager_001', 'demo_promoter_001')\n);\nDELETE FROM app_users WHERE openId IN ('demo_manager_001', 'demo_promoter_001');\n",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 3MUjan8YnY9PgZH.4cd173914575 --database cSF363ubWEjutwgRMZGZ84 --execute \nDELETE FROM promoter_profiles WHERE userId IN (\n  SELECT id FROM app_users WHERE openId IN ('demo_manager_001', 'demo_promoter_001')\n);\nDELETE FROM app_users WHERE openId IN ('demo_manager_001', 'demo_promoter_001');\n",
+  "returncode": 1,
+  "logs": [
+    "ERROR 1054 (42S22) at line 2: Unknown column 'openid' in 'where clause'"
+  ]
+}
