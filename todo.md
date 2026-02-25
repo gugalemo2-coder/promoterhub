@@ -642,3 +642,16 @@
 ## Fase 45 — Card de Fotos Recusadas no Perfil do Promotor
 - [x] Adicionar totalRejectedPhotos ao endpoint promoterProfile.myStats (db.ts + interface)
 - [x] Adicionar card "Fotos Recusadas" (vermelho) ao lado de "Fotos Aprovadas" (verde) na tela de perfil do promotor
+
+## Fase 46 — Diagnóstico Definitivo dos Botões de Usuários (Master)
+- [ ] Testar endpoint de redefinição de senha via API com token master válido
+- [ ] Testar endpoint de alteração de tipo de conta via API com token master válido
+- [ ] Testar endpoint de excluir/desativar conta via API com token master válido
+- [ ] Corrigir os problemas encontrados
+
+## Fase 46 — Diagnóstico Definitivo dos Botões de Usuários (Master)
+- [x] Testado: backend funciona corretamente (todos os 3 endpoints retornam 200)
+- [x] Causa raiz: na Web, useAuth usava OAuth cookie em vez de token customizado do localStorage
+- [x] Correção: useAuth agora verifica token customizado (localStorage) primeiro via /api/auth/app-me
+- [x] Correção: login.tsx já salva token em todas as plataformas (sem condição Platform.OS)
+- [x] TypeScript: zero erros após as mudanças

@@ -43,8 +43,8 @@ export default function LoginScreen() {
       setIsLoading(true);
       const result = await Api.appLogin(trimmedLogin, password);
 
-      // Save session token on native
-      if (Platform.OS !== "web" && result.sessionToken) {
+      // Save session token in all platforms (Web uses localStorage, native uses SecureStore)
+      if (result.sessionToken) {
         await Auth.setSessionToken(result.sessionToken);
       }
 

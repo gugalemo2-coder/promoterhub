@@ -19,9 +19,37 @@ export function useAuth(options?: UseAuthOptions) {
       setLoading(true);
       setError(null);
 
-      // Web platform: use cookie-based auth, fetch user from API
+      // Web platform: check for custom app token first, then fall back to OAuth cookie
       if (Platform.OS === "web") {
-        console.log("[useAuth] Web platform: fetching user from API...");
+        console.log("[useAuth] Web platform: checking session...");
+        
+        // First: check if there's a custom app token in localStorage
+        const sessionToken = await Auth.getSessionToken();
+        if (sessionToken) {
+          console.log("[useAuth] Web: found custom app token, verifying via app-me...");
+          const appUser = await Api.appGetMe();
+          if (appUser) {
+            const userInfo: Auth.User = {
+              id: appUser.user.id,
+              openId: `app_user_${appUser.user.id}`,
+              name: appUser.user.name,
+              email: null,
+              loginMethod: "custom",
+              lastSignedIn: new Date(),
+            };
+            setUser(userInfo);
+            await Auth.setUserInfo(userInfo);
+            console.log("[useAuth] Web user set from custom token:", userInfo);
+            return;
+          } else {
+            // Token invalid, clear it
+            console.log("[useAuth] Web: custom token invalid, clearing...");
+            await Auth.removeSessionToken();
+          }
+        }
+        
+        // Fallback: OAuth cookie-based auth
+        console.log("[useAuth] Web: no custom token, trying OAuth cookie...");
         const apiUser = await Api.getMe();
         console.log("[useAuth] API user response:", apiUser);
 
@@ -35,11 +63,10 @@ export function useAuth(options?: UseAuthOptions) {
             lastSignedIn: new Date(apiUser.lastSignedIn),
           };
           setUser(userInfo);
-          // Cache user info in localStorage for faster subsequent loads
           await Auth.setUserInfo(userInfo);
-          console.log("[useAuth] Web user set from API:", userInfo);
+          console.log("[useAuth] Web user set from OAuth:", userInfo);
         } else {
-          console.log("[useAuth] Web: No authenticated user from API");
+          console.log("[useAuth] Web: No authenticated user");
           setUser(null);
           await Auth.clearUserInfo();
         }
