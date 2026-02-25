@@ -550,3 +550,21 @@
 - [x] Substituir icon.png, splash-icon.png, favicon.png, android-icon-foreground.png no Expo
 - [x] Substituir ícones PWA no manifest.json do painel web
 - [x] Atualizar app.config.ts com novo logoUrl (S3 CDN)
+
+### Fase 34 — Correção de Ícone PWA na Tela Inicial
+- [x] Verificar qual manifest.json está sendo usado pelo app Expo Web
+- [x] Corrigir o manifest para apontar para os ícones da Dinâmica
+- [x] Atualizar versão do service worker para forçar limpeza de cache
+- [x] Verificar meta tags apple-touch-icon no HTML gerado pelo Expo
+
+## Fase 35 — Correção Definitiva do Ícone PWA
+- [x] Criar public/index.html customizado com todas as tags PWA (manifest, apple-touch-icon, theme-color, icons)
+- [x] Criar public/manifest.json estático com ícones da Dinâmica (192x192, 512x512, maskable)
+- [x] Copiar ícones PWA para public/icons/ (icon-192x192.png, icon-512x512.png, maskable)
+- [x] Copiar apple-touch-icon.png para public/ (180x180)
+- [x] Mudar web.output de "static" para "single" no app.config.ts para que o Expo injete o script bundle
+- [x] Adicionar web.name, web.description, web.themeColor ao app.config.ts
+- [x] Verificado: manifest.json sendo servido corretamente com ícones da Dinâmica
+- [x] Verificado: apple-touch-icon (180x180) carregando corretamente
+- [x] Verificado: icon-192x192.png (192x192) carregando corretamente
+- [x] Verificado: app funcionando normalmente após as mudanças

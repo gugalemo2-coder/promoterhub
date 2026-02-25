@@ -80,8 +80,12 @@ const config: ExpoConfig = {
   },
   web: {
     bundler: "metro",
-    output: "static",
+    output: "single",
     favicon: "./assets/images/favicon.png",
+    name: env.appName,
+    description: "Gestão inteligente de equipe de promotores",
+    themeColor: "#1A3A6B",
+    backgroundColor: "#ffffff",
   },
   plugins: [
     "expo-router",
