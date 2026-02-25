@@ -1,5 +1,8 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import React, { createContext, useCallback, useContext, useEffect, useState } from "react";
+import * as Api from "@/lib/_core/api";
+import * as Auth from "@/lib/_core/auth";
+import { Platform } from "react-native";
 
 export type AppRole = "promoter" | "manager" | "master" | null;
 
@@ -26,13 +29,44 @@ export function RoleProvider({ children }: { children: React.ReactNode }) {
   const [isRoleLoading, setIsRoleLoading] = useState(true);
 
   useEffect(() => {
-    AsyncStorage.getItem(ROLE_KEY)
-      .then((stored) => {
+    // Always validate role against the server when there's a valid token.
+    // This ensures that role changes made by Master are reflected immediately
+    // on the next login, without relying on stale cached values.
+    const initRole = async () => {
+      try {
+        const token = await Auth.getSessionToken();
+        if (token) {
+          // Token exists: fetch fresh role from server
+          const appUser = await Api.appGetMe();
+          if (appUser && appUser.appRole) {
+            const freshRole = appUser.appRole as AppRole;
+            setAppRoleState(freshRole);
+            // Update cached role so it stays in sync
+            if (freshRole) {
+              await AsyncStorage.setItem(ROLE_KEY, freshRole);
+            }
+            return;
+          }
+        }
+        // No token or server call failed: fall back to cached role
+        const stored = await AsyncStorage.getItem(ROLE_KEY);
         if (stored === "promoter" || stored === "manager" || stored === "master") {
           setAppRoleState(stored);
         }
-      })
-      .finally(() => setIsRoleLoading(false));
+      } catch {
+        // On error, fall back to cached role
+        try {
+          const stored = await AsyncStorage.getItem(ROLE_KEY);
+          if (stored === "promoter" || stored === "manager" || stored === "master") {
+            setAppRoleState(stored);
+          }
+        } catch {}
+      } finally {
+        setIsRoleLoading(false);
+      }
+    };
+
+    initRole();
   }, []);
 
   const setAppRole = useCallback(async (role: AppRole) => {

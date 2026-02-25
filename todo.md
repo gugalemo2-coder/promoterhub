@@ -655,3 +655,12 @@
 - [x] Correção: useAuth agora verifica token customizado (localStorage) primeiro via /api/auth/app-me
 - [x] Correção: login.tsx já salva token em todas as plataformas (sem condição Platform.OS)
 - [x] TypeScript: zero erros após as mudanças
+
+## Fase 47 — Diagnóstico Final dos Botões de Usuários (Master)
+- [ ] Abrir app no browser e capturar erros do console ao clicar nos botões
+- [ ] Identificar e corrigir a causa raiz definitiva
+
+## Fase — Correções na Tela de Usuários Master
+- [x] Adicionar mensagem de sucesso (toast/banner) após alterar cargo, redefinir senha e ativar/desativar conta
+- [x] Corrigir persistência de mudança de cargo: usuário alterado deve ver novo cargo ao fazer login
+- [x] Exibir cargo e status atual de forma mais clara na lista de usuários

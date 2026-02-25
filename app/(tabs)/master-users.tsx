@@ -10,6 +10,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  Animated,
   FlatList,
   KeyboardAvoidingView,
   Modal,
@@ -43,6 +44,63 @@ const ROLE_COLORS: Record<string, string> = {
   manager: "#1A56DB",
   promoter: "#059669",
 };
+
+// ─── Toast de sucesso ─────────────────────────────────────────────────────────
+function SuccessToast({ message, visible }: { message: string; visible: boolean }) {
+  const opacity = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    if (visible) {
+      Animated.sequence([
+        Animated.timing(opacity, { toValue: 1, duration: 250, useNativeDriver: true }),
+        Animated.delay(2500),
+        Animated.timing(opacity, { toValue: 0, duration: 300, useNativeDriver: true }),
+      ]).start();
+    }
+  }, [visible, message]);
+
+  if (!visible) return null;
+
+  return (
+    <Animated.View style={[toastStyles.container, { opacity }]}>
+      <View style={toastStyles.inner}>
+        <Ionicons name="checkmark-circle" size={20} color="#fff" />
+        <Text style={toastStyles.text}>{message}</Text>
+      </View>
+    </Animated.View>
+  );
+}
+
+const toastStyles = StyleSheet.create({
+  container: {
+    position: "absolute",
+    top: 16,
+    left: 16,
+    right: 16,
+    zIndex: 9999,
+    alignItems: "center",
+  },
+  inner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    backgroundColor: "#059669",
+    borderRadius: 12,
+    paddingHorizontal: 18,
+    paddingVertical: 12,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.18,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  text: {
+    color: "#fff",
+    fontSize: 14,
+    fontWeight: "600",
+    flex: 1,
+  },
+});
 
 // ─── Modal de confirmação genérico (substitui Alert.alert cross-platform) ────
 function ConfirmModal({
@@ -207,6 +265,18 @@ function RoleModal({
           <Text style={[modalStyles.message, { color: colors.muted }]}>
             Selecione a nova função para {user.name}:
           </Text>
+
+          {/* Cargo atual */}
+          <View style={[modalStyles.currentRoleRow, { backgroundColor: colors.background, borderColor: colors.border }]}>
+            <Text style={[modalStyles.currentRoleLabel, { color: colors.muted }]}>Cargo atual:</Text>
+            <View style={[modalStyles.currentRoleBadge, { backgroundColor: ROLE_COLORS[user.appRole] + "20" }]}>
+              <View style={[modalStyles.roleDot, { backgroundColor: ROLE_COLORS[user.appRole] }]} />
+              <Text style={[modalStyles.currentRoleText, { color: ROLE_COLORS[user.appRole] }]}>
+                {ROLE_LABELS[user.appRole]}
+              </Text>
+            </View>
+          </View>
+
           <View style={modalStyles.roleRow}>
             <TouchableOpacity
               style={[
@@ -281,6 +351,18 @@ export default function MasterUsersScreen() {
   const [search, setSearch] = useState("");
   const [filterRole, setFilterRole] = useState<"all" | "promoter" | "manager" | "master">("all");
 
+  // Toast state
+  const [toast, setToast] = useState({ visible: false, message: "" });
+  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const showToast = useCallback((message: string) => {
+    if (toastTimer.current) clearTimeout(toastTimer.current);
+    setToast({ visible: true, message });
+    toastTimer.current = setTimeout(() => {
+      setToast({ visible: false, message: "" });
+    }, 3200);
+  }, []);
+
   // Modal states
   const [roleModal, setRoleModal] = useState<{ visible: boolean; user: AppUser | null }>({
     visible: false,
@@ -328,45 +410,58 @@ export default function MasterUsersScreen() {
   const handleRoleSelect = useCallback(async (newRole: "promoter" | "manager") => {
     const target = roleModal.user;
     if (!target) return;
+
+    // If same role, just close
+    if (target.appRole === newRole) {
+      setRoleModal({ visible: false, user: null });
+      return;
+    }
+
     setRoleModal({ visible: false, user: null });
     try {
-      await Api.masterUpdateRole(target.id, newRole);
+      const result = await Api.masterUpdateRole(target.id, newRole);
+      const updatedUser = result.user as AppUser;
       setUsers((prev) =>
-        prev.map((u) => (u.id === target.id ? { ...u, appRole: newRole } : u))
+        prev.map((u) => (u.id === target.id ? { ...u, appRole: updatedUser.appRole } : u))
       );
+      const newRoleLabel = ROLE_LABELS[newRole];
+      showToast(`✓ ${target.name} agora é ${newRoleLabel}. O usuário verá o novo cargo no próximo login.`);
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Erro ao alterar função";
       Alert.alert("Erro", msg);
     }
-  }, [roleModal.user]);
+  }, [roleModal.user, showToast]);
 
   const handlePasswordConfirm = useCallback(async (pwd: string) => {
     const target = passwordModal.user;
     if (!target) return;
     setPasswordModal({ visible: false, user: null });
     try {
-      const result = await Api.masterResetPassword(target.id, pwd);
-      Alert.alert("Sucesso", result.message ?? "Senha redefinida com sucesso!");
+      await Api.masterResetPassword(target.id, pwd);
+      showToast(`✓ Senha de ${target.name} redefinida com sucesso!`);
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Erro ao redefinir senha";
       Alert.alert("Erro", msg);
     }
-  }, [passwordModal.user]);
+  }, [passwordModal.user, showToast]);
 
   const handleToggleConfirm = useCallback(async () => {
     const target = toggleModal.user;
     if (!target) return;
     setToggleModal({ visible: false, user: null });
     try {
-      await Api.masterToggleActive(target.id, !target.active);
+      const result = await Api.masterToggleActive(target.id, !target.active);
+      const updatedUser = result.user as AppUser;
       setUsers((prev) =>
-        prev.map((u) => (u.id === target.id ? { ...u, active: !u.active } : u))
+        prev.map((u) => (u.id === target.id ? { ...u, active: updatedUser.active } : u))
       );
+      const action = updatedUser.active ? "ativada" : "desativada";
+      showToast(`✓ Conta de ${target.name} ${action} com sucesso!`);
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Erro ao alterar status";
       Alert.alert("Erro", msg);
     }
-  }, [toggleModal.user]);
+  }, [toggleModal.user, showToast]);
 
   // ── Filtro ───────────────────────────────────────────────────────────────────
   const filtered = users.filter((u) => {
@@ -405,11 +500,20 @@ export default function MasterUsersScreen() {
                 )}
               </View>
               <Text style={[styles.userLogin, { color: colors.muted }]}>@{item.login}</Text>
-              <View style={[styles.roleBadge, { backgroundColor: roleColor + "18" }]}>
-                <View style={[styles.roleDot, { backgroundColor: roleColor }]} />
-                <Text style={[styles.roleText, { color: roleColor }]}>
-                  {ROLE_LABELS[item.appRole]}
-                </Text>
+              {/* Role badge + active status */}
+              <View style={styles.badgeRow}>
+                <View style={[styles.roleBadge, { backgroundColor: roleColor + "18" }]}>
+                  <View style={[styles.roleDot, { backgroundColor: roleColor }]} />
+                  <Text style={[styles.roleText, { color: roleColor }]}>
+                    {ROLE_LABELS[item.appRole]}
+                  </Text>
+                </View>
+                <View style={[styles.statusBadge, { backgroundColor: item.active ? "#D1FAE5" : "#FEE2E2" }]}>
+                  <View style={[styles.statusDot, { backgroundColor: item.active ? "#059669" : "#DC2626" }]} />
+                  <Text style={[styles.statusText, { color: item.active ? "#059669" : "#DC2626" }]}>
+                    {item.active ? "Ativo" : "Inativo"}
+                  </Text>
+                </View>
               </View>
             </View>
           </View>
@@ -418,48 +522,42 @@ export default function MasterUsersScreen() {
           {!isMaster && (
             <View style={styles.actions}>
               {/* Role change */}
-              <Pressable
-                style={({ pressed }) => [
-                  styles.actionBtn,
-                  { backgroundColor: colors.border },
-                  pressed && { opacity: 0.7 },
-                ]}
+              <TouchableOpacity
+                style={[styles.actionBtn, { backgroundColor: "#EEF2FF" }]}
                 onPress={() => setRoleModal({ visible: true, user: item })}
+                activeOpacity={0.7}
               >
                 <Ionicons
-                  name={item.appRole === "manager" ? "person-outline" : "briefcase-outline"}
+                  name="briefcase-outline"
                   size={16}
-                  color={colors.foreground}
+                  color="#4F46E5"
                 />
-              </Pressable>
+              </TouchableOpacity>
 
               {/* Reset password */}
-              <Pressable
-                style={({ pressed }) => [
-                  styles.actionBtn,
-                  { backgroundColor: "#FEF3C7" },
-                  pressed && { opacity: 0.7 },
-                ]}
+              <TouchableOpacity
+                style={[styles.actionBtn, { backgroundColor: "#FEF3C7" }]}
                 onPress={() => setPasswordModal({ visible: true, user: item })}
+                activeOpacity={0.7}
               >
                 <Ionicons name="key-outline" size={16} color="#D97706" />
-              </Pressable>
+              </TouchableOpacity>
 
               {/* Active toggle */}
-              <Pressable
-                style={({ pressed }) => [
+              <TouchableOpacity
+                style={[
                   styles.actionBtn,
                   { backgroundColor: item.active ? "#FEE2E2" : "#D1FAE5" },
-                  pressed && { opacity: 0.7 },
                 ]}
                 onPress={() => setToggleModal({ visible: true, user: item })}
+                activeOpacity={0.7}
               >
                 <Ionicons
                   name={item.active ? "close-circle-outline" : "checkmark-circle-outline"}
                   size={16}
                   color={item.active ? "#DC2626" : "#059669"}
                 />
-              </Pressable>
+              </TouchableOpacity>
             </View>
           )}
         </View>
@@ -557,6 +655,28 @@ export default function MasterUsersScreen() {
         </View>
       </View>
 
+      {/* Legend */}
+      <View style={[styles.legend, { backgroundColor: colors.surface, borderBottomColor: colors.border }]}>
+        <View style={styles.legendItem}>
+          <View style={[styles.legendIcon, { backgroundColor: "#EEF2FF" }]}>
+            <Ionicons name="briefcase-outline" size={13} color="#4F46E5" />
+          </View>
+          <Text style={[styles.legendText, { color: colors.muted }]}>Alterar cargo</Text>
+        </View>
+        <View style={styles.legendItem}>
+          <View style={[styles.legendIcon, { backgroundColor: "#FEF3C7" }]}>
+            <Ionicons name="key-outline" size={13} color="#D97706" />
+          </View>
+          <Text style={[styles.legendText, { color: colors.muted }]}>Redefinir senha</Text>
+        </View>
+        <View style={styles.legendItem}>
+          <View style={[styles.legendIcon, { backgroundColor: "#FEE2E2" }]}>
+            <Ionicons name="close-circle-outline" size={13} color="#DC2626" />
+          </View>
+          <Text style={[styles.legendText, { color: colors.muted }]}>Ativar/Desativar</Text>
+        </View>
+      </View>
+
       {/* List */}
       {loading ? (
         <View style={styles.center}>
@@ -579,6 +699,9 @@ export default function MasterUsersScreen() {
           }
         />
       )}
+
+      {/* Toast de sucesso */}
+      <SuccessToast message={toast.message} visible={toast.visible} />
 
       {/* Modals */}
       <RoleModal
@@ -642,6 +765,36 @@ const modalStyles = StyleSheet.create({
     fontSize: 14,
     textAlign: "center",
     lineHeight: 20,
+  },
+  currentRoleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+  },
+  currentRoleLabel: {
+    fontSize: 13,
+    fontWeight: "500",
+  },
+  currentRoleBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+  },
+  currentRoleText: {
+    fontSize: 13,
+    fontWeight: "700",
+  },
+  roleDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
   },
   row: {
     flexDirection: "row",
@@ -756,6 +909,30 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: "600",
   },
+  legend: {
+    flexDirection: "row",
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    gap: 16,
+    alignItems: "center",
+  },
+  legendItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+  },
+  legendIcon: {
+    width: 24,
+    height: 24,
+    borderRadius: 6,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  legendText: {
+    fontSize: 11,
+    fontWeight: "500",
+  },
   listContent: {
     padding: 16,
     gap: 10,
@@ -813,6 +990,13 @@ const styles = StyleSheet.create({
   userLogin: {
     fontSize: 13,
   },
+  badgeRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginTop: 2,
+    flexWrap: "wrap",
+  },
   roleBadge: {
     flexDirection: "row",
     alignItems: "center",
@@ -821,7 +1005,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 3,
     gap: 5,
-    marginTop: 2,
   },
   roleDot: {
     width: 6,
@@ -829,6 +1012,23 @@ const styles = StyleSheet.create({
     borderRadius: 3,
   },
   roleText: {
+    fontSize: 12,
+    fontWeight: "600",
+  },
+  statusBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    borderRadius: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    gap: 5,
+  },
+  statusDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+  },
+  statusText: {
     fontSize: 12,
     fontWeight: "600",
   },
