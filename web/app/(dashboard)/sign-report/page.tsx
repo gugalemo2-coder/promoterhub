@@ -290,7 +290,7 @@ export default function SignReportPage() {
                 {[
                   { label: "Período", value: `${MONTHS[selectedMonth - 1]} ${selectedYear}` },
                   { label: "Horas trabalhadas", value: `${(monthlyData?.totalHours ?? 0).toFixed(1)}h` },
-                  { label: "Visitas realizadas", value: String(monthlyData?.totalVisits ?? 0) },
+                  { label: "Visitas realizadas", value: String(monthlyData?.workingDays ?? 0) },
                   { label: "Fotos enviadas", value: String(monthlyData?.totalPhotos ?? 0) },
                   { label: "Materiais solicitados", value: String(monthlyData?.totalRequests ?? 0) },
                 ].map(({ label, value }) => (
@@ -349,7 +349,7 @@ export default function SignReportPage() {
                       <span className="text-xs text-gray-700">{MONTHS[r.month - 1].slice(0, 3)}/{r.year}</span>
                     </td>
                     <td className="px-4 py-3 text-center hidden md:table-cell">
-                      <span className="text-xs text-gray-500">{r.promoterName ?? "Todos"}</span>
+                      <span className="text-xs text-gray-500">{(r as unknown as { promoterName?: string }).promoterName ?? "Todos"}</span>
                     </td>
                     <td className="px-4 py-3 text-center hidden lg:table-cell">
                       <span className="text-xs text-gray-400">

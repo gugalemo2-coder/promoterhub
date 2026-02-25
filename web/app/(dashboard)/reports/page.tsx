@@ -238,8 +238,8 @@ export default function ReportsPage() {
                     cx="50%"
                     cy="50%"
                     outerRadius={80}
-                    label={({ brandName, percent }) =>
-                      `${brandName} ${(percent * 100).toFixed(0)}%`
+                    label={({ name, percent }: { name?: string; percent?: number }) =>
+                      `${name ?? ""} ${((percent ?? 0) * 100).toFixed(0)}%`
                     }
                     labelLine={false}
                   >
@@ -251,7 +251,7 @@ export default function ReportsPage() {
                     ))}
                   </Pie>
                   <Tooltip
-                    formatter={(value: number, name: string) => [`${value} fotos`, name]}
+                    formatter={(value: unknown, name: unknown) => [`${value} fotos`, String(name)]}
                     contentStyle={{ fontSize: 12, borderRadius: 8, border: "1px solid #e5e7eb" }}
                   />
                   <Legend wrapperStyle={{ fontSize: 11 }} />

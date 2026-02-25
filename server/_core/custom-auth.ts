@@ -12,6 +12,18 @@ import { sdk } from "./sdk";
 import { ENV } from "./env";
 import { COOKIE_NAME, ONE_YEAR_MS } from "../../shared/const";
 import { getSessionCookieOptions } from "./cookies";
+import { storagePut } from "../storage";
+import { parse as parseCookieHeader } from "cookie";
+
+/** Read the session token from Authorization header or cookie (without cookie-parser middleware) */
+function getToken(req: Request): string | undefined {
+  const fromHeader = req.headers.authorization?.replace("Bearer ", "");
+  if (fromHeader) return fromHeader;
+  const cookieHeader = req.headers.cookie;
+  if (!cookieHeader) return undefined;
+  const cookies = parseCookieHeader(cookieHeader);
+  return cookies[COOKIE_NAME];
+}
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -31,6 +43,7 @@ function buildUserResponse(u: AppUser) {
     login: u.login,
     appRole: u.appRole,
     active: u.active,
+    avatarUrl: u.avatarUrl ?? null,
     createdAt: u.createdAt,
   };
 }
@@ -176,8 +189,7 @@ export function registerCustomAuthRoutes(app: Express) {
   app.get("/api/auth/app-me", async (req: Request, res: Response) => {
     try {
       const token =
-        req.headers.authorization?.replace("Bearer ", "") ||
-        req.cookies?.[COOKIE_NAME];
+        getToken(req);
       if (!token) { res.status(401).json({ error: "Não autenticado." }); return; }
 
       const session = await sdk.verifySession(token);
@@ -205,8 +217,7 @@ export function registerCustomAuthRoutes(app: Express) {
   app.get("/api/master/users", async (req: Request, res: Response) => {
     try {
       const token =
-        req.headers.authorization?.replace("Bearer ", "") ||
-        req.cookies?.[COOKIE_NAME];
+        getToken(req);
       if (!token) { res.status(401).json({ error: "Não autenticado." }); return; }
 
       const session = await sdk.verifySession(token);
@@ -237,8 +248,7 @@ export function registerCustomAuthRoutes(app: Express) {
   app.patch("/api/master/users/:id/role", async (req: Request, res: Response) => {
     try {
       const token =
-        req.headers.authorization?.replace("Bearer ", "") ||
-        req.cookies?.[COOKIE_NAME];
+        getToken(req);
       if (!token) { res.status(401).json({ error: "Não autenticado." }); return; }
 
       const session = await sdk.verifySession(token);
@@ -290,8 +300,7 @@ export function registerCustomAuthRoutes(app: Express) {
   app.patch("/api/master/users/:id/active", async (req: Request, res: Response) => {
     try {
       const token =
-        req.headers.authorization?.replace("Bearer ", "") ||
-        req.cookies?.[COOKIE_NAME];
+        getToken(req);
       if (!token) { res.status(401).json({ error: "Não autenticado." }); return; }
 
       const session = await sdk.verifySession(token);
@@ -332,12 +341,53 @@ export function registerCustomAuthRoutes(app: Express) {
     }
   });
 
+  // ── POST /api/auth/app-upload-avatar ────────────────────────────────────────
+  app.post("/api/auth/app-upload-avatar", async (req: Request, res: Response) => {
+    try {
+      const token =
+        getToken(req);
+      if (!token) { res.status(401).json({ error: "Não autenticado." }); return; }
+
+      const session = await sdk.verifySession(token);
+      if (!session) { res.status(401).json({ error: "Sessão inválida." }); return; }
+
+      const match = session.openId.match(/^app_user_(\d+)$/);
+      if (!match) { res.status(403).json({ error: "Acesso negado." }); return; }
+
+      const userId = parseInt(match[1]);
+      const { fileBase64, fileType = "image/jpeg", fileName = "avatar.jpg" } = req.body as {
+        fileBase64?: string;
+        fileType?: string;
+        fileName?: string;
+      };
+
+      if (!fileBase64) {
+        res.status(400).json({ error: "Imagem não fornecida." });
+        return;
+      }
+
+      const db = await getDb();
+      if (!db) { res.status(503).json({ error: "Banco de dados indisponível." }); return; }
+
+      const buffer = Buffer.from(fileBase64, "base64");
+      const fileKey = `avatars/user_${userId}_${Date.now()}.${fileName.split(".").pop() ?? "jpg"}`;
+      const { url } = await storagePut(fileKey, buffer, fileType);
+
+      await db.update(appUsers).set({ avatarUrl: url }).where(eq(appUsers.id, userId));
+
+      const updated = await db.select().from(appUsers).where(eq(appUsers.id, userId)).limit(1);
+      res.json({ avatarUrl: url, user: buildUserResponse(updated[0]) });
+    } catch (err) {
+      console.error("[CustomAuth] Upload avatar failed:", err);
+      res.status(500).json({ error: "Erro interno ao fazer upload do avatar." });
+    }
+  });
+
   // ── PATCH /api/master/users/:id/password ────────────────────────────────────
   app.patch("/api/master/users/:id/password", async (req: Request, res: Response) => {
     try {
       const token =
-        req.headers.authorization?.replace("Bearer ", "") ||
-        req.cookies?.[COOKIE_NAME];
+        getToken(req);
       if (!token) { res.status(401).json({ error: "Não autenticado." }); return; }
 
       const session = await sdk.verifySession(token);

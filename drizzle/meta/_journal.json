@@ -43,6 +43,13 @@
       "when": 1771976662410,
       "tag": "0005_nasty_masque",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "5",
+      "when": 1771978627738,
+      "tag": "0006_keen_aaron_stack",
+      "breakpoints": true
     }
   ]
 }

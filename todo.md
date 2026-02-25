@@ -465,3 +465,15 @@
 - [x] Integrar UserHeader nas telas principais do Gestor (dashboard/equipe)
 - [x] Integrar UserHeader nas telas principais do Promotor (home/perfil)
 - [x] Integrar UserHeader na tela Master (painel de usuários)
+
+## Fase 23 — Foto de Perfil e Nome Real no Painel Web
+
+- [ ] Coluna avatarUrl na tabela app_users do banco de dados
+- [ ] Endpoint POST /api/auth/app-upload-avatar: upload de foto de perfil para S3
+- [ ] Endpoint GET /api/auth/app-me retorna avatarUrl junto com nome e role
+- [ ] Componente UserHeader exibe foto de perfil quando disponível (fallback para inicial)
+- [ ] Botão de editar foto de perfil no UserHeader (toque no avatar)
+- [ ] Picker de imagem com opções: câmera ou galeria
+- [ ] Preview da nova foto antes de confirmar upload
+- [x] Painel web: cabeçalho exibe nome real do usuário logado (não "Gestor Demo")
+- [x] Painel web: avatar com inicial do nome no cabeçalho do painel web

@@ -7,6 +7,8 @@ interface User {
   name: string | null;
   email: string | null;
   openId: string;
+  avatarUrl?: string | null;
+  appRole?: string | null;
 }
 
 interface AuthContextType {
@@ -16,6 +18,7 @@ interface AuthContextType {
   logout: () => Promise<void>;
   refresh: () => Promise<void>;
   demoLogin: (role: "promoter" | "manager") => Promise<void>;
+  appLogin: (login: string, password: string) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
@@ -36,7 +39,32 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const fetchMe = useCallback(async () => {
     try {
-      const res = await fetch(`${getApiUrl()}/api/auth/me`, {
+      const apiUrl = getApiUrl();
+
+      // First try the custom app-me endpoint (for login/password users)
+      const appMeRes = await fetch(`${apiUrl}/api/auth/app-me`, {
+        credentials: "include",
+      });
+
+      if (appMeRes.ok) {
+        const appData = await appMeRes.json();
+        if (appData.user) {
+          // Map app user to User interface
+          setUser({
+            id: appData.user.id,
+            name: appData.user.name,
+            email: null,
+            openId: `app_user_${appData.user.id}`,
+            avatarUrl: appData.user.avatarUrl ?? null,
+            appRole: appData.user.appRole,
+          });
+          setLoading(false);
+          return;
+        }
+      }
+
+      // Fallback: try OAuth /api/auth/me
+      const res = await fetch(`${apiUrl}/api/auth/me`, {
         credentials: "include",
       });
       if (res.ok) {
@@ -58,7 +86,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const logout = async () => {
     try {
-      await fetch(`${getApiUrl()}/api/auth/logout`, {
+      const apiUrl = getApiUrl();
+      await fetch(`${apiUrl}/api/auth/logout`, {
         method: "POST",
         credentials: "include",
       });
@@ -68,7 +97,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const demoLogin = async (role: "promoter" | "manager") => {
-    const res = await fetch(`${getApiUrl()}/api/auth/demo-login`, {
+    const apiUrl = getApiUrl();
+    const res = await fetch(`${apiUrl}/api/auth/demo-login`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       credentials: "include",
@@ -81,6 +111,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await fetchMe();
   };
 
+  const appLogin = async (login: string, password: string) => {
+    const apiUrl = getApiUrl();
+    const res = await fetch(`${apiUrl}/api/auth/app-login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({ login, password }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error ?? "Login ou senha incorretos");
+    }
+    // Cookie is set by the server automatically via res.cookie()
+    await fetchMe();
+  };
+
   return (
     <AuthContext.Provider
       value={{
@@ -90,6 +136,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         logout,
         refresh: fetchMe,
         demoLogin,
+        appLogin,
       }}
     >
       {children}

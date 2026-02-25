@@ -316,6 +316,8 @@ export const appUsers = mysqlTable("app_users", {
   passwordHash: varchar("passwordHash", { length: 255 }).notNull(),
   /** App role: promoter (default), manager, master */
   appRole: mysqlEnum("appRole", ["promoter", "manager", "master"]).default("promoter").notNull(),
+  /** URL da foto de perfil (armazenada no S3) */
+  avatarUrl: varchar("avatarUrl", { length: 500 }),
   /** Whether the account is active */
   active: boolean("active").default(true).notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),

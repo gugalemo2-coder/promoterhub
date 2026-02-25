@@ -181,6 +181,14 @@ export async function masterResetPassword(userId: number, newPassword: string): 
   });
 }
 
+// Upload avatar de perfil (base64)
+export async function appUploadAvatar(fileBase64: string, fileType: string, fileName: string): Promise<{ avatarUrl: string; user: any }> {
+  return apiCall<{ avatarUrl: string; user: any }>("/api/auth/app-upload-avatar", {
+    method: "POST",
+    body: JSON.stringify({ fileBase64, fileType, fileName }),
+  });
+}
+
 // Logout
 export async function logout(): Promise<void> {
   await apiCall<void>("/api/auth/logout", {
