@@ -7,7 +7,7 @@ import { trpc } from "@/lib/trpc";
 import { Ionicons } from "@expo/vector-icons";
 import { Redirect, useRouter } from "expo-router";
 import { useState } from "react";
-import { ActivityIndicator, Alert, FlatList, Pressable, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Alert, FlatList, Platform, Pressable, StyleSheet, Text, View } from "react-native";
 
 const MONTHS_FULL = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
 const MONTHS_SHORT = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
@@ -48,11 +48,16 @@ export default function TeamScreen() {
   const workingDays = monthlyReport?.workingDays ?? 0;
 
   const { user, logout } = useAuth();
+  const doLogout = async () => { try { await logout(); } catch {} finally { router.replace("/"); } };
   const handleLogout = () => {
-    Alert.alert("Sair da conta", "Deseja sair?", [
-      { text: "Cancelar", style: "cancel" },
-      { text: "Sair", style: "destructive", onPress: async () => { try { await logout(); } catch {} finally { router.replace("/"); } } },
-    ]);
+    if (Platform.OS === "web") {
+      doLogout();
+    } else {
+      Alert.alert("Sair da conta", "Deseja sair?", [
+        { text: "Cancelar", style: "cancel" },
+        { text: "Sair", style: "destructive", onPress: doLogout },
+      ]);
+    }
   };
 
   return (

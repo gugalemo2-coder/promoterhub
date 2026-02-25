@@ -11,6 +11,7 @@ import {
   ActivityIndicator,
   Alert,
   FlatList,
+  Platform,
   Pressable,
   RefreshControl,
   StyleSheet,
@@ -291,10 +292,15 @@ export default function MasterUsersScreen() {
         name={user?.name}
         subtitle="Gerenciamento de usuários"
         onLogout={() => {
-          Alert.alert("Sair da conta", "Deseja sair?", [
-            { text: "Cancelar", style: "cancel" },
-            { text: "Sair", style: "destructive", onPress: async () => { try { await logout(); } catch {} finally { router.replace("/"); } } },
-          ]);
+          const doLogout = async () => { try { await logout(); } catch {} finally { router.replace("/"); } };
+          if (Platform.OS === "web") {
+            doLogout();
+          } else {
+            Alert.alert("Sair da conta", "Deseja sair?", [
+              { text: "Cancelar", style: "cancel" },
+              { text: "Sair", style: "destructive", onPress: doLogout },
+            ]);
+          }
         }}
         backgroundColor="#7C3AED"
       />

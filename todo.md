@@ -534,3 +534,10 @@
 
 - [x] Corrigir logout na versão web: limpa localStorage completo + cookie + window.location.href para /login (força reload e destrói estado em memória)
 - [x] Garantir que o app não abra direto em conta antiga ao acessar o link (localStorage limpo no logout)
+
+## Fase 32 — Correção de Logout Web
+
+- [x] Corrigir logout na versão web: substituir Pressable por TouchableOpacity no UserHeader
+- [x] Remover window.confirm (bloqueado em iframe/headless) e fazer logout direto na web
+- [x] Corrigir logout em index.tsx, team.tsx e master-users.tsx para usar Platform.OS === "web"
+- [x] Testado e confirmado: botão de logout redireciona para /login corretamente

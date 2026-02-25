@@ -11,6 +11,7 @@ import {
   Alert,
   Dimensions,
   FlatList,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -84,24 +85,27 @@ export default function HomeScreen() {
     return `${h}h ${m.toString().padStart(2, "0")}m`;
   };
 
-  const handleLogout = async () => {
-    Alert.alert("Sair da conta", "Deseja sair?", [
-      { text: "Cancelar", style: "cancel" },
-      {
-        text: "Sair",
-        style: "destructive",
-        onPress: async () => {
-          try {
-            await clearRole();
-            await logout();
-          } catch {
-            // ignora
-          } finally {
-            router.replace("/");
-          }
-        },
-      },
-    ]);
+  const doLogout = async () => {
+    try {
+      await clearRole();
+      await logout();
+    } catch {
+      // ignora
+    } finally {
+      router.replace("/");
+    }
+  };
+
+  const handleLogout = () => {
+    if (Platform.OS === "web") {
+      // Alert.alert não funciona na web — logout direto
+      doLogout();
+    } else {
+      Alert.alert("Sair da conta", "Deseja sair?", [
+        { text: "Cancelar", style: "cancel" },
+        { text: "Sair", style: "destructive", onPress: doLogout },
+      ]);
+    }
   };
 
   // ─────────────────────────────────────────────────────────────────────────

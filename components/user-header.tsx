@@ -9,9 +9,9 @@ import {
   ActivityIndicator,
   Alert,
   Platform,
-  Pressable,
   StyleSheet,
   Text,
+  TouchableOpacity,
   View,
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -201,9 +201,9 @@ export function UserHeader({
       {/* Right: avatar + logout */}
       <View style={styles.right}>
         {/* Avatar circle — tappable to change photo */}
-        <Pressable
+        <TouchableOpacity
           onPress={handleAvatarPress}
-          style={({ pressed }) => [pressed && { opacity: 0.8 }]}
+          activeOpacity={0.8}
           disabled={isUploading}
         >
           <View style={[styles.avatar, { backgroundColor: avatarColor }]}>
@@ -225,17 +225,18 @@ export function UserHeader({
               </View>
             )}
           </View>
-        </Pressable>
+        </TouchableOpacity>
 
         {/* Logout button */}
         {onLogout && (
-          <Pressable
+          <TouchableOpacity
             onPress={onLogout}
-            style={({ pressed }) => [styles.logoutBtn, pressed && { opacity: 0.6 }]}
-            hitSlop={8}
+            activeOpacity={0.6}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            style={styles.logoutBtn}
           >
             <Ionicons name="log-out-outline" size={22} color="rgba(255,255,255,0.85)" />
-          </Pressable>
+          </TouchableOpacity>
         )}
       </View>
     </View>
