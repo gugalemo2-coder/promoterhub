@@ -97,7 +97,7 @@ export default function HomeScreen() {
           } catch {
             // ignora
           } finally {
-            router.replace("/login");
+            router.replace("/");
           }
         },
       },

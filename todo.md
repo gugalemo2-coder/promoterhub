@@ -515,3 +515,7 @@
 - [x] Corrigir redirecionamento: criado index.tsx na raiz com lógica de auth, removido anchor "(tabs)" do _layout.tsx
 - [x] Remover endpoint /api/auth/demo-login do servidor (botões já não existiam na tela de login)
 - [x] Verificar banco de dados: não há usuários demo cadastrados (tabela limpa)
+
+## Fase 30 — Correção de Logout
+
+- [x] Corrigir botão de logout na conta Master (router.replace("/") para acionar o fluxo de auth do index raiz)

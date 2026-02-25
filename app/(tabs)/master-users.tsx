@@ -293,7 +293,7 @@ export default function MasterUsersScreen() {
         onLogout={() => {
           Alert.alert("Sair da conta", "Deseja sair?", [
             { text: "Cancelar", style: "cancel" },
-            { text: "Sair", style: "destructive", onPress: async () => { try { await logout(); } catch {} finally { router.replace("/login"); } } },
+            { text: "Sair", style: "destructive", onPress: async () => { try { await logout(); } catch {} finally { router.replace("/"); } } },
           ]);
         }}
         backgroundColor="#7C3AED"
