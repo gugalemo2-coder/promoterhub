@@ -1,30 +1,82 @@
 import { ScreenContainer } from "@/components/screen-container";
-import { UserHeader } from "@/components/user-header";
 import { useAuth } from "@/hooks/use-auth";
 import { useColors } from "@/hooks/use-colors";
 import { useRole } from "@/lib/role-context";
 import { trpc } from "@/lib/trpc";
 import { Ionicons } from "@expo/vector-icons";
+import { Image } from "expo-image";
 import { useRouter } from "expo-router";
-import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { useMemo, useState } from "react";
+import {
+  Alert,
+  Dimensions,
+  FlatList,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
+
+const { width: SCREEN_WIDTH } = Dimensions.get("window");
+const PHOTO_SIZE = (SCREEN_WIDTH - 48 - 8) / 3;
 
 export default function HomeScreen() {
   const colors = useColors();
   const { user, logout } = useAuth();
   const { appRole, clearRole } = useRole();
   const router = useRouter();
-  const isManager = appRole === "manager";
+
+  const isManager = appRole === "manager" || appRole === "master";
+  const isMaster = appRole === "master";
+  const accentColor = isMaster ? "#7C3AED" : colors.primary;
 
   const isReady = !!user;
-  const { data: dailySummary } = trpc.timeEntries.dailySummary.useQuery({ date: new Date().toISOString() }, { enabled: isReady });
-  const { data: brands } = trpc.brands.list.useQuery(undefined, { enabled: isReady });
-  const { data: pendingRequests } = trpc.materialRequests.list.useQuery({ status: "pending" }, { enabled: isReady });
-  const { data: dailyReport } = trpc.reports.daily.useQuery({ date: new Date().toISOString() }, { enabled: isReady && isManager });
-  const { data: unacknowledgedAlerts } = trpc.geoAlerts.list.useQuery({ acknowledged: false, limit: 5 }, { enabled: isReady && isManager });
-
-  const firstName = user?.name?.split(" ")[0] ?? "Promotor";
   const now = new Date();
   const greeting = now.getHours() < 12 ? "Bom dia" : now.getHours() < 18 ? "Boa tarde" : "Boa noite";
+  const firstName = user?.name?.split(" ")[0] ?? "Usuário";
+  const todayISO = now.toISOString();
+
+  // ── Promoter queries ──────────────────────────────────────────────────────
+  const { data: dailySummary } = trpc.timeEntries.dailySummary.useQuery(
+    { date: todayISO },
+    { enabled: isReady && !isManager }
+  );
+  const { data: pendingRequests } = trpc.materialRequests.list.useQuery(
+    { status: "pending" },
+    { enabled: isReady && !isManager }
+  );
+
+  // ── Manager/Master queries ────────────────────────────────────────────────
+  const { data: dailyReport } = trpc.reports.daily.useQuery(
+    { date: todayISO },
+    { enabled: isReady && isManager }
+  );
+  const { data: unacknowledgedAlerts } = trpc.geoAlerts.list.useQuery(
+    { acknowledged: false, limit: 50 },
+    { enabled: isReady && isManager }
+  );
+  const { data: brands } = trpc.brands.list.useQuery(undefined, { enabled: isReady && isManager });
+
+  // Photos for selected brand (today)
+  const [selectedBrandId, setSelectedBrandId] = useState<number | undefined>();
+  const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
+  const endOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59).toISOString();
+
+  const { data: todayPhotos } = trpc.photos.listAll.useQuery(
+    { brandId: selectedBrandId, startDate: startOfDay, endDate: endOfDay, limit: 30 },
+    { enabled: isReady && isManager }
+  );
+
+  const sortedPhotos = useMemo(() => {
+    if (!todayPhotos) return [];
+    return [...todayPhotos].sort(
+      (a, b) => new Date(b.photoTimestamp ?? 0).getTime() - new Date(a.photoTimestamp ?? 0).getTime()
+    );
+  }, [todayPhotos]);
+
+  const alertCount = unacknowledgedAlerts?.length ?? 0;
 
   const formatHours = (minutes: number) => {
     const h = Math.floor(minutes / 60);
@@ -33,49 +85,75 @@ export default function HomeScreen() {
   };
 
   const handleLogout = async () => {
-    Alert.alert(
-      "Sair da conta",
-      "Deseja sair e trocar de perfil?",
-      [
-        { text: "Cancelar", style: "cancel" },
-        {
-          text: "Sair",
-          style: "destructive",
-          onPress: async () => {
-            try {
-              await clearRole();
-              await logout();
-            } catch {
-              // ignora erros de rede no logout
-            } finally {
-              router.replace("/login");
-            }
-          },
+    Alert.alert("Sair da conta", "Deseja sair?", [
+      { text: "Cancelar", style: "cancel" },
+      {
+        text: "Sair",
+        style: "destructive",
+        onPress: async () => {
+          try {
+            await clearRole();
+            await logout();
+          } catch {
+            // ignora
+          } finally {
+            router.replace("/login");
+          }
         },
-      ]
-    );
+      },
+    ]);
   };
 
+  // ─────────────────────────────────────────────────────────────────────────
+  // MANAGER / MASTER DASHBOARD
+  // ─────────────────────────────────────────────────────────────────────────
   if (isManager) {
     return (
       <ScreenContainer>
-        <ScrollView showsVerticalScrollIndicator={false}>
-          <UserHeader
-            name={user?.name}
-            subtitle="Painel do Gestor"
-            onLogout={handleLogout}
-            backgroundColor="#1A56DB"
-          />
+        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 32 }}>
 
-          {/* Stats Cards */}
+          {/* ── Header ── */}
+          <View style={[styles.managerHeader, { backgroundColor: accentColor }]}>
+            {/* Sino de alertas (esquerda) */}
+            <TouchableOpacity
+              style={styles.bellBtn}
+              onPress={() => router.push("/(tabs)/alerts" as any)}
+              activeOpacity={0.8}
+            >
+              <Ionicons name="notifications-outline" size={26} color="#fff" />
+              {alertCount > 0 && (
+                <View style={styles.bellBadge}>
+                  <Text style={styles.bellBadgeText}>{alertCount > 99 ? "99+" : alertCount}</Text>
+                </View>
+              )}
+            </TouchableOpacity>
+
+            {/* Saudação (centro) */}
+            <View style={styles.managerGreeting}>
+              <Text style={styles.managerGreetingText}>{greeting}, {firstName}!</Text>
+              <Text style={styles.managerSubtitle}>
+                {isMaster ? "Conta Master" : "Painel do Gestor"}
+              </Text>
+            </View>
+
+            {/* Logout (direita) */}
+            <TouchableOpacity onPress={handleLogout} style={styles.logoutBtn} activeOpacity={0.8}>
+              <Ionicons name="log-out-outline" size={24} color="rgba(255,255,255,0.85)" />
+            </TouchableOpacity>
+          </View>
+
+          {/* ── Stats Cards ── */}
           <View style={styles.statsGrid}>
             {[
               { label: "Registros Hoje", value: dailyReport?.totalEntries ?? 0, icon: "time-outline", color: "#3B82F6" },
               { label: "Fotos Enviadas", value: dailyReport?.totalPhotos ?? 0, icon: "camera-outline", color: "#10B981" },
               { label: "Solicitações", value: dailyReport?.totalRequests ?? 0, icon: "cube-outline", color: "#F59E0B" },
-              { label: "Alertas", value: dailyReport?.totalAlerts ?? 0, icon: "warning-outline", color: "#EF4444" },
+              { label: "Alertas Ativos", value: alertCount, icon: "warning-outline", color: "#EF4444" },
             ].map((stat) => (
-              <View key={stat.label} style={[styles.statCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+              <View
+                key={stat.label}
+                style={[styles.statCard, { backgroundColor: colors.surface, borderColor: colors.border }]}
+              >
                 <View style={[styles.statIcon, { backgroundColor: stat.color + "20" }]}>
                   <Ionicons name={stat.icon as any} size={22} color={stat.color} />
                 </View>
@@ -85,31 +163,112 @@ export default function HomeScreen() {
             ))}
           </View>
 
-          {/* Pending Alerts */}
-          {(unacknowledgedAlerts?.length ?? 0) > 0 && (
-            <View style={[styles.alertBanner, { backgroundColor: "#FEF3C7", borderColor: "#F59E0B" }]}>
-              <Ionicons name="warning" size={20} color="#D97706" />
-              <Text style={[styles.alertBannerText, { color: "#92400E" }]}>
-                {unacknowledgedAlerts?.length} alerta(s) pendente(s) de revisão
+          {/* ── Fotos do Dia ── */}
+          <View style={styles.sectionRow}>
+            <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Fotos de Hoje</Text>
+            <TouchableOpacity onPress={() => router.push("/(tabs)/manager-photos" as any)}>
+              <Text style={[styles.seeAll, { color: accentColor }]}>Ver todas</Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* Brand Selector */}
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.brandScroll}
+          >
+            <TouchableOpacity
+              style={[
+                styles.brandChip,
+                {
+                  backgroundColor: !selectedBrandId ? accentColor : colors.surface,
+                  borderColor: !selectedBrandId ? accentColor : colors.border,
+                },
+              ]}
+              onPress={() => setSelectedBrandId(undefined)}
+              activeOpacity={0.75}
+            >
+              <Text style={[styles.brandChipText, { color: !selectedBrandId ? "#fff" : colors.foreground }]}>
+                Todas
               </Text>
-              <Pressable onPress={() => router.push("/(tabs)/alerts" as any)}>
-                <Text style={{ color: "#D97706", fontWeight: "700", fontSize: 13 }}>Ver</Text>
-              </Pressable>
+            </TouchableOpacity>
+            {brands?.map((brand) => {
+              const active = selectedBrandId === brand.id;
+              const brandColor = brand.colorHex ?? accentColor;
+              return (
+                <TouchableOpacity
+                  key={brand.id}
+                  style={[
+                    styles.brandChip,
+                    {
+                      backgroundColor: active ? brandColor : colors.surface,
+                      borderColor: active ? brandColor : colors.border,
+                    },
+                  ]}
+                  onPress={() => setSelectedBrandId(brand.id)}
+                  activeOpacity={0.75}
+                >
+                  <View style={[styles.brandDot, { backgroundColor: active ? "#fff" : brandColor }]} />
+                  <Text style={[styles.brandChipText, { color: active ? "#fff" : colors.foreground }]}>
+                    {brand.name}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
+
+          {/* Photo Grid */}
+          {sortedPhotos.length === 0 ? (
+            <View style={[styles.emptyPhotos, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+              <Ionicons name="images-outline" size={40} color={colors.muted} />
+              <Text style={[styles.emptyPhotosText, { color: colors.muted }]}>
+                Nenhuma foto enviada hoje
+              </Text>
+            </View>
+          ) : (
+            <View style={styles.photoGrid}>
+              {sortedPhotos.slice(0, 9).map((photo) => (
+                <TouchableOpacity
+                  key={photo.id}
+                  style={[styles.photoCell, { width: PHOTO_SIZE, height: PHOTO_SIZE }]}
+                  onPress={() => router.push("/(tabs)/manager-photos" as any)}
+                  activeOpacity={0.85}
+                >
+                  <Image
+                    source={{ uri: photo.photoUrl }}
+                    style={styles.photoImage}
+                    contentFit="cover"
+                    transition={200}
+                  />
+                </TouchableOpacity>
+              ))}
+              {sortedPhotos.length > 9 && (
+                <TouchableOpacity
+                  style={[styles.photoCell, styles.moreCell, { width: PHOTO_SIZE, height: PHOTO_SIZE, backgroundColor: accentColor + "20" }]}
+                  onPress={() => router.push("/(tabs)/manager-photos" as any)}
+                >
+                  <Text style={[styles.moreCellText, { color: accentColor }]}>+{sortedPhotos.length - 9}</Text>
+                </TouchableOpacity>
+              )}
             </View>
           )}
 
-          {/* Quick Actions */}
-          <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Ações Rápidas</Text>
+          {/* ── Quick Actions ── */}
+          <Text style={[styles.sectionTitle, { color: colors.foreground, marginTop: 8 }]}>Acesso Rápido</Text>
           <View style={styles.quickActions}>
             {[
               { label: "Equipe", icon: "people-outline", route: "/(tabs)/team", color: "#3B82F6" },
-              { label: "Controle Ponto", icon: "time-outline", route: "/(tabs)/clock", color: "#10B981" },
-              { label: "Solicitações", icon: "cube-outline", route: "/(tabs)/materials", color: "#F59E0B" },
-              { label: "Enviar Arquivo", icon: "cloud-upload-outline", route: "/(tabs)/files", color: "#8B5CF6" },
+              { label: "Relatórios", icon: "bar-chart-outline", route: "/(tabs)/reports", color: "#10B981" },
+              { label: "Materiais", icon: "cube-outline", route: "/(tabs)/materials", color: "#F59E0B" },
+              { label: "Arquivos", icon: "document-outline", route: "/(tabs)/files", color: "#8B5CF6" },
             ].map((action) => (
               <Pressable
                 key={action.label}
-                style={({ pressed }) => [styles.quickAction, { backgroundColor: colors.surface, borderColor: colors.border }, pressed && { opacity: 0.75 }]}
+                style={({ pressed }) => [
+                  styles.quickAction,
+                  { backgroundColor: colors.surface, borderColor: colors.border },
+                  pressed && { opacity: 0.75 },
+                ]}
                 onPress={() => router.push(action.route as any)}
               >
                 <View style={[styles.quickActionIcon, { backgroundColor: action.color + "15" }]}>
@@ -124,15 +283,24 @@ export default function HomeScreen() {
     );
   }
 
-  // ─── PROMOTER HOME ──────────────────────────────────────────────────────────
+  // ─────────────────────────────────────────────────────────────────────────
+  // PROMOTER HOME
+  // ─────────────────────────────────────────────────────────────────────────
   return (
     <ScreenContainer>
       <ScrollView showsVerticalScrollIndicator={false}>
-        <UserHeader
-          name={user?.name}
-          subtitle={dailySummary?.hasOpenEntry ? "✅ Ponto aberto" : "Ponto não registrado"}
-          onLogout={handleLogout}
-        />
+        {/* Header */}
+        <View style={[styles.promoterHeader, { backgroundColor: colors.primary }]}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.promoterGreeting}>{greeting}, {firstName}!</Text>
+            <Text style={styles.promoterSubtitle}>
+              {dailySummary?.hasOpenEntry ? "✅ Ponto aberto" : "Ponto não registrado"}
+            </Text>
+          </View>
+          <TouchableOpacity onPress={handleLogout} style={styles.logoutBtn} activeOpacity={0.8}>
+            <Ionicons name="log-out-outline" size={24} color="rgba(255,255,255,0.85)" />
+          </TouchableOpacity>
+        </View>
 
         {/* Today's Summary */}
         <View style={[styles.summaryCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
@@ -173,26 +341,15 @@ export default function HomeScreen() {
           ]}
           onPress={() => router.push("/(tabs)/clock" as any)}
         >
-          <Ionicons name={dailySummary?.hasOpenEntry ? "stop-circle-outline" : "play-circle-outline"} size={28} color="#FFFFFF" />
+          <Ionicons
+            name={dailySummary?.hasOpenEntry ? "stop-circle-outline" : "play-circle-outline"}
+            size={28}
+            color="#FFFFFF"
+          />
           <Text style={styles.clockCtaText}>
             {dailySummary?.hasOpenEntry ? "Registrar Saída" : "Registrar Entrada"}
           </Text>
         </Pressable>
-
-        {/* Brands Quick Access */}
-        <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Marcas</Text>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.brandsScroll}>
-          {brands?.map((brand) => (
-            <Pressable
-              key={brand.id}
-              style={({ pressed }) => [styles.brandChip, { backgroundColor: (brand.colorHex ?? "#3B82F6") + "20", borderColor: brand.colorHex ?? "#3B82F6" }, pressed && { opacity: 0.75 }]}
-              onPress={() => router.push(`/(tabs)/photos?brandId=${brand.id}` as any)}
-            >
-              <View style={[styles.brandDot, { backgroundColor: brand.colorHex ?? "#3B82F6" }]} />
-              <Text style={[styles.brandChipText, { color: brand.colorHex ?? "#3B82F6" }]}>{brand.name}</Text>
-            </Pressable>
-          ))}
-        </ScrollView>
 
         {/* Quick Actions */}
         <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Ações Rápidas</Text>
@@ -205,7 +362,11 @@ export default function HomeScreen() {
           ].map((action) => (
             <Pressable
               key={action.label}
-              style={({ pressed }) => [styles.quickAction, { backgroundColor: colors.surface, borderColor: colors.border }, pressed && { opacity: 0.75 }]}
+              style={({ pressed }) => [
+                styles.quickAction,
+                { backgroundColor: colors.surface, borderColor: colors.border },
+                pressed && { opacity: 0.75 },
+              ]}
               onPress={() => router.push(action.route as any)}
             >
               <View style={[styles.quickActionIcon, { backgroundColor: action.color + "15" }]}>
@@ -221,17 +382,73 @@ export default function HomeScreen() {
 }
 
 const styles = StyleSheet.create({
-  header: { paddingTop: 20, paddingBottom: 24, paddingHorizontal: 20, flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" },
-  greeting: { fontSize: 24, fontWeight: "700", color: "#FFFFFF" },
-  headerSub: { fontSize: 14, color: "rgba(255,255,255,0.8)", marginTop: 4 },
-  logoutBtn: { padding: 8 },
+  // Manager header
+  managerHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    paddingBottom: 20,
+    gap: 12,
+  },
+  bellBtn: { position: "relative", padding: 4 },
+  bellBadge: {
+    position: "absolute",
+    top: 0,
+    right: 0,
+    backgroundColor: "#EF4444",
+    borderRadius: 8,
+    minWidth: 16,
+    height: 16,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 3,
+  },
+  bellBadgeText: { color: "#fff", fontSize: 9, fontWeight: "800" },
+  managerGreeting: { flex: 1, alignItems: "center" },
+  managerGreetingText: { fontSize: 20, fontWeight: "800", color: "#fff" },
+  managerSubtitle: { fontSize: 13, color: "rgba(255,255,255,0.8)", marginTop: 2 },
+  logoutBtn: { padding: 4 },
+
+  // Promoter header
+  promoterHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 20,
+    paddingTop: 16,
+    paddingBottom: 24,
+  },
+  promoterGreeting: { fontSize: 22, fontWeight: "700", color: "#fff" },
+  promoterSubtitle: { fontSize: 14, color: "rgba(255,255,255,0.8)", marginTop: 4 },
+
+  // Stats
   statsGrid: { flexDirection: "row", flexWrap: "wrap", padding: 16, gap: 12 },
   statCard: { flex: 1, minWidth: "44%", borderRadius: 16, padding: 16, alignItems: "center", borderWidth: 1 },
   statIcon: { width: 44, height: 44, borderRadius: 12, alignItems: "center", justifyContent: "center", marginBottom: 8 },
   statValue: { fontSize: 26, fontWeight: "800" },
   statLabel: { fontSize: 12, marginTop: 2, textAlign: "center" },
-  alertBanner: { marginHorizontal: 16, marginBottom: 8, borderRadius: 12, padding: 12, flexDirection: "row", alignItems: "center", gap: 10, borderWidth: 1 },
-  alertBannerText: { flex: 1, fontSize: 13, fontWeight: "500" },
+
+  // Section
+  sectionRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 16, marginTop: 4, marginBottom: 10 },
+  sectionTitle: { fontSize: 17, fontWeight: "700", marginHorizontal: 16, marginTop: 8, marginBottom: 12 },
+  seeAll: { fontSize: 14, fontWeight: "600" },
+
+  // Brand chips
+  brandScroll: { paddingHorizontal: 16, paddingBottom: 12, gap: 8, flexDirection: "row" },
+  brandChip: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, borderWidth: 1.5 },
+  brandDot: { width: 8, height: 8, borderRadius: 4 },
+  brandChipText: { fontSize: 13, fontWeight: "600" },
+
+  // Photo grid
+  photoGrid: { flexDirection: "row", flexWrap: "wrap", paddingHorizontal: 16, gap: 4, marginBottom: 8 },
+  photoCell: { borderRadius: 8, overflow: "hidden" },
+  photoImage: { width: "100%", height: "100%" },
+  moreCell: { alignItems: "center", justifyContent: "center", borderRadius: 8 },
+  moreCellText: { fontSize: 18, fontWeight: "800" },
+  emptyPhotos: { marginHorizontal: 16, borderRadius: 16, borderWidth: 1, padding: 32, alignItems: "center", gap: 10, marginBottom: 8 },
+  emptyPhotosText: { fontSize: 14, textAlign: "center" },
+
+  // Promoter summary
   summaryCard: { margin: 16, borderRadius: 20, padding: 20, borderWidth: 1 },
   summaryTitle: { fontSize: 16, fontWeight: "700", marginBottom: 16 },
   summaryRow: { flexDirection: "row", alignItems: "center" },
@@ -239,13 +456,12 @@ const styles = StyleSheet.create({
   summaryDivider: { width: 1, height: 48 },
   summaryValue: { fontSize: 22, fontWeight: "800" },
   summaryLabel: { fontSize: 12 },
+
+  // Clock CTA
   clockCta: { marginHorizontal: 16, marginBottom: 8, borderRadius: 16, paddingVertical: 18, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 12 },
   clockCtaText: { fontSize: 18, fontWeight: "700", color: "#FFFFFF" },
-  sectionTitle: { fontSize: 17, fontWeight: "700", marginHorizontal: 16, marginTop: 8, marginBottom: 12 },
-  brandsScroll: { paddingLeft: 16, marginBottom: 8 },
-  brandChip: { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, borderWidth: 1.5, marginRight: 10 },
-  brandDot: { width: 8, height: 8, borderRadius: 4 },
-  brandChipText: { fontSize: 14, fontWeight: "600" },
+
+  // Quick actions
   quickActions: { flexDirection: "row", flexWrap: "wrap", paddingHorizontal: 16, paddingBottom: 24, gap: 12 },
   quickAction: { flex: 1, minWidth: "44%", borderRadius: 16, padding: 16, alignItems: "center", gap: 10, borderWidth: 1 },
   quickActionIcon: { width: 52, height: 52, borderRadius: 16, alignItems: "center", justifyContent: "center" },

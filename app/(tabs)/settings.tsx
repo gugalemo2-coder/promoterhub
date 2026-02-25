@@ -12,6 +12,8 @@ import {
 } from "react-native";
 import { ScreenContainer } from "@/components/screen-container";
 import { useColors } from "@/hooks/use-colors";
+import { useRole } from "@/lib/role-context";
+import { useRouter } from "expo-router";
 import { trpc } from "@/lib/trpc";
 
 // Default values matching the DB defaults
@@ -32,6 +34,10 @@ const GEO_RADIUS_OPTIONS = [0.1, 0.25, 0.5, 1.0, 1.5, 2.0, 3.0, 5.0, 10.0];
 
 export default function SettingsScreen() {
   const colors = useColors();
+  const { appRole } = useRole();
+  const router = useRouter();
+  const isMaster = appRole === "master";
+  const accentColor = isMaster ? "#7C3AED" : colors.primary;
   const { data: savedSettings, isLoading } = trpc.settings.get.useQuery();
   const saveMutation = trpc.settings.save.useMutation();
   const utils = trpc.useUtils();
@@ -276,6 +282,54 @@ export default function SettingsScreen() {
           ))}
         </View>
 
+        {/* ── GESTÃO ── */}
+        <View style={[styles.section, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+          <View style={styles.sectionHeader}>
+            <Ionicons name="people-outline" size={20} color={accentColor} />
+            <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Gestão</Text>
+          </View>
+          <Text style={[styles.sectionDesc, { color: colors.muted }]}>
+            Gerencie equipe, lojas e marcas cadastradas.
+          </Text>
+          {[
+            { label: "Equipe", icon: "people-outline" as const, route: "/(tabs)/team", desc: "Promotores e gestores" },
+            { label: "Lojas", icon: "storefront-outline" as const, route: "/(tabs)/stores", desc: "Pontos de venda cadastrados" },
+            { label: "Marcas", icon: "pricetag-outline" as const, route: "/(tabs)/brands", desc: "Marcas gerenciadas" },
+          ].map((item) => (
+            <TouchableOpacity
+              key={item.route}
+              style={[styles.navRow, { borderTopColor: colors.border }]}
+              onPress={() => router.push(item.route as any)}
+              activeOpacity={0.75}
+            >
+              <View style={[styles.navIcon, { backgroundColor: accentColor + "15" }]}>
+                <Ionicons name={item.icon} size={20} color={accentColor} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.navLabel, { color: colors.foreground }]}>{item.label}</Text>
+                <Text style={[styles.navDesc, { color: colors.muted }]}>{item.desc}</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={16} color={colors.muted} />
+            </TouchableOpacity>
+          ))}
+          {isMaster && (
+            <TouchableOpacity
+              style={[styles.navRow, { borderTopColor: colors.border }]}
+              onPress={() => router.push("/(tabs)/master-users" as any)}
+              activeOpacity={0.75}
+            >
+              <View style={[styles.navIcon, { backgroundColor: "#7C3AED15" }]}>
+                <Ionicons name="shield-checkmark-outline" size={20} color="#7C3AED" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.navLabel, { color: colors.foreground }]}>Usuários</Text>
+                <Text style={[styles.navDesc, { color: colors.muted }]}>Gerenciar contas e permissões</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={16} color={colors.muted} />
+            </TouchableOpacity>
+          )}
+        </View>
+
         {/* Save button */}
         <TouchableOpacity
           onPress={handleSave}
@@ -374,6 +428,23 @@ const styles = StyleSheet.create({
     borderTopWidth: StyleSheet.hairlineWidth,
   },
   toggleLabel: { fontSize: 14, flex: 1 },
+  // Nav rows (Gestão section)
+  navRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    paddingVertical: 12,
+    borderTopWidth: StyleSheet.hairlineWidth,
+  },
+  navIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  navLabel: { fontSize: 15, fontWeight: "600" },
+  navDesc: { fontSize: 12, marginTop: 1 },
   // Save button
   saveBtn: {
     flexDirection: "row",

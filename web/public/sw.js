@@ -1,9 +1,9 @@
 // PromoterHub Service Worker
 // Cache-first para assets estáticos, Network-first para API
 
-const CACHE_NAME = "promoterhub-v1";
-const STATIC_CACHE = "promoterhub-static-v1";
-const API_CACHE = "promoterhub-api-v1";
+const CACHE_NAME = "promoterhub-v2";
+const STATIC_CACHE = "promoterhub-static-v2";
+const API_CACHE = "promoterhub-api-v2";
 
 // Assets para pré-cachear na instalação
 const PRECACHE_ASSETS = [

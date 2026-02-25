@@ -486,3 +486,16 @@
 - [x] Implementar service worker com cache offline (custom sw.js compatível com Turbopack)
 - [x] Testar instalação na tela inicial do celular (Android Chrome e iOS Safari)
 - [x] Documentar link de instalação para distribuição via WhatsApp
+
+## Fase 26 — Redesign de Navegação Gestor/Master
+
+- [x] Reestruturar menu inferior Gestor/Master para 5 abas: Painel, Materiais, Arquivos, Config, Menu (≡)
+- [x] Remover abas: Equipe, Alertas, Lojas, Marcas, Fotos, Relatórios, Assinar, PDVs, Ranking, Visitas, Usuários do menu inferior
+- [x] Criar aba Menu (≡) com drawer/modal listando: Fotos, Relatórios, Assinar, PDVs, Ranking, Visitas
+- [x] Redesenhar Painel Gestor/Master: dashboard com resumo do dia + sino de alertas no cabeçalho (esquerda da saudação)
+- [x] Adicionar seletor de marcas no Painel para exibir fotos do dia dos promotores
+- [x] Expandir tela Config: adicionar seções Equipe, Lojas, Marcas (Gestor e Master) + Usuários (apenas Master)
+- [x] Criar tela de Fotos para Gestor/Master com filtros: Marca, Loja, Promotor, Data
+- [x] Fotos ordenadas por padrão das mais recentes, com filtro de Data usando ordem cronológica
+- [x] Remover Fotos, Ponto e Meu Perfil do fluxo de Gestor/Master (são exclusivos do Promotor)
+- [x] Corrigir PWA: headers corretos para manifest.json, sw.js atualizado para v2

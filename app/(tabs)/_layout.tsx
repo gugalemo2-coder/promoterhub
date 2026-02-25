@@ -34,15 +34,16 @@ export default function TabLayout() {
     return null;
   }
 
-  // Master has all manager capabilities + user management
   const isManager = appRole === "manager" || appRole === "master";
   const isMaster = appRole === "master";
   const isPromoter = appRole === "promoter";
 
+  const activeTint = isMaster ? "#7C3AED" : colors.primary;
+
   return (
     <Tabs
       screenOptions={{
-        tabBarActiveTintColor: isMaster ? "#7C3AED" : colors.primary,
+        tabBarActiveTintColor: activeTint,
         headerShown: false,
         tabBarButton: HapticTab,
         tabBarStyle: {
@@ -55,7 +56,7 @@ export default function TabLayout() {
         },
       }}
     >
-      {/* ─── SHARED TABS (all roles) ──────────────────────────────────────── */}
+      {/* ─── HOME / PAINEL ──────────────────────────────────────────────── */}
       <Tabs.Screen
         name="index"
         options={{
@@ -87,8 +88,6 @@ export default function TabLayout() {
           href: isPromoter ? undefined : null,
         }}
       />
-
-      {/* ─── SHARED PHOTOS + MATERIALS (all roles) ───────────────────────── */}
       <Tabs.Screen
         name="photos"
         options={{
@@ -96,8 +95,11 @@ export default function TabLayout() {
           tabBarIcon: ({ color }) => (
             <IconSymbol size={26} name="camera.fill" color={color} />
           ),
+          href: isPromoter ? undefined : null,
         }}
       />
+
+      {/* ─── SHARED TABS (promoter + manager) ───────────────────────────── */}
       <Tabs.Screen
         name="materials"
         options={{
@@ -117,97 +119,7 @@ export default function TabLayout() {
         }}
       />
 
-      {/* ─── MANAGER + MASTER TABS ───────────────────────────────────────── */}
-      <Tabs.Screen
-        name="team"
-        options={{
-          title: "Equipe",
-          tabBarIcon: ({ color }) => (
-            <IconSymbol size={26} name="person.3.fill" color={color} />
-          ),
-          href: isManager ? undefined : null,
-        }}
-      />
-      <Tabs.Screen
-        name="alerts"
-        options={{
-          title: "Alertas",
-          tabBarIcon: ({ color }) => (
-            <IconSymbol size={26} name="bell.fill" color={color} />
-          ),
-          href: isManager ? undefined : null,
-        }}
-      />
-      <Tabs.Screen
-        name="stores"
-        options={{
-          title: "Lojas",
-          tabBarIcon: ({ color }) => (
-            <IconSymbol size={26} name="storefront.fill" color={color} />
-          ),
-          href: isManager ? undefined : null,
-        }}
-      />
-      <Tabs.Screen
-        name="reports"
-        options={{
-          title: "Relatórios",
-          tabBarIcon: ({ color }) => (
-            <IconSymbol size={26} name="chart.line.uptrend.xyaxis" color={color} />
-          ),
-          href: isManager ? undefined : null,
-        }}
-      />
-      <Tabs.Screen
-        name="brands"
-        options={{
-          title: "Marcas",
-          tabBarIcon: ({ color }) => (
-            <IconSymbol size={26} name="tag.circle.fill" color={color} />
-          ),
-          href: isManager ? undefined : null,
-        }}
-      />
-      <Tabs.Screen
-        name="sign-report"
-        options={{
-          title: "Assinar",
-          tabBarIcon: ({ color }) => (
-            <IconSymbol size={26} name="signature" color={color} />
-          ),
-          href: isManager ? undefined : null,
-        }}
-      />
-      <Tabs.Screen
-        name="store-dashboard"
-        options={{
-          title: "PDVs",
-          tabBarIcon: ({ color }) => (
-            <IconSymbol size={26} name="chart.bar.xaxis.ascending" color={color} />
-          ),
-          href: isManager ? undefined : null,
-        }}
-      />
-      <Tabs.Screen
-        name="promoter-ranking"
-        options={{
-          title: "Ranking",
-          tabBarIcon: ({ color }) => (
-            <IconSymbol size={26} name="trophy.fill" color={color} />
-          ),
-          href: isManager ? undefined : null,
-        }}
-      />
-      <Tabs.Screen
-        name="store-visits"
-        options={{
-          title: "Visitas",
-          tabBarIcon: ({ color }) => (
-            <IconSymbol size={26} name="clock.arrow.circlepath" color={color} />
-          ),
-          href: isManager ? undefined : null,
-        }}
-      />
+      {/* ─── MANAGER/MASTER: Config ──────────────────────────────────────── */}
       <Tabs.Screen
         name="settings"
         options={{
@@ -219,38 +131,70 @@ export default function TabLayout() {
         }}
       />
 
-      {/* ─── MASTER-ONLY TAB ─────────────────────────────────────────────── */}
+      {/* ─── MANAGER/MASTER: Menu ≡ ──────────────────────────────────────── */}
       <Tabs.Screen
-        name="master-users"
+        name="more-menu"
         options={{
-          title: "Usuários",
+          title: "Menu",
           tabBarIcon: ({ color }) => (
-            <IconSymbol size={26} name="person.badge.shield.checkmark.fill" color={color} />
+            <IconSymbol size={26} name="line.3.horizontal" color={color} />
           ),
-          href: isMaster ? undefined : null,
+          href: isManager ? undefined : null,
         }}
       />
 
-      {/* ─── HIDDEN TABS ─────────────────────────────────────────────────── */}
+      {/* ─── HIDDEN TABS (accessible via more-menu or direct navigation) ── */}
+      <Tabs.Screen
+        name="alerts"
+        options={{ title: "Alertas", href: null }}
+      />
+      <Tabs.Screen
+        name="team"
+        options={{ title: "Equipe", href: null }}
+      />
+      <Tabs.Screen
+        name="stores"
+        options={{ title: "Lojas", href: null }}
+      />
+      <Tabs.Screen
+        name="brands"
+        options={{ title: "Marcas", href: null }}
+      />
+      <Tabs.Screen
+        name="reports"
+        options={{ title: "Relatórios", href: null }}
+      />
+      <Tabs.Screen
+        name="sign-report"
+        options={{ title: "Assinar", href: null }}
+      />
+      <Tabs.Screen
+        name="store-dashboard"
+        options={{ title: "PDVs", href: null }}
+      />
+      <Tabs.Screen
+        name="promoter-ranking"
+        options={{ title: "Ranking", href: null }}
+      />
+      <Tabs.Screen
+        name="store-visits"
+        options={{ title: "Visitas", href: null }}
+      />
+      <Tabs.Screen
+        name="master-users"
+        options={{ title: "Usuários", href: null }}
+      />
+      <Tabs.Screen
+        name="manager-photos"
+        options={{ title: "Fotos Gestor", href: null }}
+      />
       <Tabs.Screen
         name="offline-queue"
-        options={{
-          title: "Offline",
-          tabBarIcon: ({ color }) => (
-            <IconSymbol size={26} name="arrow.triangle.2.circlepath" color={color} />
-          ),
-          href: null,
-        }}
+        options={{ title: "Offline", href: null }}
       />
       <Tabs.Screen
         name="notifications"
-        options={{
-          title: "Avisos",
-          tabBarIcon: ({ color }) => (
-            <IconSymbol size={26} name="bell.badge.fill" color={color} />
-          ),
-          href: null,
-        }}
+        options={{ title: "Avisos", href: null }}
       />
     </Tabs>
   );

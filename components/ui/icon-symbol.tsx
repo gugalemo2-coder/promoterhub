@@ -59,6 +59,8 @@ const MAPPING = {
   "clock.arrow.circlepath": "history",
   // Master tab
   "person.badge.shield.checkmark.fill": "admin-panel-settings",
+  // More menu
+  "line.3.horizontal": "menu",
 } as IconMapping;
 
 /**
