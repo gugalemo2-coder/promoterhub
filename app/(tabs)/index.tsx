@@ -262,20 +262,17 @@ export default function HomeScreen() {
               { label: "Materiais", icon: "cube-outline", route: "/(tabs)/materials", color: "#F59E0B" },
               { label: "Arquivos", icon: "document-outline", route: "/(tabs)/files", color: "#8B5CF6" },
             ].map((action) => (
-              <Pressable
+              <TouchableOpacity
                 key={action.label}
-                style={({ pressed }) => [
-                  styles.quickAction,
-                  { backgroundColor: colors.surface, borderColor: colors.border },
-                  pressed && { opacity: 0.75 },
-                ]}
+                style={[styles.quickAction, { backgroundColor: colors.surface, borderColor: colors.border }]}
                 onPress={() => router.push(action.route as any)}
+                activeOpacity={0.7}
               >
                 <View style={[styles.quickActionIcon, { backgroundColor: action.color + "15" }]}>
                   <Ionicons name={action.icon as any} size={26} color={action.color} />
                 </View>
                 <Text style={[styles.quickActionLabel, { color: colors.foreground }]}>{action.label}</Text>
-              </Pressable>
+              </TouchableOpacity>
             ))}
           </View>
         </ScrollView>

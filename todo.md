@@ -499,3 +499,8 @@
 - [x] Fotos ordenadas por padrão das mais recentes, com filtro de Data usando ordem cronológica
 - [x] Remover Fotos, Ponto e Meu Perfil do fluxo de Gestor/Master (são exclusivos do Promotor)
 - [x] Corrigir PWA: headers corretos para manifest.json, sw.js atualizado para v2
+
+## Fase 27 — Correções de Navegação
+
+- [x] Corrigir botão "Equipe" no Painel Gestor/Master para navegar para /(tabs)/team
+- [x] Corrigir botão "Relatórios" no Painel Gestor/Master para navegar para /(tabs)/reports
