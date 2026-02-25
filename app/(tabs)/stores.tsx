@@ -85,7 +85,7 @@ export default function StoresScreen() {
     }
   }, [showModal, editingId]);
 
-  if ((appRole !== "manager" && appRole !== "master")) {
+  if (appRole !== "manager") {
     return <Redirect href="/(tabs)" />;
   }
 

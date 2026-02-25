@@ -121,7 +121,7 @@ export default function ReportsScreen() {
   const [selectedUserId, setSelectedUserId] = useState<number | undefined>(undefined);
   const [exporting, setExporting] = useState(false);
 
-  if ((appRole !== "manager" && appRole !== "master")) {
+  if (appRole !== "manager") {
     return <Redirect href="/(tabs)" />;
   }
 

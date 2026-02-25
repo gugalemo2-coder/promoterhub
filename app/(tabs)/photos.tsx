@@ -21,7 +21,7 @@ import {
 export default function PhotosScreen() {
   const colors = useColors();
   const { appRole } = useRole();
-  const isManager = appRole === "manager" || appRole === "master";
+  const isManager = appRole === "manager";
 
   const [selectedBrandId, setSelectedBrandId] = useState<number | null>(null);
   const [selectedStatus, setSelectedStatus] = useState<"pending" | "approved" | "rejected" | null>(null);

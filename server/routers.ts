@@ -29,7 +29,7 @@ export const appRouter = router({
       return { user: ctx.user, profile };
     }),
     setRole: protectedProcedure
-      .input(z.object({ appRole: z.enum(["promoter", "manager", "master"]) }))
+      .input(z.object({ appRole: z.enum(["promoter", "manager"]) }))
       .mutation(async ({ ctx, input }) => {
         await db.upsertPromoterProfile({ userId: ctx.user.id, appRole: input.appRole });
         return { success: true };

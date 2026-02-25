@@ -40,7 +40,7 @@ export const promoterProfiles = mysqlTable("promoter_profiles", {
   userId: int("userId").notNull(),
   phone: varchar("phone", { length: 20 }),
   cpf: varchar("cpf", { length: 11 }),
-  appRole: mysqlEnum("appRole", ["promoter", "manager", "master"]).default("promoter").notNull(),
+  appRole: mysqlEnum("appRole", ["promoter", "manager"]).default("promoter").notNull(),
   storeId: int("storeId"),
   status: mysqlEnum("status", ["active", "inactive", "suspended"]).default("active").notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),

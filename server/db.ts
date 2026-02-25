@@ -487,7 +487,7 @@ export async function getManagerUserIds(): Promise<number[]> {
   const managers = await db
     .select({ userId: promoterProfiles.userId })
     .from(promoterProfiles)
-    .where(inArray(promoterProfiles.appRole, ["manager", "master"]));
+    .where(eq(promoterProfiles.appRole, "manager"));
   return managers.map((m) => m.userId);
 }
 
