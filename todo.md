@@ -575,3 +575,8 @@
 ## Fase 37 — Recorte do Fundo Branco da Logo nos Ícones PWA
 - [x] Recortar o excesso de fundo branco ao redor da logo da Dinâmica (auto-crop)
 - [x] Regenerar todos os ícones PWA com a logo preenchendo bem o ícone
+
+## Fase 38 — Correção dos Botões na Tela de Usuários
+- [x] Corrigir botão de seleção de cargo (não funciona) — substituído Alert nativo por RoleModal customizado
+- [x] Corrigir botão de ver senha (não funciona) — substituído Alert.prompt (iOS-only) por PasswordModal cross-platform
+- [x] Corrigir botão de excluir/ativar conta (não funciona) — substituído Alert.alert por ConfirmModal customizado

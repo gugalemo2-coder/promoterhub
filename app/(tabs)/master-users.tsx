@@ -6,17 +6,20 @@ import * as Api from "@/lib/_core/api";
 import { useRole } from "@/lib/role-context";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
   FlatList,
+  KeyboardAvoidingView,
+  Modal,
   Platform,
   Pressable,
   RefreshControl,
   StyleSheet,
   Text,
   TextInput,
+  TouchableOpacity,
   View,
 } from "react-native";
 
@@ -41,6 +44,232 @@ const ROLE_COLORS: Record<string, string> = {
   promoter: "#059669",
 };
 
+// ─── Modal de confirmação genérico (substitui Alert.alert cross-platform) ────
+function ConfirmModal({
+  visible,
+  title,
+  message,
+  confirmLabel = "Confirmar",
+  confirmDestructive = false,
+  onConfirm,
+  onCancel,
+}: {
+  visible: boolean;
+  title: string;
+  message: string;
+  confirmLabel?: string;
+  confirmDestructive?: boolean;
+  onConfirm: () => void;
+  onCancel: () => void;
+}) {
+  const colors = useColors();
+  return (
+    <Modal transparent animationType="fade" visible={visible} onRequestClose={onCancel}>
+      <View style={modalStyles.overlay}>
+        <View style={[modalStyles.box, { backgroundColor: colors.surface }]}>
+          <Text style={[modalStyles.title, { color: colors.foreground }]}>{title}</Text>
+          <Text style={[modalStyles.message, { color: colors.muted }]}>{message}</Text>
+          <View style={modalStyles.row}>
+            <TouchableOpacity
+              style={[modalStyles.btn, { backgroundColor: colors.border }]}
+              onPress={onCancel}
+            >
+              <Text style={[modalStyles.btnText, { color: colors.foreground }]}>Cancelar</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[
+                modalStyles.btn,
+                { backgroundColor: confirmDestructive ? "#EF4444" : "#1A56DB" },
+              ]}
+              onPress={onConfirm}
+            >
+              <Text style={[modalStyles.btnText, { color: "#fff" }]}>{confirmLabel}</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+// ─── Modal de input de senha (substitui Alert.prompt cross-platform) ──────────
+function PasswordModal({
+  visible,
+  userName,
+  onConfirm,
+  onCancel,
+}: {
+  visible: boolean;
+  userName: string;
+  onConfirm: (pwd: string) => void;
+  onCancel: () => void;
+}) {
+  const colors = useColors();
+  const [value, setValue] = useState("");
+  const [showPwd, setShowPwd] = useState(false);
+  const inputRef = useRef<TextInput>(null);
+
+  useEffect(() => {
+    if (visible) {
+      setValue("");
+      setShowPwd(false);
+      setTimeout(() => inputRef.current?.focus(), 200);
+    }
+  }, [visible]);
+
+  const handleConfirm = () => {
+    const pwd = value.trim();
+    if (pwd.length < 4) {
+      Alert.alert("Erro", "A senha deve ter pelo menos 4 caracteres.");
+      return;
+    }
+    onConfirm(pwd);
+  };
+
+  return (
+    <Modal transparent animationType="fade" visible={visible} onRequestClose={onCancel}>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        style={modalStyles.overlay}
+      >
+        <View style={[modalStyles.box, { backgroundColor: colors.surface }]}>
+          <Text style={[modalStyles.title, { color: colors.foreground }]}>Redefinir Senha</Text>
+          <Text style={[modalStyles.message, { color: colors.muted }]}>
+            Nova senha para {userName}:
+          </Text>
+          <View
+            style={[
+              modalStyles.inputRow,
+              { borderColor: colors.border, backgroundColor: colors.background },
+            ]}
+          >
+            <TextInput
+              ref={inputRef}
+              style={[modalStyles.input, { color: colors.foreground }]}
+              placeholder="Nova senha (mín. 4 caracteres)"
+              placeholderTextColor={colors.muted}
+              secureTextEntry={!showPwd}
+              value={value}
+              onChangeText={setValue}
+              returnKeyType="done"
+              onSubmitEditing={handleConfirm}
+              autoCapitalize="none"
+              autoCorrect={false}
+            />
+            <TouchableOpacity onPress={() => setShowPwd((v) => !v)} style={modalStyles.eyeBtn}>
+              <Ionicons
+                name={showPwd ? "eye-off-outline" : "eye-outline"}
+                size={20}
+                color={colors.muted}
+              />
+            </TouchableOpacity>
+          </View>
+          <View style={modalStyles.row}>
+            <TouchableOpacity
+              style={[modalStyles.btn, { backgroundColor: colors.border }]}
+              onPress={onCancel}
+            >
+              <Text style={[modalStyles.btnText, { color: colors.foreground }]}>Cancelar</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[modalStyles.btn, { backgroundColor: "#D97706" }]}
+              onPress={handleConfirm}
+            >
+              <Text style={[modalStyles.btnText, { color: "#fff" }]}>Redefinir</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </KeyboardAvoidingView>
+    </Modal>
+  );
+}
+
+// ─── Modal de seleção de cargo ────────────────────────────────────────────────
+function RoleModal({
+  visible,
+  user,
+  onSelect,
+  onCancel,
+}: {
+  visible: boolean;
+  user: AppUser | null;
+  onSelect: (role: "promoter" | "manager") => void;
+  onCancel: () => void;
+}) {
+  const colors = useColors();
+  if (!user) return null;
+
+  return (
+    <Modal transparent animationType="fade" visible={visible} onRequestClose={onCancel}>
+      <View style={modalStyles.overlay}>
+        <View style={[modalStyles.box, { backgroundColor: colors.surface }]}>
+          <Text style={[modalStyles.title, { color: colors.foreground }]}>Alterar Função</Text>
+          <Text style={[modalStyles.message, { color: colors.muted }]}>
+            Selecione a nova função para {user.name}:
+          </Text>
+          <View style={modalStyles.roleRow}>
+            <TouchableOpacity
+              style={[
+                modalStyles.roleBtn,
+                { borderColor: "#1A56DB", backgroundColor: user.appRole === "manager" ? "#1A56DB" : "transparent" },
+              ]}
+              onPress={() => onSelect("manager")}
+            >
+              <Ionicons
+                name="briefcase-outline"
+                size={20}
+                color={user.appRole === "manager" ? "#fff" : "#1A56DB"}
+              />
+              <Text
+                style={[
+                  modalStyles.roleBtnText,
+                  { color: user.appRole === "manager" ? "#fff" : "#1A56DB" },
+                ]}
+              >
+                Gestor
+              </Text>
+              {user.appRole === "manager" && (
+                <Ionicons name="checkmark-circle" size={16} color="#fff" />
+              )}
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[
+                modalStyles.roleBtn,
+                { borderColor: "#059669", backgroundColor: user.appRole === "promoter" ? "#059669" : "transparent" },
+              ]}
+              onPress={() => onSelect("promoter")}
+            >
+              <Ionicons
+                name="person-outline"
+                size={20}
+                color={user.appRole === "promoter" ? "#fff" : "#059669"}
+              />
+              <Text
+                style={[
+                  modalStyles.roleBtnText,
+                  { color: user.appRole === "promoter" ? "#fff" : "#059669" },
+                ]}
+              >
+                Promotor
+              </Text>
+              {user.appRole === "promoter" && (
+                <Ionicons name="checkmark-circle" size={16} color="#fff" />
+              )}
+            </TouchableOpacity>
+          </View>
+          <TouchableOpacity
+            style={[modalStyles.cancelFullBtn, { backgroundColor: colors.border }]}
+            onPress={onCancel}
+          >
+            <Text style={[modalStyles.btnText, { color: colors.foreground }]}>Cancelar</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+// ─── Tela principal ───────────────────────────────────────────────────────────
 export default function MasterUsersScreen() {
   const colors = useColors();
   const { appRole } = useRole();
@@ -51,6 +280,20 @@ export default function MasterUsersScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [search, setSearch] = useState("");
   const [filterRole, setFilterRole] = useState<"all" | "promoter" | "manager" | "master">("all");
+
+  // Modal states
+  const [roleModal, setRoleModal] = useState<{ visible: boolean; user: AppUser | null }>({
+    visible: false,
+    user: null,
+  });
+  const [passwordModal, setPasswordModal] = useState<{ visible: boolean; user: AppUser | null }>({
+    visible: false,
+    user: null,
+  });
+  const [toggleModal, setToggleModal] = useState<{ visible: boolean; user: AppUser | null }>({
+    visible: false,
+    user: null,
+  });
 
   // Guard: only master can access
   useEffect(() => {
@@ -81,96 +324,51 @@ export default function MasterUsersScreen() {
     fetchUsers();
   }, [fetchUsers]);
 
-  const handleRoleChange = useCallback(
-    async (user: AppUser, newRole: "promoter" | "manager") => {
-      const label = ROLE_LABELS[newRole];
-      Alert.alert(
-        "Alterar função",
-        `Deseja alterar ${user.name} para ${label}?`,
-        [
-          { text: "Cancelar", style: "cancel" },
-          {
-            text: "Confirmar",
-            onPress: async () => {
-              try {
-                await Api.masterUpdateRole(user.id, newRole);
-                setUsers((prev) =>
-                  prev.map((u) => (u.id === user.id ? { ...u, appRole: newRole } : u))
-                );
-              } catch (err) {
-                const msg = err instanceof Error ? err.message : "Erro ao alterar função";
-                Alert.alert("Erro", msg);
-              }
-            },
-          },
-        ]
+  // ── Handlers ────────────────────────────────────────────────────────────────
+  const handleRoleSelect = useCallback(async (newRole: "promoter" | "manager") => {
+    const target = roleModal.user;
+    if (!target) return;
+    setRoleModal({ visible: false, user: null });
+    try {
+      await Api.masterUpdateRole(target.id, newRole);
+      setUsers((prev) =>
+        prev.map((u) => (u.id === target.id ? { ...u, appRole: newRole } : u))
       );
-    },
-    []
-  );
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Erro ao alterar função";
+      Alert.alert("Erro", msg);
+    }
+  }, [roleModal.user]);
 
-  const handleResetPassword = useCallback(
-    (user: AppUser) => {
-      let newPassword = "";
-      Alert.prompt(
-        "Redefinir Senha",
-        `Digite a nova senha para ${user.name}:`,
-        [
-          { text: "Cancelar", style: "cancel" },
-          {
-            text: "Redefinir",
-            style: "destructive",
-            onPress: async (value: string | undefined) => {
-              const pwd = (value ?? "").trim();
-              if (pwd.length < 4) {
-                Alert.alert("Erro", "A senha deve ter pelo menos 4 caracteres.");
-                return;
-              }
-              try {
-                const result = await Api.masterResetPassword(user.id, pwd);
-                Alert.alert("Sucesso", result.message);
-              } catch (err) {
-                const msg = err instanceof Error ? err.message : "Erro ao redefinir senha";
-                Alert.alert("Erro", msg);
-              }
-            },
-          },
-        ],
-        "secure-text"
+  const handlePasswordConfirm = useCallback(async (pwd: string) => {
+    const target = passwordModal.user;
+    if (!target) return;
+    setPasswordModal({ visible: false, user: null });
+    try {
+      const result = await Api.masterResetPassword(target.id, pwd);
+      Alert.alert("Sucesso", result.message ?? "Senha redefinida com sucesso!");
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Erro ao redefinir senha";
+      Alert.alert("Erro", msg);
+    }
+  }, [passwordModal.user]);
+
+  const handleToggleConfirm = useCallback(async () => {
+    const target = toggleModal.user;
+    if (!target) return;
+    setToggleModal({ visible: false, user: null });
+    try {
+      await Api.masterToggleActive(target.id, !target.active);
+      setUsers((prev) =>
+        prev.map((u) => (u.id === target.id ? { ...u, active: !u.active } : u))
       );
-    },
-    []
-  );
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Erro ao alterar status";
+      Alert.alert("Erro", msg);
+    }
+  }, [toggleModal.user]);
 
-  const handleToggleActive = useCallback(
-    async (user: AppUser) => {
-      const action = user.active ? "desativar" : "ativar";
-      Alert.alert(
-        `${user.active ? "Desativar" : "Ativar"} conta`,
-        `Deseja ${action} a conta de ${user.name}?`,
-        [
-          { text: "Cancelar", style: "cancel" },
-          {
-            text: "Confirmar",
-            style: user.active ? "destructive" : "default",
-            onPress: async () => {
-              try {
-                await Api.masterToggleActive(user.id, !user.active);
-                setUsers((prev) =>
-                  prev.map((u) => (u.id === user.id ? { ...u, active: !u.active } : u))
-                );
-              } catch (err) {
-                const msg = err instanceof Error ? err.message : "Erro ao alterar status";
-                Alert.alert("Erro", msg);
-              }
-            },
-          },
-        ]
-      );
-    },
-    []
-  );
-
+  // ── Filtro ───────────────────────────────────────────────────────────────────
   const filtered = users.filter((u) => {
     const matchSearch =
       !search ||
@@ -180,6 +378,7 @@ export default function MasterUsersScreen() {
     return matchSearch && matchRole;
   });
 
+  // ── Render item ──────────────────────────────────────────────────────────────
   const renderUser = useCallback(
     ({ item }: { item: AppUser }) => {
       const roleColor = ROLE_COLORS[item.appRole] || "#6B7280";
@@ -218,19 +417,14 @@ export default function MasterUsersScreen() {
           {/* Actions (not for master account) */}
           {!isMaster && (
             <View style={styles.actions}>
-              {/* Role toggle */}
+              {/* Role change */}
               <Pressable
                 style={({ pressed }) => [
                   styles.actionBtn,
                   { backgroundColor: colors.border },
                   pressed && { opacity: 0.7 },
                 ]}
-                onPress={() =>
-                  handleRoleChange(
-                    item,
-                    item.appRole === "manager" ? "promoter" : "manager"
-                  )
-                }
+                onPress={() => setRoleModal({ visible: true, user: item })}
               >
                 <Ionicons
                   name={item.appRole === "manager" ? "person-outline" : "briefcase-outline"}
@@ -246,7 +440,7 @@ export default function MasterUsersScreen() {
                   { backgroundColor: "#FEF3C7" },
                   pressed && { opacity: 0.7 },
                 ]}
-                onPress={() => handleResetPassword(item)}
+                onPress={() => setPasswordModal({ visible: true, user: item })}
               >
                 <Ionicons name="key-outline" size={16} color="#D97706" />
               </Pressable>
@@ -255,14 +449,10 @@ export default function MasterUsersScreen() {
               <Pressable
                 style={({ pressed }) => [
                   styles.actionBtn,
-                  {
-                    backgroundColor: item.active
-                      ? "#FEE2E2"
-                      : "#D1FAE5",
-                  },
+                  { backgroundColor: item.active ? "#FEE2E2" : "#D1FAE5" },
                   pressed && { opacity: 0.7 },
                 ]}
-                onPress={() => handleToggleActive(item)}
+                onPress={() => setToggleModal({ visible: true, user: item })}
               >
                 <Ionicons
                   name={item.active ? "close-circle-outline" : "checkmark-circle-outline"}
@@ -275,7 +465,7 @@ export default function MasterUsersScreen() {
         </View>
       );
     },
-    [colors, handleRoleChange, handleResetPassword, handleToggleActive]
+    [colors]
   );
 
   const stats = {
@@ -292,7 +482,9 @@ export default function MasterUsersScreen() {
         name={user?.name}
         subtitle="Gerenciamento de usuários"
         onLogout={() => {
-          const doLogout = async () => { try { await logout(); } catch {} finally { router.replace("/"); } };
+          const doLogout = async () => {
+            try { await logout(); } catch {} finally { router.replace("/"); }
+          };
           if (Platform.OS === "web") {
             doLogout();
           } else {
@@ -304,6 +496,7 @@ export default function MasterUsersScreen() {
         }}
         backgroundColor="#7C3AED"
       />
+
       {/* Stats row */}
       <View style={[styles.header, { backgroundColor: "#7C3AED" }]}>
         <View style={styles.statsRow}>
@@ -375,9 +568,7 @@ export default function MasterUsersScreen() {
           keyExtractor={(item, index) => `user-${item.id}-${index}`}
           renderItem={renderUser}
           contentContainerStyle={styles.listContent}
-          refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-          }
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
           ListEmptyComponent={
             <View style={styles.empty}>
               <Ionicons name="people-outline" size={48} color={colors.muted} />
@@ -388,45 +579,131 @@ export default function MasterUsersScreen() {
           }
         />
       )}
+
+      {/* Modals */}
+      <RoleModal
+        visible={roleModal.visible}
+        user={roleModal.user}
+        onSelect={handleRoleSelect}
+        onCancel={() => setRoleModal({ visible: false, user: null })}
+      />
+
+      <PasswordModal
+        visible={passwordModal.visible}
+        userName={passwordModal.user?.name ?? ""}
+        onConfirm={handlePasswordConfirm}
+        onCancel={() => setPasswordModal({ visible: false, user: null })}
+      />
+
+      <ConfirmModal
+        visible={toggleModal.visible}
+        title={toggleModal.user?.active ? "Desativar conta" : "Ativar conta"}
+        message={
+          toggleModal.user
+            ? `Deseja ${toggleModal.user.active ? "desativar" : "ativar"} a conta de ${toggleModal.user.name}?`
+            : ""
+        }
+        confirmLabel={toggleModal.user?.active ? "Desativar" : "Ativar"}
+        confirmDestructive={toggleModal.user?.active ?? false}
+        onConfirm={handleToggleConfirm}
+        onCancel={() => setToggleModal({ visible: false, user: null })}
+      />
     </ScreenContainer>
   );
 }
 
+// ─── Estilos dos modais ───────────────────────────────────────────────────────
+const modalStyles = StyleSheet.create({
+  overlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 24,
+  },
+  box: {
+    width: "100%",
+    maxWidth: 360,
+    borderRadius: 16,
+    padding: 24,
+    gap: 16,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  title: {
+    fontSize: 18,
+    fontWeight: "700",
+    textAlign: "center",
+  },
+  message: {
+    fontSize: 14,
+    textAlign: "center",
+    lineHeight: 20,
+  },
+  row: {
+    flexDirection: "row",
+    gap: 12,
+  },
+  btn: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 10,
+    alignItems: "center",
+  },
+  btnText: {
+    fontSize: 15,
+    fontWeight: "600",
+  },
+  inputRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    height: 48,
+  },
+  input: {
+    flex: 1,
+    fontSize: 15,
+    height: 48,
+  },
+  eyeBtn: {
+    padding: 4,
+  },
+  roleRow: {
+    flexDirection: "row",
+    gap: 12,
+  },
+  roleBtn: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    paddingVertical: 14,
+    borderRadius: 12,
+    borderWidth: 2,
+  },
+  roleBtnText: {
+    fontSize: 15,
+    fontWeight: "700",
+  },
+  cancelFullBtn: {
+    paddingVertical: 12,
+    borderRadius: 10,
+    alignItems: "center",
+  },
+});
+
+// ─── Estilos da tela ──────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
   header: {
     paddingHorizontal: 16,
     paddingTop: 16,
     paddingBottom: 16,
-  },
-  headerContent: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: 16,
-  },
-  headerTitle: {
-    fontSize: 22,
-    fontWeight: "700",
-    color: "#fff",
-  },
-  headerSubtitle: {
-    fontSize: 13,
-    color: "rgba(255,255,255,0.75)",
-    marginTop: 2,
-  },
-  masterBadge: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "rgba(255,255,255,0.2)",
-    borderRadius: 20,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    gap: 6,
-  },
-  masterBadgeText: {
-    fontSize: 13,
-    fontWeight: "700",
-    color: "#fff",
   },
   statsRow: {
     flexDirection: "row",
