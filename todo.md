@@ -541,3 +541,12 @@
 - [x] Remover window.confirm (bloqueado em iframe/headless) e fazer logout direto na web
 - [x] Corrigir logout em index.tsx, team.tsx e master-users.tsx para usar Platform.OS === "web"
 - [x] Testado e confirmado: botão de logout redireciona para /login corretamente
+
+## Fase 33 — Troca de Logo (Dinâmica Corretora)
+
+- [x] Processar logo Dinâmica: fundo branco + padding + formato quadrado
+- [x] Gerar ícones em todos os tamanhos (72, 96, 128, 144, 152, 192, 384, 512px)
+- [x] Gerar apple-touch-icon (180x180)
+- [x] Substituir icon.png, splash-icon.png, favicon.png, android-icon-foreground.png no Expo
+- [x] Substituir ícones PWA no manifest.json do painel web
+- [x] Atualizar app.config.ts com novo logoUrl (S3 CDN)

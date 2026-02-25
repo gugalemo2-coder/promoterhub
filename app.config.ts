@@ -30,9 +30,8 @@ const env = {
   // App branding - update these values directly (do not use env vars)
   appName: "PromoterHub",
   appSlug: "promoter_management",
-  // S3 URL of the app logo - set this to the URL returned by generate_image when creating custom logo
-  // Leave empty to use the default icon from assets/images/icon.png
-  logoUrl: "https://private-us-east-1.manuscdn.com/sessionFile/TligYQv58eLJzB2qdoLwOX/sandbox/sJ3mqXRkyYVVwPBTCD4LUD-img-1_1771622317000_na1fn_cHJvbW90ZXItbG9nbw.png",
+  // S3 URL of the app logo
+  logoUrl: "https://files.manuscdn.com/user_upload_by_module/session_file/310519663369074318/UzthmPUsHjgfdsxh.png",
   scheme: schemeFromBundleId,
   iosBundleId: bundleId,
   androidPackage: bundleId,
