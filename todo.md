@@ -458,3 +458,10 @@
 - [x] Botão "Redefinir Senha" (chave amarela) no card de cada usuário no painel Master
 - [x] Alert.prompt nativo do iOS para digitar a nova senha com campo seguro
 - [x] Feedback de sucesso/erro na redefinição
+
+## Fase 22 — Nome e Avatar do Usuário no Cabeçalho
+
+- [x] Componente UserHeader: avatar com inicial do nome, nome completo e role badge
+- [x] Integrar UserHeader nas telas principais do Gestor (dashboard/equipe)
+- [x] Integrar UserHeader nas telas principais do Promotor (home/perfil)
+- [x] Integrar UserHeader na tela Master (painel de usuários)

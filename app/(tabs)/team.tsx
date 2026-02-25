@@ -1,11 +1,13 @@
 import { ScreenContainer } from "@/components/screen-container";
+import { UserHeader } from "@/components/user-header";
+import { useAuth } from "@/hooks/use-auth";
 import { useColors } from "@/hooks/use-colors";
 import { useRole } from "@/lib/role-context";
 import { trpc } from "@/lib/trpc";
 import { Ionicons } from "@expo/vector-icons";
 import { Redirect, useRouter } from "expo-router";
 import { useState } from "react";
-import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Alert, FlatList, Pressable, StyleSheet, Text, View } from "react-native";
 
 const MONTHS_FULL = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
 const MONTHS_SHORT = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
@@ -45,13 +47,22 @@ export default function TeamScreen() {
   const totalRequests = monthlyReport?.totalRequests ?? 0;
   const workingDays = monthlyReport?.workingDays ?? 0;
 
+  const { user, logout } = useAuth();
+  const handleLogout = () => {
+    Alert.alert("Sair da conta", "Deseja sair?", [
+      { text: "Cancelar", style: "cancel" },
+      { text: "Sair", style: "destructive", onPress: async () => { try { await logout(); } catch {} finally { router.replace("/login"); } } },
+    ]);
+  };
+
   return (
     <ScreenContainer>
-      {/* Header */}
-      <View style={[styles.header, { backgroundColor: colors.primary }]}>
-        <Text style={styles.headerTitle}>Equipe de Promotores</Text>
-        <Text style={styles.headerSub}>{promoters?.length ?? 0} promotores cadastrados</Text>
-      </View>
+      <UserHeader
+        name={user?.name}
+        subtitle={`${promoters?.length ?? 0} promotores cadastrados`}
+        onLogout={handleLogout}
+        backgroundColor="#1A56DB"
+      />
 
       {/* Month Picker */}
       <View style={[styles.monthPicker, { backgroundColor: colors.surface, borderBottomColor: colors.border }]}>
@@ -147,9 +158,6 @@ export default function TeamScreen() {
 }
 
 const styles = StyleSheet.create({
-  header: { paddingTop: 16, paddingBottom: 16, paddingHorizontal: 20 },
-  headerTitle: { fontSize: 20, fontWeight: "700", color: "#FFFFFF" },
-  headerSub: { fontSize: 13, color: "rgba(255,255,255,0.75)", marginTop: 2 },
   monthPicker: {
     flexDirection: "row",
     alignItems: "center",

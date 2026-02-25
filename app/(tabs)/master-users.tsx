@@ -1,4 +1,6 @@
 import { ScreenContainer } from "@/components/screen-container";
+import { UserHeader } from "@/components/user-header";
+import { useAuth } from "@/hooks/use-auth";
 import { useColors } from "@/hooks/use-colors";
 import * as Api from "@/lib/_core/api";
 import { useRole } from "@/lib/role-context";
@@ -41,6 +43,7 @@ const ROLE_COLORS: Record<string, string> = {
 export default function MasterUsersScreen() {
   const colors = useColors();
   const { appRole } = useRole();
+  const { user, logout } = useAuth();
 
   const [users, setUsers] = useState<AppUser[]>([]);
   const [loading, setLoading] = useState(true);
@@ -284,20 +287,19 @@ export default function MasterUsersScreen() {
 
   return (
     <ScreenContainer>
-      {/* Header */}
-      <View style={[styles.header, { backgroundColor: "#1A56DB" }]}>
-        <View style={styles.headerContent}>
-          <View>
-            <Text style={styles.headerTitle}>Painel Master</Text>
-            <Text style={styles.headerSubtitle}>Gerenciamento de usuários</Text>
-          </View>
-          <View style={[styles.masterBadge]}>
-            <Ionicons name="shield-checkmark" size={16} color="#fff" />
-            <Text style={styles.masterBadgeText}>Master</Text>
-          </View>
-        </View>
-
-        {/* Stats row */}
+      <UserHeader
+        name={user?.name}
+        subtitle="Gerenciamento de usuários"
+        onLogout={() => {
+          Alert.alert("Sair da conta", "Deseja sair?", [
+            { text: "Cancelar", style: "cancel" },
+            { text: "Sair", style: "destructive", onPress: async () => { try { await logout(); } catch {} finally { router.replace("/login"); } } },
+          ]);
+        }}
+        backgroundColor="#7C3AED"
+      />
+      {/* Stats row */}
+      <View style={[styles.header, { backgroundColor: "#7C3AED" }]}>
         <View style={styles.statsRow}>
           {[
             { label: "Total", value: stats.total, color: "#fff" },

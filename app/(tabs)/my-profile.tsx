@@ -1,6 +1,7 @@
+import { UserHeader } from "@/components/user-header";
+import { useAuth } from "@/hooks/use-auth";
 import { useColors } from "@/hooks/use-colors";
 import { trpc } from "@/lib/trpc";
-import { useAuth } from "@/hooks/use-auth";
 import { Ionicons } from "@expo/vector-icons";
 import {
   ActivityIndicator,
@@ -165,16 +166,10 @@ export default function MyProfileScreen() {
 
   return (
     <ScreenContainer>
-      {/* Header */}
-      <View style={[styles.header, { backgroundColor: colors.primary }]}>
-        <View style={styles.headerAvatar}>
-          <Ionicons name="person" size={28} color="#fff" />
-        </View>
-        <View style={styles.headerInfo}>
-          <Text style={styles.headerName}>{user?.name ?? user?.email ?? "Promotor"}</Text>
-          <Text style={styles.headerRole}>Promotor</Text>
-        </View>
-      </View>
+      <UserHeader
+        name={user?.name ?? user?.email}
+        subtitle="Meu Perfil"
+      />
 
       {/* Month picker */}
       <View style={[styles.monthPicker, { backgroundColor: colors.surface, borderBottomColor: colors.border }]}>
@@ -297,35 +292,6 @@ export default function MyProfileScreen() {
 }
 
 const styles = StyleSheet.create({
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 20,
-    paddingTop: 20,
-    paddingBottom: 20,
-    gap: 14,
-  },
-  headerAvatar: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: "rgba(255,255,255,0.25)",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  headerInfo: {
-    flex: 1,
-  },
-  headerName: {
-    fontSize: 20,
-    fontWeight: "700",
-    color: "#fff",
-  },
-  headerRole: {
-    fontSize: 13,
-    color: "rgba(255,255,255,0.75)",
-    marginTop: 2,
-  },
   monthPicker: {
     flexDirection: "row",
     alignItems: "center",

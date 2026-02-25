@@ -1,4 +1,5 @@
 import { ScreenContainer } from "@/components/screen-container";
+import { UserHeader } from "@/components/user-header";
 import { useAuth } from "@/hooks/use-auth";
 import { useColors } from "@/hooks/use-colors";
 import { useRole } from "@/lib/role-context";
@@ -59,15 +60,12 @@ export default function HomeScreen() {
     return (
       <ScreenContainer>
         <ScrollView showsVerticalScrollIndicator={false}>
-          <View style={[styles.header, { backgroundColor: colors.primary }]}>
-            <View>
-              <Text style={styles.greeting}>{greeting}, {firstName}!</Text>
-              <Text style={styles.headerSub}>Painel do Gestor</Text>
-            </View>
-            <Pressable onPress={handleLogout} style={({ pressed }) => [styles.logoutBtn, pressed && { opacity: 0.7 }]}>
-              <Ionicons name="log-out-outline" size={22} color="rgba(255,255,255,0.85)" />
-            </Pressable>
-          </View>
+          <UserHeader
+            name={user?.name}
+            subtitle="Painel do Gestor"
+            onLogout={handleLogout}
+            backgroundColor="#1A56DB"
+          />
 
           {/* Stats Cards */}
           <View style={styles.statsGrid}>
@@ -130,17 +128,11 @@ export default function HomeScreen() {
   return (
     <ScreenContainer>
       <ScrollView showsVerticalScrollIndicator={false}>
-        <View style={[styles.header, { backgroundColor: colors.primary }]}>
-          <View>
-            <Text style={styles.greeting}>{greeting}, {firstName}!</Text>
-            <Text style={styles.headerSub}>
-              {dailySummary?.hasOpenEntry ? "✅ Ponto aberto" : "Ponto não registrado"}
-            </Text>
-          </View>
-          <Pressable onPress={handleLogout} style={({ pressed }) => [styles.logoutBtn, pressed && { opacity: 0.7 }]}>
-            <Ionicons name="log-out-outline" size={22} color="rgba(255,255,255,0.85)" />
-          </Pressable>
-        </View>
+        <UserHeader
+          name={user?.name}
+          subtitle={dailySummary?.hasOpenEntry ? "✅ Ponto aberto" : "Ponto não registrado"}
+          onLogout={handleLogout}
+        />
 
         {/* Today's Summary */}
         <View style={[styles.summaryCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
