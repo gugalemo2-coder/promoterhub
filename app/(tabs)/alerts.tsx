@@ -27,7 +27,7 @@ export default function AlertsScreen() {
   const { appRole } = useRole();
   const [filterAcknowledged, setFilterAcknowledged] = useState<boolean | undefined>(false);
 
-  if (appRole !== "manager") {
+  if ((appRole !== "manager" && appRole !== "master")) {
     return <Redirect href="/(tabs)" />;
   }
 

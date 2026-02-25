@@ -21,7 +21,7 @@ import {
 export default function ClockScreen() {
   const colors = useColors();
   const { appRole } = useRole();
-  const isManager = appRole === "manager";
+  const isManager = appRole === "manager" || appRole === "master";
 
   const [currentLocation, setCurrentLocation] = useState<{ latitude: number; longitude: number; accuracy: number } | null>(null);
   const [locationLoading, setLocationLoading] = useState(false);

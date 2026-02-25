@@ -20,7 +20,7 @@ export default function TeamScreen() {
   const [year, setYear] = useState(now.getFullYear());
   const [month, setMonth] = useState(now.getMonth() + 1);
 
-  if (appRole !== "manager") {
+  if ((appRole !== "manager" && appRole !== "master")) {
     return <Redirect href="/(tabs)" />;
   }
 

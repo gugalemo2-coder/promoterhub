@@ -1,0 +1,1 @@
+ALTER TABLE `promoter_profiles` MODIFY COLUMN `appRole` enum('promoter','manager','master') NOT NULL DEFAULT 'promoter';

@@ -22,7 +22,7 @@ type RequestPriority = "low" | "medium" | "high";
 export default function MaterialsScreen() {
   const colors = useColors();
   const { appRole } = useRole();
-  const isManager = appRole === "manager";
+  const isManager = appRole === "manager" || appRole === "master";
 
   const [activeTab, setActiveTab] = useState<"catalog" | "requests">("catalog");
   const [showRequestModal, setShowRequestModal] = useState(false);

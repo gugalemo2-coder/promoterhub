@@ -13,7 +13,7 @@ export default function HomeScreen() {
   const { user, logout } = useAuth();
   const { appRole, clearRole } = useRole();
   const router = useRouter();
-  const isManager = appRole === "manager";
+  const isManager = appRole === "manager" || appRole === "master";
 
   const isReady = !!user;
   const { data: dailySummary } = trpc.timeEntries.dailySummary.useQuery({ date: new Date().toISOString() }, { enabled: isReady });
