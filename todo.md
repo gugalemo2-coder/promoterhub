@@ -477,3 +477,12 @@
 - [ ] Preview da nova foto antes de confirmar upload
 - [x] Painel web: cabeçalho exibe nome real do usuário logado (não "Gestor Demo")
 - [x] Painel web: avatar com inicial do nome no cabeçalho do painel web
+
+## Fase 24 — PWA (Progressive Web App) no App Mobile
+
+- [x] Gerar ícones PWA em múltiplos tamanhos (192x192, 512x512, apple-touch-icon 180x180)
+- [x] Configurar manifest.json no Expo (nome, cores, ícones, display standalone, orientação portrait)
+- [x] Configurar metadados PWA no HTML template do Expo Web (apple-mobile-web-app, theme-color, viewport)
+- [x] Implementar service worker com cache offline (custom sw.js compatível com Turbopack)
+- [x] Testar instalação na tela inicial do celular (Android Chrome e iOS Safari)
+- [x] Documentar link de instalação para distribuição via WhatsApp
