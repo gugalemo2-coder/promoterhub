@@ -529,3 +529,8 @@
 - [x] Verificar aba clock (Ponto): oculta para Gestor/Master via href: isPromoter ? undefined : null
 - [x] Verificar aba photos (Fotos): oculta para Gestor/Master via href: isPromoter ? undefined : null
 - [x] Verificar aba my-profile: oculta para Gestor/Master via href: isPromoter ? undefined : null
+
+## Fase 32 — Correção de Logout Web
+
+- [x] Corrigir logout na versão web: limpa localStorage completo + cookie + window.location.href para /login (força reload e destrói estado em memória)
+- [x] Garantir que o app não abra direto em conta antiga ao acessar o link (localStorage limpo no logout)

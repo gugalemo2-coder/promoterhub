@@ -91,6 +91,12 @@ export function useAuth(options?: UseAuthOptions) {
       await Auth.clearUserInfo();
       setUser(null);
       setError(null);
+      // On web: clear ALL localStorage (role, user info, session) and force a full page reload
+      // This destroys all in-memory React state and ensures a clean login screen
+      if (Platform.OS === "web" && typeof window !== "undefined") {
+        window.localStorage.clear();
+        window.location.href = "/login";
+      }
     }
   }, []);
 
