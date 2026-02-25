@@ -571,3 +571,7 @@
 
 ## Fase 36 — Ajuste de Tamanho da Logo nos Ícones PWA
 - [x] Aumentar o tamanho da logo da Dinâmica nos ícones PWA (192x192, 512x512, maskable, apple-touch-icon)
+
+## Fase 37 — Recorte do Fundo Branco da Logo nos Ícones PWA
+- [x] Recortar o excesso de fundo branco ao redor da logo da Dinâmica (auto-crop)
+- [x] Regenerar todos os ícones PWA com a logo preenchendo bem o ícone
