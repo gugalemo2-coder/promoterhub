@@ -580,3 +580,28 @@
 - [x] Corrigir botão de seleção de cargo (não funciona) — substituído Alert nativo por RoleModal customizado
 - [x] Corrigir botão de ver senha (não funciona) — substituído Alert.prompt (iOS-only) por PasswordModal cross-platform
 - [x] Corrigir botão de excluir/ativar conta (não funciona) — substituído Alert.alert por ConfirmModal customizado
+
+## Fase 39 — Correções e Melhorias no Acesso do Promotor
+
+### Registrar Ponto
+- [x] Corrigir botão "Registrar Entrada" (não funciona)
+- [x] Adicionar seleção de loja ao registrar entrada (apenas lojas vinculadas ao promotor)
+- [x] Adicionar captura/envio de foto do ponto eletrônico ao registrar entrada
+- [x] Adicionar botão "Registrar Saída" com captura de foto
+- [x] Preencher automaticamente a loja na saída com base na entrada mais recente
+
+### Fotos
+- [x] Corrigir botões de galeria e câmera (não funcionam)
+- [x] Adicionar seleção de marca ao enviar fotos
+- [x] Adicionar seleção de loja ao enviar fotos (apenas lojas vinculadas ao promotor)
+
+### Lojas (Gestor/Master)
+- [x] Adicionar campo de promotor vinculado ao criar loja (seleção entre contas de promotor)
+- [x] Permitir editar o promotor vinculado a uma loja existente
+- [x] Filtrar lojas exibidas ao promotor: mostrar apenas as lojas vinculadas a ele
+
+### Backend/Banco
+- [x] Adicionar coluna promoter_id na tabela de lojas
+- [x] Adicionar coluna photo_url na tabela de registros de ponto
+- [x] Endpoint de lojas filtrado por promotor logado
+- [x] Endpoint listPromoterUsers para seleção de promotor nas lojas

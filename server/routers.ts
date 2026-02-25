@@ -44,12 +44,21 @@ export const appRouter = router({
   }),
   stores: router({
     list: protectedProcedure.query(() => db.getStores()),
+    listForPromoter: protectedProcedure.query(({ ctx }) => db.getStoresByPromoter(ctx.user.id)),
+    listPromoterUsers: protectedProcedure.query(() => db.getAllPromoterUsersWithProfile()),
     getById: protectedProcedure.input(z.object({ id: z.number() })).query(({ input }) => db.getStoreById(input.id)),
     create: protectedProcedure
-      .input(z.object({ name: z.string().min(1).max(255), latitude: z.number().min(-90).max(90), longitude: z.number().min(-180).max(180), address: z.string().optional(), city: z.string().optional(), state: z.string().max(2).optional(), zipCode: z.string().optional(), phone: z.string().optional() }))
+      .input(z.object({ name: z.string().min(1).max(255), latitude: z.number().min(-90).max(90), longitude: z.number().min(-180).max(180), address: z.string().optional(), city: z.string().optional(), state: z.string().max(2).optional(), zipCode: z.string().optional(), phone: z.string().optional(), promoterId: z.number().optional() }))
       .mutation(async ({ ctx, input }) => {
         const id = await db.createStore({ ...input, latitude: input.latitude.toString(), longitude: input.longitude.toString(), managerId: ctx.user.id });
         return { id };
+      }),
+    update: protectedProcedure
+      .input(z.object({ id: z.number(), name: z.string().min(1).max(255).optional(), promoterId: z.number().nullable().optional(), address: z.string().optional(), city: z.string().optional(), state: z.string().max(2).optional(), phone: z.string().optional(), status: z.enum(["active", "inactive"]).optional() }))
+      .mutation(async ({ input }) => {
+        const { id, ...data } = input;
+        await db.updateStore(id, data as any);
+        return { success: true };
       }),
     findNearest: protectedProcedure
       .input(z.object({ latitude: z.number(), longitude: z.number() }))
@@ -66,15 +75,23 @@ export const appRouter = router({
   }),
   timeEntries: router({
     create: protectedProcedure
-      .input(z.object({ storeId: z.number(), entryType: z.enum(["entry", "exit"]), latitude: z.number(), longitude: z.number(), accuracy: z.number().optional(), deviceId: z.string().optional(), notes: z.string().optional() }))
+      .input(z.object({ storeId: z.number(), entryType: z.enum(["entry", "exit"]), latitude: z.number(), longitude: z.number(), accuracy: z.number().optional(), deviceId: z.string().optional(), notes: z.string().optional(), photoBase64: z.string().optional(), photoFileType: z.string().optional() }))
       .mutation(async ({ ctx, input }) => {
         const store = await db.getStoreById(input.storeId);
         if (!store) throw new Error("Store not found");
         const distanceKm = haversineDistance(input.latitude, input.longitude, parseFloat(store.latitude), parseFloat(store.longitude));
         const isWithinRadius = distanceKm <= 5;
-        const id = await db.createTimeEntry({ userId: ctx.user.id, storeId: input.storeId, entryType: input.entryType, entryTime: new Date(), latitude: input.latitude.toString(), longitude: input.longitude.toString(), accuracy: input.accuracy?.toString(), distanceFromStore: distanceKm.toString(), isWithinRadius, deviceId: input.deviceId, notes: input.notes });
+        // Upload photo if provided
+        let photoUrl: string | undefined;
+        if (input.photoBase64) {
+          const buffer = Buffer.from(input.photoBase64, "base64");
+          const fileKey = `timeentries/${ctx.user.id}/${Date.now()}.jpg`;
+          const { url } = await storagePut(fileKey, buffer, input.photoFileType ?? "image/jpeg");
+          photoUrl = url;
+        }
+        const id = await db.createTimeEntry({ userId: ctx.user.id, storeId: input.storeId, entryType: input.entryType, entryTime: new Date(), latitude: input.latitude.toString(), longitude: input.longitude.toString(), accuracy: input.accuracy?.toString(), distanceFromStore: distanceKm.toString(), isWithinRadius, deviceId: input.deviceId, notes: input.notes, photoUrl });
         if (!isWithinRadius) await db.createGeoAlert({ userId: ctx.user.id, storeId: input.storeId, timeEntryId: id, alertType: "left_radius", latitude: input.latitude.toString(), longitude: input.longitude.toString(), distanceFromStore: distanceKm.toString() });
-        return { id, distanceKm, isWithinRadius };
+        return { id, distanceKm, isWithinRadius, photoUrl };
       }),
     list: protectedProcedure.input(z.object({ startDate: z.string().optional(), endDate: z.string().optional() })).query(({ ctx, input }) => db.getTimeEntriesByUser(ctx.user.id, input.startDate ? new Date(input.startDate) : undefined, input.endDate ? new Date(input.endDate) : undefined)),
     dailySummary: protectedProcedure.input(z.object({ date: z.string().optional() })).query(({ ctx, input }) => db.getDailySummary(ctx.user.id, input.date ? new Date(input.date) : new Date())),

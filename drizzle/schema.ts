@@ -62,6 +62,7 @@ export const stores = mysqlTable("stores", {
   zipCode: varchar("zipCode", { length: 10 }),
   phone: varchar("phone", { length: 20 }),
   managerId: int("managerId"),
+  promoterId: int("promoterId"),
   status: mysqlEnum("status", ["active", "inactive"]).default("active").notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
@@ -101,6 +102,7 @@ export const timeEntries = mysqlTable("time_entries", {
   isWithinRadius: boolean("isWithinRadius").default(true).notNull(),
   deviceId: varchar("deviceId", { length: 255 }),
   ipAddress: varchar("ipAddress", { length: 45 }),
+  photoUrl: varchar("photoUrl", { length: 500 }),
   notes: text("notes"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
 });

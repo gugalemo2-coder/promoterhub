@@ -4,7 +4,7 @@ import { useRole } from "@/lib/role-context";
 import { trpc } from "@/lib/trpc";
 import { Ionicons } from "@expo/vector-icons";
 import * as Location from "expo-location";
-import { Redirect, useRouter } from "expo-router";
+import { Redirect } from "expo-router";
 import { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
@@ -30,6 +30,7 @@ type StoreForm = {
   phone: string;
   latitude: number | null;
   longitude: number | null;
+  promoterId: number | null;
 };
 
 const INITIAL_FORM: StoreForm = {
@@ -41,9 +42,9 @@ const INITIAL_FORM: StoreForm = {
   phone: "",
   latitude: null,
   longitude: null,
+  promoterId: null,
 };
 
-// Default center: São Paulo
 const DEFAULT_REGION: Region = {
   latitude: -23.5505,
   longitude: -46.6333,
@@ -54,22 +55,22 @@ const DEFAULT_REGION: Region = {
 export default function StoresScreen() {
   const colors = useColors();
   const { appRole } = useRole();
-  const router = useRouter();
 
   const [showModal, setShowModal] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [form, setForm] = useState<StoreForm>(INITIAL_FORM);
   const [mapRegion, setMapRegion] = useState<Region>(DEFAULT_REGION);
-  const [mapStep, setMapStep] = useState(false); // false = form, true = map picker
+  const [mapStep, setMapStep] = useState(false);
   const [saving, setSaving] = useState(false);
   const mapRef = useRef<MapView>(null);
 
   const { data: stores, refetch, isLoading } = trpc.stores.list.useQuery();
+  const { data: promoterUsers } = trpc.stores.listPromoterUsers.useQuery();
   const createMutation = trpc.stores.create.useMutation();
+  const updateMutation = trpc.stores.update.useMutation();
 
   useEffect(() => {
     if (showModal && !editingId) {
-      // Try to get current location to center map
       Location.getForegroundPermissionsAsync().then(({ status }) => {
         if (status === "granted") {
           Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced }).then((loc) => {
@@ -96,6 +97,23 @@ export default function StoresScreen() {
     setShowModal(true);
   };
 
+  const openEdit = (store: NonNullable<typeof stores>[number]) => {
+    setForm({
+      name: store.name,
+      address: store.address ?? "",
+      city: store.city ?? "",
+      state: store.state ?? "",
+      zipCode: store.zipCode ?? "",
+      phone: store.phone ?? "",
+      latitude: parseFloat(store.latitude),
+      longitude: parseFloat(store.longitude),
+      promoterId: (store as any).promoterId ?? null,
+    });
+    setEditingId(store.id);
+    setMapStep(false);
+    setShowModal(true);
+  };
+
   const handleMapPress = (e: { nativeEvent: { coordinate: { latitude: number; longitude: number } } }) => {
     const { latitude, longitude } = e.nativeEvent.coordinate;
     setForm((f) => ({ ...f, latitude, longitude }));
@@ -112,19 +130,33 @@ export default function StoresScreen() {
     }
     setSaving(true);
     try {
-      await createMutation.mutateAsync({
-        name: form.name.trim(),
-        latitude: form.latitude,
-        longitude: form.longitude,
-        address: form.address || undefined,
-        city: form.city || undefined,
-        state: form.state || undefined,
-        zipCode: form.zipCode || undefined,
-        phone: form.phone || undefined,
-      });
+      if (editingId) {
+        await updateMutation.mutateAsync({
+          id: editingId,
+          name: form.name.trim(),
+          promoterId: form.promoterId ?? null,
+          address: form.address || undefined,
+          city: form.city || undefined,
+          state: form.state || undefined,
+          phone: form.phone || undefined,
+        });
+        Alert.alert("Sucesso", "Loja atualizada com sucesso!");
+      } else {
+        await createMutation.mutateAsync({
+          name: form.name.trim(),
+          latitude: form.latitude,
+          longitude: form.longitude,
+          address: form.address || undefined,
+          city: form.city || undefined,
+          state: form.state || undefined,
+          zipCode: form.zipCode || undefined,
+          phone: form.phone || undefined,
+          promoterId: form.promoterId ?? undefined,
+        });
+        Alert.alert("Sucesso", "Loja cadastrada com sucesso!");
+      }
       await refetch();
       setShowModal(false);
-      Alert.alert("Sucesso", "Loja cadastrada com sucesso!");
     } catch (err: any) {
       Alert.alert("Erro", err.message ?? "Não foi possível salvar a loja.");
     } finally {
@@ -141,6 +173,12 @@ export default function StoresScreen() {
         longitudeDelta: 0.02,
       }, 500);
     }
+  };
+
+  const getPromoterName = (promoterId: number | null | undefined) => {
+    if (!promoterId || !promoterUsers) return null;
+    const user = promoterUsers.find((u: any) => u.userId === promoterId);
+    return user?.name ?? null;
   };
 
   return (
@@ -186,32 +224,50 @@ export default function StoresScreen() {
               </Pressable>
             </View>
           }
-          renderItem={({ item }) => (
-            <View style={[styles.storeCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-              <View style={[styles.storeIcon, { backgroundColor: colors.primary + "15" }]}>
-                <Ionicons name="storefront-outline" size={26} color={colors.primary} />
-              </View>
-              <View style={styles.storeInfo}>
-                <Text style={[styles.storeName, { color: colors.foreground }]}>{item.name}</Text>
-                {item.address && (
-                  <Text style={[styles.storeAddress, { color: colors.muted }]} numberOfLines={1}>
-                    {item.address}{item.city ? `, ${item.city}` : ""}{item.state ? ` - ${item.state}` : ""}
-                  </Text>
-                )}
-                <View style={styles.storeCoords}>
-                  <Ionicons name="location-outline" size={12} color={colors.muted} />
-                  <Text style={[styles.storeCoordsText, { color: colors.muted }]}>
-                    {parseFloat(item.latitude).toFixed(4)}, {parseFloat(item.longitude).toFixed(4)}
-                  </Text>
+          renderItem={({ item }) => {
+            const promoterName = getPromoterName((item as any).promoterId);
+            return (
+              <Pressable
+                style={({ pressed }) => [
+                  styles.storeCard,
+                  { backgroundColor: colors.surface, borderColor: colors.border },
+                  pressed && { opacity: 0.85 },
+                ]}
+                onPress={() => openEdit(item)}
+              >
+                <View style={[styles.storeIcon, { backgroundColor: colors.primary + "15" }]}>
+                  <Ionicons name="storefront-outline" size={26} color={colors.primary} />
                 </View>
-              </View>
-              <View style={[styles.statusBadge, { backgroundColor: item.status === "active" ? "#D1FAE5" : "#FEE2E2" }]}>
-                <Text style={[styles.statusText, { color: item.status === "active" ? "#065F46" : "#991B1B" }]}>
-                  {item.status === "active" ? "Ativa" : "Inativa"}
-                </Text>
-              </View>
-            </View>
-          )}
+                <View style={styles.storeInfo}>
+                  <Text style={[styles.storeName, { color: colors.foreground }]}>{item.name}</Text>
+                  {item.address && (
+                    <Text style={[styles.storeAddress, { color: colors.muted }]} numberOfLines={1}>
+                      {item.address}{item.city ? `, ${item.city}` : ""}{item.state ? ` - ${item.state}` : ""}
+                    </Text>
+                  )}
+                  {promoterName ? (
+                    <View style={styles.promoterBadge}>
+                      <Ionicons name="person-outline" size={11} color={colors.primary} />
+                      <Text style={[styles.promoterBadgeText, { color: colors.primary }]}>{promoterName}</Text>
+                    </View>
+                  ) : (
+                    <View style={styles.promoterBadge}>
+                      <Ionicons name="person-outline" size={11} color={colors.muted} />
+                      <Text style={[styles.promoterBadgeText, { color: colors.muted }]}>Sem promotor vinculado</Text>
+                    </View>
+                  )}
+                </View>
+                <View style={styles.storeRight}>
+                  <View style={[styles.statusBadge, { backgroundColor: item.status === "active" ? "#D1FAE5" : "#FEE2E2" }]}>
+                    <Text style={[styles.statusText, { color: item.status === "active" ? "#065F46" : "#991B1B" }]}>
+                      {item.status === "active" ? "Ativa" : "Inativa"}
+                    </Text>
+                  </View>
+                  <Ionicons name="chevron-forward" size={16} color={colors.muted} style={{ marginTop: 4 }} />
+                </View>
+              </Pressable>
+            );
+          }}
         />
       )}
 
@@ -224,23 +280,23 @@ export default function StoresScreen() {
               <Ionicons name={mapStep ? "arrow-back" : "close"} size={24} color={colors.foreground} />
             </Pressable>
             <Text style={[styles.modalTitle, { color: colors.foreground }]}>
-              {mapStep ? "Selecionar Localização" : "Nova Loja"}
+              {mapStep ? "Selecionar Localização" : editingId ? "Editar Loja" : "Nova Loja"}
             </Text>
             {mapStep ? (
               <Pressable
-                style={[styles.confirmBtn, { backgroundColor: form.latitude ? colors.primary : colors.border }]}
+                style={[styles.saveBtn, { backgroundColor: form.latitude ? colors.primary : colors.border }]}
                 onPress={() => { if (form.latitude) setMapStep(false); }}
                 disabled={!form.latitude}
               >
-                <Text style={[styles.confirmBtnText, { color: form.latitude ? "#FFFFFF" : colors.muted }]}>Confirmar</Text>
+                <Text style={[styles.saveBtnText, { color: form.latitude ? "#FFFFFF" : colors.muted }]}>Confirmar</Text>
               </Pressable>
             ) : (
               <Pressable
-                style={[styles.confirmBtn, { backgroundColor: saving ? colors.border : colors.primary }]}
+                style={[styles.saveBtn, { backgroundColor: saving ? colors.border : colors.primary }]}
                 onPress={handleSave}
                 disabled={saving}
               >
-                {saving ? <ActivityIndicator size="small" color="#FFFFFF" /> : <Text style={styles.confirmBtnText}>Salvar</Text>}
+                {saving ? <ActivityIndicator size="small" color="#FFFFFF" /> : <Text style={styles.saveBtnText}>Salvar</Text>}
               </Pressable>
             )}
           </View>
@@ -281,7 +337,6 @@ export default function StoresScreen() {
               </MapView>
               {form.latitude && form.longitude && (
                 <View style={[styles.coordsOverlay, { backgroundColor: colors.surface }]}>
-                  <Ionicons name="location" size={14} color={colors.primary} />
                   <Text style={[styles.coordsText, { color: colors.foreground }]}>
                     {form.latitude.toFixed(6)}, {form.longitude.toFixed(6)}
                   </Text>
@@ -294,6 +349,7 @@ export default function StoresScreen() {
           ) : (
             /* FORM */
             <ScrollView contentContainerStyle={styles.formScroll} keyboardShouldPersistTaps="handled">
+              {/* Nome */}
               <Text style={[styles.fieldLabel, { color: colors.foreground }]}>Nome da Loja *</Text>
               <TextInput
                 style={[styles.input, { backgroundColor: colors.surface, color: colors.foreground, borderColor: colors.border }]}
@@ -304,6 +360,69 @@ export default function StoresScreen() {
                 returnKeyType="next"
               />
 
+              {/* Promotor */}
+              <Text style={[styles.fieldLabel, { color: colors.foreground }]}>Promotor Responsável *</Text>
+              <View style={[styles.promoterSelector, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+                {!promoterUsers || promoterUsers.length === 0 ? (
+                  <View style={styles.promoterEmpty}>
+                    <Ionicons name="person-outline" size={18} color={colors.muted} />
+                    <Text style={[styles.promoterEmptyText, { color: colors.muted }]}>
+                      Nenhum promotor cadastrado ainda
+                    </Text>
+                  </View>
+                ) : (
+                  <>
+                    {/* None option */}
+                    <Pressable
+                      style={({ pressed }) => [
+                        styles.promoterOption,
+                        {
+                          backgroundColor: form.promoterId === null ? colors.primary + "15" : "transparent",
+                          borderColor: form.promoterId === null ? colors.primary : "transparent",
+                        },
+                        pressed && { opacity: 0.8 },
+                      ]}
+                      onPress={() => setForm((f) => ({ ...f, promoterId: null }))}
+                    >
+                      <Ionicons name="person-outline" size={18} color={form.promoterId === null ? colors.primary : colors.muted} />
+                      <Text style={[styles.promoterOptionText, { color: form.promoterId === null ? colors.primary : colors.muted }]}>
+                        Sem promotor
+                      </Text>
+                      {form.promoterId === null && <Ionicons name="checkmark-circle" size={18} color={colors.primary} />}
+                    </Pressable>
+
+                    {promoterUsers.map((user: any) => (
+                      <Pressable
+                        key={user.userId}
+                        style={({ pressed }) => [
+                          styles.promoterOption,
+                          {
+                            backgroundColor: form.promoterId === user.userId ? colors.primary + "15" : "transparent",
+                            borderColor: form.promoterId === user.userId ? colors.primary : "transparent",
+                          },
+                          pressed && { opacity: 0.8 },
+                        ]}
+                        onPress={() => setForm((f) => ({ ...f, promoterId: user.userId }))}
+                      >
+                        <View style={[styles.promoterAvatar, { backgroundColor: colors.primary + "20" }]}>
+                          <Text style={[styles.promoterAvatarText, { color: colors.primary }]}>
+                            {(user.name ?? "?").charAt(0).toUpperCase()}
+                          </Text>
+                        </View>
+                        <View style={{ flex: 1 }}>
+                          <Text style={[styles.promoterOptionText, { color: colors.foreground }]}>{user.name ?? "Sem nome"}</Text>
+                          {user.email && (
+                            <Text style={[styles.promoterOptionEmail, { color: colors.muted }]} numberOfLines={1}>{user.email}</Text>
+                          )}
+                        </View>
+                        {form.promoterId === user.userId && <Ionicons name="checkmark-circle" size={18} color={colors.primary} />}
+                      </Pressable>
+                    ))}
+                  </>
+                )}
+              </View>
+
+              {/* Endereço */}
               <Text style={[styles.fieldLabel, { color: colors.foreground }]}>Endereço</Text>
               <TextInput
                 style={[styles.input, { backgroundColor: colors.surface, color: colors.foreground, borderColor: colors.border }]}
@@ -368,37 +487,40 @@ export default function StoresScreen() {
                 </View>
               </View>
 
-              {/* Location Picker */}
-              <Text style={[styles.fieldLabel, { color: colors.foreground }]}>Localização no Mapa *</Text>
-              <Pressable
-                style={({ pressed }) => [
-                  styles.locationBtn,
-                  { backgroundColor: form.latitude ? "#D1FAE5" : colors.surface, borderColor: form.latitude ? "#059669" : colors.border },
-                  pressed && { opacity: 0.8 },
-                ]}
-                onPress={() => setMapStep(true)}
-              >
-                <Ionicons
-                  name={form.latitude ? "checkmark-circle" : "map-outline"}
-                  size={22}
-                  color={form.latitude ? "#059669" : colors.primary}
-                />
-                <View style={{ flex: 1 }}>
-                  <Text style={[styles.locationBtnTitle, { color: form.latitude ? "#065F46" : colors.foreground }]}>
-                    {form.latitude ? "Localização definida" : "Selecionar no mapa"}
+              {/* Localização — só obrigatória na criação */}
+              {!editingId && (
+                <>
+                  <Text style={[styles.fieldLabel, { color: colors.foreground }]}>Localização no Mapa *</Text>
+                  <Pressable
+                    style={({ pressed }) => [
+                      styles.locationBtn,
+                      { backgroundColor: form.latitude ? "#D1FAE5" : colors.surface, borderColor: form.latitude ? "#059669" : colors.border },
+                      pressed && { opacity: 0.8 },
+                    ]}
+                    onPress={() => setMapStep(true)}
+                  >
+                    <Ionicons
+                      name={form.latitude ? "checkmark-circle" : "map-outline"}
+                      size={22}
+                      color={form.latitude ? "#059669" : colors.primary}
+                    />
+                    <View style={{ flex: 1 }}>
+                      <Text style={[styles.locationBtnTitle, { color: form.latitude ? "#065F46" : colors.foreground }]}>
+                        {form.latitude ? "Localização definida" : "Selecionar no mapa"}
+                      </Text>
+                      {form.latitude && (
+                        <Text style={[styles.locationBtnSub, { color: "#059669" }]}>
+                          {form.latitude.toFixed(5)}, {form.longitude!.toFixed(5)} · Raio: 5 km
+                        </Text>
+                      )}
+                    </View>
+                    <Ionicons name="chevron-forward" size={18} color={colors.muted} />
+                  </Pressable>
+                  <Text style={[styles.hint, { color: colors.muted }]}>
+                    * O raio de 5 km será usado para validar o registro de ponto dos promotores.
                   </Text>
-                  {form.latitude && (
-                    <Text style={[styles.locationBtnSub, { color: "#059669" }]}>
-                      {form.latitude.toFixed(5)}, {form.longitude!.toFixed(5)} · Raio: 5 km
-                    </Text>
-                  )}
-                </View>
-                <Ionicons name="chevron-forward" size={18} color={colors.muted} />
-              </Pressable>
-
-              <Text style={[styles.hint, { color: colors.muted }]}>
-                * O raio de 5 km será usado para validar o registro de ponto dos promotores.
-              </Text>
+                </>
+              )}
             </ScrollView>
           )}
         </View>
@@ -420,8 +542,9 @@ const styles = StyleSheet.create({
   storeInfo: { flex: 1, gap: 4 },
   storeName: { fontSize: 15, fontWeight: "700" },
   storeAddress: { fontSize: 13 },
-  storeCoords: { flexDirection: "row", alignItems: "center", gap: 4 },
-  storeCoordsText: { fontSize: 11 },
+  promoterBadge: { flexDirection: "row", alignItems: "center", gap: 4, marginTop: 2 },
+  promoterBadgeText: { fontSize: 12, fontWeight: "500" },
+  storeRight: { alignItems: "flex-end", gap: 2 },
   statusBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20 },
   statusText: { fontSize: 12, fontWeight: "600" },
   emptyState: { flex: 1, alignItems: "center", justifyContent: "center", gap: 12, padding: 40, paddingTop: 80 },
@@ -433,8 +556,8 @@ const styles = StyleSheet.create({
   modal: { flex: 1 },
   modalHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 20, paddingVertical: 16, borderBottomWidth: 1 },
   modalTitle: { fontSize: 17, fontWeight: "700" },
-  confirmBtn: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20, minWidth: 70, alignItems: "center" },
-  confirmBtnText: { fontSize: 14, fontWeight: "700", color: "#FFFFFF" },
+  saveBtn: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20, minWidth: 70, alignItems: "center" },
+  saveBtnText: { fontSize: 14, fontWeight: "700", color: "#FFFFFF" },
   // Form
   formScroll: { padding: 20, gap: 4, paddingBottom: 40 },
   fieldLabel: { fontSize: 13, fontWeight: "600", marginBottom: 6, marginTop: 12 },
@@ -446,6 +569,15 @@ const styles = StyleSheet.create({
   locationBtnTitle: { fontSize: 15, fontWeight: "600" },
   locationBtnSub: { fontSize: 12, marginTop: 2 },
   hint: { fontSize: 12, lineHeight: 18, marginTop: 8 },
+  // Promoter Selector
+  promoterSelector: { borderRadius: 14, borderWidth: 1, overflow: "hidden" },
+  promoterEmpty: { flexDirection: "row", alignItems: "center", gap: 10, padding: 16 },
+  promoterEmptyText: { fontSize: 14 },
+  promoterOption: { flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 14, paddingVertical: 12, borderWidth: 0, borderRadius: 0 },
+  promoterOptionText: { fontSize: 15, fontWeight: "600" },
+  promoterOptionEmail: { fontSize: 12, marginTop: 1 },
+  promoterAvatar: { width: 32, height: 32, borderRadius: 16, alignItems: "center", justifyContent: "center" },
+  promoterAvatarText: { fontSize: 14, fontWeight: "700" },
   // Map
   mapContainer: { flex: 1, position: "relative" },
   map: { flex: 1 },

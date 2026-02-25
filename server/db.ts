@@ -42,6 +42,8 @@ import {
   type User,
   appSettings,
   type AppSettings,
+  appUsers,
+  type AppUser,
 } from "../drizzle/schema";
 import { ENV } from "./_core/env";
 
@@ -146,6 +148,28 @@ export async function createStore(data: InsertStore): Promise<number> {
   if (!db) throw new Error("Database not available");
   const result = await db.insert(stores).values(data);
   return result[0].insertId;
+}
+
+export async function updateStore(id: number, data: Partial<InsertStore>): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(stores).set(data).where(eq(stores.id, id));
+}
+
+export async function getStoresByPromoter(promoterId: number): Promise<Store[]> {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(stores).where(and(eq(stores.promoterId, promoterId), eq(stores.status, "active")));
+}
+
+export async function getAllPromoterUsersWithProfile(): Promise<Array<{ id: number; name: string | null; login: string | null }>> {
+  const db = await getDb();
+  if (!db) return [];
+  // Get all promoter users from app_users table (custom auth)
+  const result = await db.select({ id: appUsers.id, name: appUsers.name, login: appUsers.login })
+    .from(appUsers)
+    .where(eq(appUsers.appRole, "promoter"));
+  return result;
 }
 
 // ─── BRANDS ───────────────────────────────────────────────────────────────────
