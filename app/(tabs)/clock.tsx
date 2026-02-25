@@ -2,11 +2,9 @@ import { ScreenContainer } from "@/components/screen-container";
 import { useColors } from "@/hooks/use-colors";
 import { useRole } from "@/lib/role-context";
 import { trpc } from "@/lib/trpc";
-import { useOfflineQueue } from "@/hooks/use-offline-queue";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import * as ImagePicker from "expo-image-picker";
-import * as Location from "expo-location";
 import { Image } from "expo-image";
 import { useState } from "react";
 import {
@@ -82,7 +80,7 @@ function ClockEntryModal({
   };
 
   const handleConfirm = () => {
-    if (!selectedStore) {
+    if (isEntry && !selectedStore) {
       Alert.alert("Selecione a loja", "É necessário selecionar a loja antes de registrar.");
       return;
     }
@@ -90,7 +88,12 @@ function ClockEntryModal({
       Alert.alert("Foto obrigatória", "Tire ou selecione uma foto do ponto eletrônico para registrar.");
       return;
     }
-    onConfirm(selectedStore.id, photo.base64, photo.fileType);
+    const storeId = isEntry ? selectedStore!.id : stores[0]?.id;
+    if (!storeId) {
+      Alert.alert("Erro", "Nenhuma loja disponível para registrar a saída.");
+      return;
+    }
+    onConfirm(storeId, photo.base64, photo.fileType);
   };
 
   const handleClose = () => {
@@ -168,11 +171,35 @@ function ClockEntryModal({
             </View>
           )}
 
+          {/* Exit: show store info */}
+          {!isEntry && stores.length > 0 && (
+            <View style={styles.section}>
+              <View style={styles.sectionHeader}>
+                <View style={[styles.stepBadge, { backgroundColor: accentColor }]}>
+                  <Text style={styles.stepBadgeText}>1</Text>
+                </View>
+                <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Loja</Text>
+              </View>
+              <View style={[styles.storeOption, { backgroundColor: accentColor + "10", borderColor: accentColor }]}>
+                <Ionicons name="storefront-outline" size={20} color={accentColor} />
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.storeName, { color: colors.foreground }]}>{stores[0].name}</Text>
+                  {stores[0].address && (
+                    <Text style={[styles.storeAddress, { color: colors.muted }]} numberOfLines={1}>
+                      {stores[0].address}{stores[0].city ? `, ${stores[0].city}` : ""}
+                    </Text>
+                  )}
+                </View>
+                <Ionicons name="checkmark-circle" size={20} color={accentColor} />
+              </View>
+            </View>
+          )}
+
           {/* Step 2: Photo */}
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
               <View style={[styles.stepBadge, { backgroundColor: accentColor }]}>
-                <Text style={styles.stepBadgeText}>{isEntry ? "2" : "1"}</Text>
+                <Text style={styles.stepBadgeText}>{isEntry ? "2" : "2"}</Text>
               </View>
               <Text style={[styles.sectionTitle, { color: colors.foreground }]}>
                 Foto do Ponto Eletrônico
@@ -267,41 +294,9 @@ export default function ClockScreen() {
   const stores = (isManager ? allStores : promoterStores) ?? [];
 
   const createEntryMutation = trpc.timeEntries.create.useMutation();
-  const { isOnline, enqueue } = useOfflineQueue();
 
   const hasOpenEntry = !!lastEntry;
   const displayEntries = isManager ? allEntries : myEntries;
-
-  const getLocation = async (): Promise<{ latitude: number; longitude: number; accuracy: number } | null> => {
-    if (Platform.OS === "web") {
-      return new Promise((resolve) => {
-        if (!navigator.geolocation) {
-          Alert.alert("Erro", "Geolocalização não suportada neste dispositivo.");
-          resolve(null);
-          return;
-        }
-        navigator.geolocation.getCurrentPosition(
-          (pos) => resolve({ latitude: pos.coords.latitude, longitude: pos.coords.longitude, accuracy: pos.coords.accuracy }),
-          () => { Alert.alert("Erro de localização", "Não foi possível obter sua localização."); resolve(null); },
-          { enableHighAccuracy: true, timeout: 10000 }
-        );
-      });
-    }
-
-    const { status } = await Location.requestForegroundPermissionsAsync();
-    if (status !== "granted") {
-      Alert.alert("Permissão negada", "É necessário acesso à localização para registrar o ponto.");
-      return null;
-    }
-
-    try {
-      const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
-      return { latitude: loc.coords.latitude, longitude: loc.coords.longitude, accuracy: loc.coords.accuracy ?? 0 };
-    } catch {
-      Alert.alert("Erro de localização", "Não foi possível obter sua localização. Verifique o GPS.");
-      return null;
-    }
-  };
 
   const openModal = (type: "entry" | "exit") => {
     setModalEntryType(type);
@@ -312,72 +307,34 @@ export default function ClockScreen() {
     setModalVisible(false);
     setRegistering(true);
 
-    const loc = await getLocation();
-    if (!loc) {
-      setRegistering(false);
-      return;
-    }
-
     const entryType = modalEntryType;
 
     try {
-      if (!isOnline) {
-        await enqueue(entryType === "entry" ? "clock_entry" : "clock_exit", {
-          storeId,
-          entryType,
-          latitude: loc.latitude,
-          longitude: loc.longitude,
-          accuracy: loc.accuracy,
-        });
-        if (Platform.OS !== "web") await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        Alert.alert("📥 Salvo offline", `${entryType === "entry" ? "Entrada" : "Saída"} salva localmente. Será sincronizada quando você reconectar.`);
-        setRegistering(false);
-        return;
-      }
-
-      const result = await createEntryMutation.mutateAsync({
+      await createEntryMutation.mutateAsync({
         storeId,
         entryType,
-        latitude: loc.latitude,
-        longitude: loc.longitude,
-        accuracy: loc.accuracy,
+        latitude: 0,
+        longitude: 0,
         photoBase64: photoBase64 || undefined,
         photoFileType: photoFileType || undefined,
       });
 
       if (Platform.OS !== "web") await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-
-      if (!result.isWithinRadius) {
-        Alert.alert("⚠️ Fora do raio", `Você está a ${result.distanceKm.toFixed(2)} km da loja. O registro foi feito, mas um alerta foi gerado para o gestor.`);
-      } else {
-        Alert.alert("✅ Registrado!", `${entryType === "entry" ? "Entrada" : "Saída"} registrada com sucesso!`);
-      }
+      Alert.alert("✅ Registrado!", `${entryType === "entry" ? "Entrada" : "Saída"} registrada com sucesso!`);
 
       utils.timeEntries.lastOpenEntry.invalidate();
       refetchSummary();
       refetchMy();
-    } catch (err) {
+    } catch (err: any) {
       if (Platform.OS !== "web") await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      await enqueue(entryType === "entry" ? "clock_entry" : "clock_exit", {
-        storeId,
-        entryType,
-        latitude: loc.latitude,
-        longitude: loc.longitude,
-        accuracy: loc.accuracy,
-      });
-      Alert.alert("📥 Salvo offline", "Não foi possível conectar ao servidor. O registro foi salvo localmente e será sincronizado quando a conexão for restaurada.");
+      Alert.alert("Erro", err?.message ?? "Não foi possível registrar o ponto. Tente novamente.");
     } finally {
       setRegistering(false);
     }
   };
 
   // For exit: use the store from the last open entry
-  const exitStoreId = lastEntry?.storeId;
-  const exitStore = stores.find((s) => s.id === exitStoreId) ?? (stores.length > 0 ? stores[0] : null);
-
-  const handleExitConfirm = async (storeId: number, photoBase64: string, photoFileType: string) => {
-    await handleConfirmEntry(storeId, photoBase64, photoFileType);
-  };
+  const exitStore = stores.find((s) => s.id === lastEntry?.storeId) ?? (stores.length > 0 ? stores[0] : null);
 
   const formatTime = (date: Date | string) => new Date(date).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
   const formatDate = (date: Date) => date.toLocaleDateString("pt-BR", { weekday: "long", day: "2-digit", month: "long" });
@@ -520,12 +477,11 @@ export default function ClockScreen() {
               <Text style={[styles.entryTime, { color: colors.primary }]}>
                 {formatTime(item.entryTime)}
               </Text>
-              <View style={styles.entryMeta}>
-                <Ionicons name="location-outline" size={12} color={item.isWithinRadius ? "#0E9F6E" : "#EF4444"} />
-                <Text style={[styles.entryDistance, { color: item.isWithinRadius ? "#0E9F6E" : "#EF4444" }]}>
-                  {item.distanceFromStore ? `${parseFloat(item.distanceFromStore).toFixed(2)} km` : "—"}
+              {(item as any).storeName && (
+                <Text style={[styles.entryStore, { color: colors.muted }]} numberOfLines={1}>
+                  {(item as any).storeName}
                 </Text>
-              </View>
+              )}
             </View>
             {(item as any).photoUrl && (
               <Image
@@ -533,11 +489,6 @@ export default function ClockScreen() {
                 style={styles.entryPhoto}
                 contentFit="cover"
               />
-            )}
-            {!item.isWithinRadius && (
-              <View style={styles.alertBadge}>
-                <Ionicons name="warning" size={14} color="#D97706" />
-              </View>
             )}
           </View>
         )}
@@ -558,7 +509,7 @@ export default function ClockScreen() {
         entryType="exit"
         stores={exitStore ? [exitStore] : (stores as Store[])}
         onClose={() => setModalVisible(false)}
-        onConfirm={handleExitConfirm}
+        onConfirm={handleConfirmEntry}
       />
     </ScreenContainer>
   );
@@ -587,10 +538,8 @@ const styles = StyleSheet.create({
   entryInfo: { flex: 1, gap: 2 },
   entryType: { fontSize: 15, fontWeight: "600" },
   entryTime: { fontSize: 22, fontWeight: "800" },
-  entryMeta: { flexDirection: "row", alignItems: "center", gap: 4 },
-  entryDistance: { fontSize: 12, fontWeight: "500" },
+  entryStore: { fontSize: 12, marginTop: 2 },
   entryPhoto: { width: 48, height: 48, borderRadius: 8 },
-  alertBadge: { padding: 6, backgroundColor: "#FEF3C7", borderRadius: 8 },
   emptyState: { flex: 1, alignItems: "center", justifyContent: "center", gap: 12, padding: 40, paddingTop: 60 },
   emptyTitle: { fontSize: 18, fontWeight: "700" },
   emptyDesc: { fontSize: 14, textAlign: "center", lineHeight: 21 },

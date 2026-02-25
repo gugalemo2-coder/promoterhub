@@ -605,3 +605,24 @@
 - [x] Adicionar coluna photo_url na tabela de registros de ponto
 - [x] Endpoint de lojas filtrado por promotor logado
 - [x] Endpoint listPromoterUsers para seleção de promotor nas lojas
+
+## Fase 40 — Remoção de Geolocalização e Correção do Seletor de Promotor
+
+### Remoção de Geolocalização
+- [x] Remover GPS/localização da tela de Registrar Ponto (clock.tsx)
+- [x] Remover GPS/localização da tela de Fotos (photos.tsx)
+- [x] Remover mapa e campos de coordenadas da tela de Lojas (stores.tsx)
+- [x] Remover validação de raio e alertas de geo do backend (routers.ts)
+- [x] Remover campos latitude/longitude/accuracy/distanceFromStore do endpoint timeEntries.create
+- [x] Remover campos latitude/longitude do endpoint photos.upload
+- [x] Remover router geoAlerts do backend
+
+### Correção do Seletor de Promotor
+- [x] Investigar bug: ao selecionar um promotor na tela de lojas, todos ficam selecionados
+- [x] Corrigir lógica de seleção: usar user.id em vez de user.userId
+
+## Fase 41 — Correção do Botão de Alteração de Função (Master/Usuários)
+- [x] Investigar por que o botão de alterar função (promotor → gestor) não salva a mudança
+- [x] Causa raíz: na Web, getSessionToken() retornava null (usava cookie) e apiCall não enviava Authorization header
+- [x] Correção: auth.ts agora usa localStorage na Web para getSessionToken/setSessionToken/removeSessionToken
+- [x] Correção: api.ts agora envia Authorization header em todas as plataformas (Web + nativo)
