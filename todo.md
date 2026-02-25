@@ -504,3 +504,8 @@
 
 - [x] Corrigir botão "Equipe" no Painel Gestor/Master para navegar para /(tabs)/team
 - [x] Corrigir botão "Relatórios" no Painel Gestor/Master para navegar para /(tabs)/reports
+
+## Fase 28 — Correção de Navegação na Conta Master
+
+- [x] Investigar por que botões de Equipe e Relatórios não funcionam na conta Master
+- [x] Corrigir navegação para que Master acesse as mesmas telas que o Gestor via Acesso Rápido (alerts, reports, stores, team)
