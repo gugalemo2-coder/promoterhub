@@ -94,6 +94,16 @@ export const appRouter = router({
         const fileKey = `photos/${getAppUserId(ctx.user)}/${Date.now()}-${input.fileName}`;
         const { url } = await storagePut(fileKey, buffer, input.fileType);
         const id = await db.createPhoto({ userId: getAppUserId(ctx.user), brandId: input.brandId, storeId: input.storeId, photoUrl: url, photoTimestamp: new Date(), fileSize: buffer.length, fileType: input.fileType, description: input.description });
+        // Notify managers and masters about the new photo (fire-and-forget)
+        Promise.all([
+          db.getUserById(getAppUserId(ctx.user)),
+          db.getBrandById(input.brandId),
+          db.getManagerAndMasterUserIds(),
+        ]).then(([promoter, brand, managerIds]) => {
+          const promoterName = promoter?.name ?? promoter?.email ?? "Promotor";
+          const brandName = brand?.name ?? "Marca";
+          push.notifyNewPhotoForReview(promoterName, brandName, managerIds).catch(() => {});
+        }).catch(() => {});
         return { id, photoUrl: url };
       }),
     list: protectedProcedure.input(z.object({ brandId: z.number().optional(), storeId: z.number().optional(), startDate: z.string().optional(), endDate: z.string().optional(), status: z.enum(["pending", "approved", "rejected"]).optional(), limit: z.number().default(50), offset: z.number().default(0) })).query(({ ctx, input }) => db.getPhotos({ ...input, userId: getAppUserId(ctx.user), startDate: input.startDate ? new Date(input.startDate) : undefined, endDate: input.endDate ? new Date(input.endDate) : undefined })),

@@ -697,3 +697,8 @@
 
 ## Fase — Badge de Fotos Pendentes
 - [x] Badge vermelho com contador de fotos pendentes no ícone da aba Fotos (Gestor/Master)
+
+## Fase — Notificação Push para Gestor/Master (Nova Foto)
+- [x] Disparar push para todos os gestores/masters quando promotor fizer upload de foto
+- [x] Notificação com título, nome do promotor e marca da foto
+- [x] Salvar notificação no histórico (tabela notifications)

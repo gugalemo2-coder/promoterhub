@@ -564,6 +564,17 @@ export async function getManagerUserIds(): Promise<number[]> {
   return managers.map((m) => m.userId);
 }
 
+/** Returns IDs of all managers and masters from appUsers (includes those who haven't logged in yet) */
+export async function getManagerAndMasterUserIds(): Promise<number[]> {
+  const db = await getDb();
+  if (!db) return [];
+  const result = await db
+    .select({ id: appUsers.id })
+    .from(appUsers)
+    .where(inArray(appUsers.appRole, ["manager", "master"]));
+  return result.map((r) => r.id);
+}
+
 // ─── NOTIFICATIONS ────────────────────────────────────────────────────────────
 
 export async function createNotification(data: InsertNotification): Promise<number> {

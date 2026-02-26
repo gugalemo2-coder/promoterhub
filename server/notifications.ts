@@ -143,6 +143,44 @@ export async function notifyJourneyInconsistency(promoterName: string, date: str
 }
 
 /**
+ * Notify all managers and masters when a promoter uploads a new photo for review.
+ */
+export async function notifyNewPhotoForReview(
+  promoterName: string,
+  brandName: string,
+  managerUserIds: number[]
+): Promise<void> {
+  if (managerUserIds.length === 0) return;
+  const title = "📸 Nova foto para revisar";
+  const body = `${promoterName} enviou uma foto de ${brandName} aguardando aprovação.`;
+  // Save to notification history for each manager
+  await Promise.all(
+    managerUserIds.map((userId) =>
+      db.createNotification({
+        userId,
+        title,
+        body,
+        type: "photo_approved",
+        isRead: false,
+      }).catch(() => {})
+    )
+  );
+  // Send push notifications
+  const tokens = await getTokensForUsers(managerUserIds);
+  if (tokens.length === 0) return;
+  await sendPushNotifications(
+    tokens.map((to) => ({
+      to,
+      title,
+      body,
+      data: { type: "photo_review", action: "new" },
+      sound: "default" as const,
+      priority: "high" as const,
+    }))
+  );
+}
+
+/**
  * Notify a promoter when a new file is available for their brand.
  */
 export async function notifyNewFileAvailable(promoterUserIds: number[], brandName: string, fileName: string): Promise<void> {
