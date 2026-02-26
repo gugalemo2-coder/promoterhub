@@ -178,7 +178,7 @@ export default function PromoterDetailScreen() {
                 { label: "Materiais", value: data.totalMaterialRequests, icon: "cube", color: "#F59E0B" },
                 { label: "Horas", value: `${data.totalHoursWorked}h`, icon: "time", color: "#3B82F6" },
                 { label: "Visitas", value: data.totalVisits, icon: "location", color: "#8B5CF6" },
-                { label: "Méd. Mensal", value: `${data.avgMonthlyHours}h`, icon: "analytics", color: "#06B6D4" },
+                { label: "Méd. Diária", value: `${data.avgMonthlyHours}h`, icon: "analytics", color: "#06B6D4" },
                 { label: "Última Semana", value: `${data.lastWeekHours}h`, icon: "calendar", color: "#10B981" },
               ].map((kpi) => (
                 <View key={kpi.label} style={[styles.kpiCard, { backgroundColor: colors.background, borderColor: colors.border }]}>
@@ -218,7 +218,7 @@ export default function PromoterDetailScreen() {
               <View style={[styles.hoursCard, { backgroundColor: colors.background, borderColor: colors.border }]}>
                 <Ionicons name="analytics-outline" size={22} color="#06B6D4" />
                 <Text style={[styles.hoursValue, { color: colors.foreground }]}>{data.avgMonthlyHours}h</Text>
-                <Text style={[styles.hoursLabel, { color: colors.muted }]}>Média mensal</Text>
+                <Text style={[styles.hoursLabel, { color: colors.muted }]}>Média diária</Text>
               </View>
             </View>
           </View>
