@@ -1,9 +1,10 @@
 // PromoterHub Service Worker
-// Cache-first para assets estáticos, Network-first para API
+// Network-first para assets Next.js (evita cache stale após deploys), Network-first para API
 
-const CACHE_NAME = "promoterhub-v2";
-const STATIC_CACHE = "promoterhub-static-v2";
-const API_CACHE = "promoterhub-api-v2";
+const CACHE_VERSION = "v4";
+const CACHE_NAME = `promoterhub-${CACHE_VERSION}`;
+const STATIC_CACHE = `promoterhub-static-${CACHE_VERSION}`;
+const API_CACHE = `promoterhub-api-${CACHE_VERSION}`;
 
 // Assets para pré-cachear na instalação
 const PRECACHE_ASSETS = [
@@ -75,19 +76,19 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  // Assets estáticos (_next/static): Cache-first
+  // Assets estáticos (_next/static/): Network-first para garantir versão atualizada
+  // O Turbopack pode reutilizar hashes de arquivo, então cache-first causaria stale content
   if (url.pathname.startsWith("/_next/static/")) {
     event.respondWith(
-      caches.match(request).then((cached) => {
-        if (cached) return cached;
-        return fetch(request).then((response) => {
+      fetch(request)
+        .then((response) => {
           if (response.ok) {
             const clone = response.clone();
             caches.open(STATIC_CACHE).then((cache) => cache.put(request, clone));
           }
           return response;
-        });
-      })
+        })
+        .catch(() => caches.match(request))
     );
     return;
   }

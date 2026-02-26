@@ -723,3 +723,11 @@
 - [x] Usuários: gestão de contas (somente Master) com ativar/inativar/excluir
 - [x] Configurações do gestor
 - [x] Link separado do PWA mobile
+
+## Bug — Status de Contas no Painel Desktop
+- [ ] Investigar por que painel desktop mostra todas as contas como "Inativas" enquanto PWA mostra como "Ativas"
+- [ ] Corrigir a leitura/interpretação do campo de status no frontend do painel web
+
+## Bug — Status de Contas no Painel Desktop
+- [x] Corrigir campo isActive → active na página de Usuários do painel desktop
+- [x] Corrigir Service Worker para usar Network-first em assets Next.js (evitar cache stale)

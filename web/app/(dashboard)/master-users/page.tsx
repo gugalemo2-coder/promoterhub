@@ -23,7 +23,7 @@ interface AppUser {
   name: string | null;
   login: string;
   appRole: "promoter" | "manager" | "master";
-  isActive: boolean;
+  active: boolean;
   avatarUrl?: string | null;
   createdAt?: string;
 }
@@ -128,15 +128,15 @@ export default function MasterUsersPage() {
     const matchRole = roleFilter === "all" || u.appRole === roleFilter;
     const matchStatus =
       statusFilter === "all" ||
-      (statusFilter === "active" && u.isActive) ||
-      (statusFilter === "inactive" && !u.isActive);
+      (statusFilter === "active" && u.active) ||
+      (statusFilter === "inactive" && !u.active);
     return matchSearch && matchRole && matchStatus;
   });
 
   const stats = {
     total: users.length,
-    active: users.filter((u) => u.isActive).length,
-    inactive: users.filter((u) => !u.isActive).length,
+    active: users.filter((u) => u.active).length,
+    inactive: users.filter((u) => !u.active).length,
     promoters: users.filter((u) => u.appRole === "promoter").length,
     managers: users.filter((u) => u.appRole === "manager").length,
   };
@@ -174,11 +174,11 @@ export default function MasterUsersPage() {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({ isActive: !targetUser.isActive }),
+        body: JSON.stringify({ active: !targetUser.active }),
       });
       const data = await res.json();
       if (res.ok) {
-        const action = targetUser.isActive ? "desativada" : "ativada";
+        const action = targetUser.active ? "desativada" : "ativada";
         showToast(`Conta de ${targetUser.name ?? targetUser.login} ${action} com sucesso!`);
         fetchUsers();
       } else {
@@ -350,7 +350,7 @@ export default function MasterUsersPage() {
                 <tr
                   key={u.id}
                   className={`border-b border-gray-50 hover:bg-gray-50 transition-colors ${
-                    !u.isActive ? "opacity-60" : ""
+                    !u.active ? "opacity-60" : ""
                   }`}
                 >
                   {/* Avatar + Name */}
@@ -386,15 +386,15 @@ export default function MasterUsersPage() {
                   <td className="px-4 py-3">
                     <span
                       className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold ${
-                        u.isActive
+                        u.active
                           ? "bg-green-100 text-green-700"
                           : "bg-red-100 text-red-600"
                       }`}
                     >
                       <span
-                        className={`w-1.5 h-1.5 rounded-full ${u.isActive ? "bg-green-500" : "bg-red-400"}`}
+                        className={`w-1.5 h-1.5 rounded-full ${u.active ? "bg-green-500" : "bg-red-400"}`}
                       />
-                      {u.isActive ? "Ativo" : "Inativo"}
+                      {u.active ? "Ativo" : "Inativo"}
                     </span>
                   </td>
                   {/* Actions */}
@@ -419,14 +419,14 @@ export default function MasterUsersPage() {
                       {/* Toggle Active */}
                       <button
                         onClick={() => handleToggleActive(u)}
-                        title={u.isActive ? "Desativar conta" : "Ativar conta"}
+                        title={u.active ? "Desativar conta" : "Ativar conta"}
                         className={`p-1.5 rounded-lg transition-colors ${
-                          u.isActive
+                          u.active
                             ? "text-orange-500 hover:bg-orange-50"
                             : "text-green-600 hover:bg-green-50"
                         }`}
                       >
-                        {u.isActive ? <UserX size={16} /> : <UserCheck size={16} />}
+                        {u.active ? <UserX size={16} /> : <UserCheck size={16} />}
                       </button>
                       {/* Delete */}
                       {u.appRole !== "master" && (
