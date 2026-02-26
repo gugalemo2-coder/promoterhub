@@ -731,3 +731,16 @@
 ## Bug — Status de Contas no Painel Desktop
 - [x] Corrigir campo isActive → active na página de Usuários do painel desktop
 - [x] Corrigir Service Worker para usar Network-first em assets Next.js (evitar cache stale)
+
+## Fase 16 — Remoção de Geolocalização e Logo no Portal Web
+
+- [x] Remover coluna "Localização" e dados de GPS da tela de Equipe (portal web)
+- [x] Remover coluna "Localização" e dados de GPS da tela de Controle de Ponto (portal web)
+- [x] Remover mapa/coordenadas GPS da tela de PDVs (portal web)
+- [x] Remover campo de mapa interativo do cadastro/edição de loja (portal web)
+- [x] Remover alertas de geofencing e seção de geo-alertas do Dashboard (portal web)
+- [x] Remover página de Alertas de geolocalização (portal web) se existir
+- [x] Remover referências a GPS/coordenadas em Visitas por PDV (portal web)
+- [x] Aplicar logo da Dinâmica Corretora no header do portal web
+- [x] Aplicar logo da Dinâmica Corretora na tela de login do portal web
+- [x] Atualizar favicon do portal web com a logo da Dinâmica

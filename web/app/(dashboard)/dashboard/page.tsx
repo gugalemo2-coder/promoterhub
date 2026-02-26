@@ -4,9 +4,9 @@ import { trpc } from "@/lib/trpc";
 import { StatCard } from "@/components/ui/stat-card";
 import { PageHeader } from "@/components/page-header";
 import { ScoreRing } from "@/components/ui/score-ring";
-import { formatDateTime, getMonthName } from "@/lib/utils";
+import { getMonthName } from "@/lib/utils";
 import {
-  Users, Camera, Package, Bell, Trophy, Clock, TrendingUp, MapPin, RefreshCw, AlertTriangle
+  Users, Camera, Package, Trophy, Clock, TrendingUp, RefreshCw
 } from "lucide-react";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer
@@ -21,16 +21,14 @@ export default function DashboardPage() {
 
   const dailyReport = trpc.reports.daily.useQuery({});
   const ranking = trpc.promoterRanking.monthly.useQuery({ year, month });
-  const alerts = trpc.geoAlerts.list.useQuery({ limit: 5 });
   const allPromoters = trpc.reports.allPromoters.useQuery();
 
   const isLoading = dailyReport.isLoading || ranking.isLoading;
 
   const report = dailyReport.data;
   const topPromoters = ranking.data?.slice(0, 5) ?? [];
-  const recentAlerts = alerts.data ?? [];
 
-  // Photos chart from ranking data — use correct field names from PromoterRankingEntry
+  // Photos chart from ranking data
   const photosChartData = topPromoters.slice(0, 5).map((p) => ({
     name: p.userName?.split(" ")[0] ?? "—",
     fotos: p.totalApprovedPhotos ?? 0,
@@ -81,12 +79,12 @@ export default function DashboardPage() {
           iconBg="bg-orange-50"
         />
         <StatCard
-          title="Alertas Hoje"
-          value={isLoading ? "—" : (report?.totalAlerts ?? 0)}
-          subtitle="Registrados hoje"
-          icon={Bell}
-          iconColor="text-red-600"
-          iconBg="bg-red-50"
+          title="Registros de Ponto"
+          value={isLoading ? "—" : (report?.totalEntries ?? 0)}
+          subtitle="Hoje"
+          icon={Clock}
+          iconColor="text-green-600"
+          iconBg="bg-green-50"
         />
       </div>
 
@@ -159,40 +157,6 @@ export default function DashboardPage() {
 
       {/* Bottom Row */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Alertas Recentes */}
-        <div className="bg-white rounded-xl border border-gray-100 p-5 shadow-sm">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="font-semibold text-gray-900 text-sm">Alertas Recentes</h3>
-            <Bell size={16} className="text-red-500" />
-          </div>
-          {alerts.isLoading ? (
-            <div className="text-gray-400 text-sm text-center py-8">Carregando...</div>
-          ) : recentAlerts.length === 0 ? (
-            <div className="text-gray-400 text-sm text-center py-8">Nenhum alerta recente</div>
-          ) : (
-            <div className="space-y-3">
-              {recentAlerts.map((alert) => (
-                <div key={alert.id} className="flex items-start gap-3 p-3 rounded-lg bg-gray-50">
-                  <div className="w-8 h-8 rounded-full bg-red-100 flex items-center justify-center flex-shrink-0">
-                    <AlertTriangle size={14} className="text-red-500" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-xs font-medium text-gray-900 truncate">
-                      PDV #{alert.storeId} — {alert.alertType.replace(/_/g, " ")}
-                    </p>
-                    <p className="text-xs text-gray-500 mt-0.5">{formatDateTime(alert.createdAt)}</p>
-                  </div>
-                  <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
-                    alert.acknowledged ? "bg-green-50 text-green-700" : "bg-red-50 text-red-700"
-                  }`}>
-                    {alert.acknowledged ? "Reconhecido" : "Aberto"}
-                  </span>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-
         {/* Atividade de Hoje */}
         <div className="bg-white rounded-xl border border-gray-100 p-5 shadow-sm">
           <div className="flex items-center justify-between mb-4">
@@ -209,7 +173,7 @@ export default function DashboardPage() {
                 { label: "Registros de Ponto", value: report.totalEntries ?? 0, icon: Clock, color: "text-blue-600", bg: "bg-blue-50" },
                 { label: "Fotos", value: report.totalPhotos ?? 0, icon: Camera, color: "text-purple-600", bg: "bg-purple-50" },
                 { label: "Solicitações", value: report.totalRequests ?? 0, icon: Package, color: "text-orange-600", bg: "bg-orange-50" },
-                { label: "Alertas", value: report.totalAlerts ?? 0, icon: Bell, color: "text-red-600", bg: "bg-red-50" },
+                { label: "Promotores", value: allPromoters.data?.length ?? 0, icon: Users, color: "text-green-600", bg: "bg-green-50" },
               ].map((item) => (
                 <div key={item.label} className="flex items-center gap-3 p-3 rounded-lg bg-gray-50">
                   <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${item.bg}`}>
@@ -219,6 +183,34 @@ export default function DashboardPage() {
                     <p className="text-lg font-bold text-gray-900">{item.value}</p>
                     <p className="text-xs text-gray-500">{item.label}</p>
                   </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Ranking Resumido */}
+        <div className="bg-white rounded-xl border border-gray-100 p-5 shadow-sm">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="font-semibold text-gray-900 text-sm">Ranking do Mês</h3>
+            <Link href="/ranking" className="text-xs text-blue-600 hover:underline">Ver completo</Link>
+          </div>
+          {ranking.isLoading ? (
+            <div className="text-gray-400 text-sm text-center py-8">Carregando...</div>
+          ) : topPromoters.length === 0 ? (
+            <div className="text-gray-400 text-sm text-center py-8">Sem dados para este mês</div>
+          ) : (
+            <div className="space-y-2">
+              {topPromoters.slice(0, 5).map((p, i) => (
+                <div key={`rank-${p.userId}-${i}`} className="flex items-center gap-3 p-2 rounded-lg hover:bg-gray-50 transition-colors">
+                  <span className={`text-xs font-bold w-5 text-center ${i === 0 ? "text-yellow-500" : i === 1 ? "text-gray-400" : i === 2 ? "text-orange-400" : "text-gray-300"}`}>
+                    {i + 1}°
+                  </span>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-medium text-gray-900 truncate">{p.userName ?? "—"}</p>
+                    <p className="text-xs text-gray-500">{p.totalApprovedPhotos ?? 0} fotos · {p.totalVisits ?? 0} visitas</p>
+                  </div>
+                  <span className="text-xs font-bold text-blue-600">{p.score ?? 0}pts</span>
                 </div>
               ))}
             </div>

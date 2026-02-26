@@ -1,10 +1,11 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import Image from "next/image";
 import {
-  LayoutDashboard, Users, Trophy, MapPin, Camera, Package, Bell,
+  LayoutDashboard, Users, Trophy, MapPin, Camera, Package,
   BarChart3, Settings, LogOut, ChevronLeft, Tag, Clock, FolderOpen,
-  BarChart2, Navigation, UserCog, ChevronRight,
+  BarChart2, Navigation, UserCog, ChevronRight, Bell,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import { trpc } from "@/lib/trpc";
@@ -64,7 +65,6 @@ export function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle:
     {
       label: "Gestão",
       items: [
-        { href: "/alerts", icon: Bell, label: "Alertas" },
         { href: "/notifications", icon: Bell, label: "Notificações" },
         { href: "/reports", icon: BarChart3, label: "Relatórios" },
         ...(isMaster ? [{ href: "/master-users", icon: UserCog, label: "Usuários" }] : []),
@@ -85,18 +85,20 @@ export function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle:
       {/* Logo */}
       <div style={{
         display: "flex", alignItems: "center", gap: 12,
-        padding: "18px 14px", borderBottom: "1px solid rgba(255,255,255,0.06)",
+        padding: "14px 14px", borderBottom: "1px solid rgba(255,255,255,0.06)",
         minHeight: 70, overflow: "hidden",
       }}>
         <div style={{
-          width: 36, height: 36, minWidth: 36, background: "#1A56DB",
+          width: 40, height: 40, minWidth: 40, background: "white",
           borderRadius: 10, display: "flex", alignItems: "center", justifyContent: "center",
-          fontSize: 16, fontWeight: 800, color: "white", flexShrink: 0,
-        }}>P</div>
+          flexShrink: 0, overflow: "hidden", padding: 3,
+        }}>
+          <Image src="/logo-dinamica.png" alt="Dinâmica" width={34} height={34} style={{ objectFit: "contain" }} />
+        </div>
         {!collapsed && (
           <div style={{ overflow: "hidden", flex: 1 }}>
-            <div style={{ fontSize: 15, fontWeight: 700, color: "white", whiteSpace: "nowrap" }}>PromoterHub</div>
-            <div style={{ fontSize: 11, color: "#94a3b8", whiteSpace: "nowrap", marginTop: 2 }}>Painel de Gestão</div>
+            <div style={{ fontSize: 13, fontWeight: 700, color: "white", whiteSpace: "nowrap", lineHeight: 1.2 }}>Dinâmica</div>
+            <div style={{ fontSize: 10, color: "#94a3b8", whiteSpace: "nowrap", marginTop: 2 }}>Painel de Gestão</div>
           </div>
         )}
         <button onClick={onToggle} title={collapsed ? "Expandir" : "Recolher"} style={{

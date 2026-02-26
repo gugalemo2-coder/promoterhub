@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useAuth } from "@/lib/auth-context";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -70,10 +71,10 @@ export default function LoginPage() {
       <div className="w-full max-w-md">
         {/* Logo & Brand */}
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 bg-white/20 rounded-2xl mb-4">
-            <span className="text-white text-2xl font-bold">P</span>
+          <div className="inline-flex items-center justify-center w-20 h-20 bg-white rounded-2xl mb-4 shadow-lg">
+            <Image src="/logo-dinamica.png" alt="Dinâmica" width={64} height={64} style={{ objectFit: "contain" }} />
           </div>
-          <h1 className="text-3xl font-bold text-white">PromoterHub</h1>
+          <h1 className="text-2xl font-bold text-white">Dinâmica Corretora</h1>
           <p className="text-blue-200 mt-2 text-sm">Painel de Gestão de Promotores</p>
         </div>
 
@@ -191,7 +192,7 @@ export default function LoginPage() {
           </div>
 
           <p className="text-center text-xs text-gray-400 mt-5">
-            Dados seguros · PromoterHub v1.0
+            Dados seguros · Dinâmica Corretora v1.0
           </p>
         </div>
       </div>

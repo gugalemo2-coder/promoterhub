@@ -12,12 +12,10 @@ interface NewStoreForm {
   state: string;
   zipCode: string;
   phone: string;
-  latitude: string;
-  longitude: string;
 }
 
 const EMPTY_FORM: NewStoreForm = {
-  name: "", address: "", city: "", state: "", zipCode: "", phone: "", latitude: "", longitude: "",
+  name: "", address: "", city: "", state: "", zipCode: "", phone: "",
 };
 
 export default function StoresPage() {
@@ -45,11 +43,7 @@ export default function StoresPage() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setFormError(null);
-    const lat = parseFloat(form.latitude);
-    const lng = parseFloat(form.longitude);
     if (!form.name.trim()) { setFormError("Nome é obrigatório."); return; }
-    if (isNaN(lat) || lat < -90 || lat > 90) { setFormError("Latitude inválida (ex: -23.5505)."); return; }
-    if (isNaN(lng) || lng < -180 || lng > 180) { setFormError("Longitude inválida (ex: -46.6333)."); return; }
     createStore.mutate({
       name: form.name.trim(),
       address: form.address.trim() || undefined,
@@ -57,8 +51,6 @@ export default function StoresPage() {
       state: form.state.trim().toUpperCase().slice(0, 2) || undefined,
       zipCode: form.zipCode.trim() || undefined,
       phone: form.phone.trim() || undefined,
-      latitude: lat,
-      longitude: lng,
     });
   };
 
@@ -123,7 +115,7 @@ export default function StoresPage() {
               <th className="text-left px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">PDV</th>
               <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide hidden md:table-cell">Endereço</th>
               <th className="text-center px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide hidden lg:table-cell">Cidade / Estado</th>
-              <th className="text-center px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide hidden lg:table-cell">Coordenadas</th>
+              <th className="text-center px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide hidden lg:table-cell">Telefone</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-50">
@@ -176,13 +168,7 @@ export default function StoresPage() {
                     </span>
                   </td>
                   <td className="px-4 py-4 text-center hidden lg:table-cell">
-                    {store.latitude && store.longitude ? (
-                      <span className="text-xs text-gray-500 font-mono">
-                        {Number(store.latitude).toFixed(4)}, {Number(store.longitude).toFixed(4)}
-                      </span>
-                    ) : (
-                      <span className="text-xs text-gray-400">Não definido</span>
-                    )}
+                    <span className="text-sm text-gray-600">{(store as any).phone ?? "—"}</span>
                   </td>
                 </tr>
               ))
@@ -237,18 +223,6 @@ export default function StoresPage() {
               <div className="flex gap-3">
                 {field("zipCode", "CEP", "00000-000", "text", true)}
                 {field("phone", "Telefone", "(11) 99999-9999", "text", true)}
-              </div>
-
-              {/* Coordinates */}
-              <div className="bg-teal-50 rounded-xl p-4 space-y-3">
-                <p className="text-xs font-bold text-teal-800">📍 Coordenadas GPS *</p>
-                <p className="text-xs text-teal-600">
-                  Acesse <a href="https://maps.google.com" target="_blank" rel="noopener noreferrer" className="underline font-medium">Google Maps</a>, clique com o botão direito no local e copie as coordenadas.
-                </p>
-                <div className="flex gap-3">
-                  {field("latitude", "Latitude", "Ex: -23.5505", "text", true)}
-                  {field("longitude", "Longitude", "Ex: -46.6333", "text", true)}
-                </div>
               </div>
 
               {formError && (

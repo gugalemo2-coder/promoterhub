@@ -18,13 +18,13 @@ export const viewport: Viewport = {
 };
 
 export const metadata: Metadata = {
-  title: "PromoterHub",
+  title: "Dinâmica Corretora",
   description: "Gestão inteligente de equipe de promotores",
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
-    title: "PromoterHub",
+    title: "Dinâmica Corretora",
     startupImage: [
       {
         url: "/icons/icon-512x512.png",

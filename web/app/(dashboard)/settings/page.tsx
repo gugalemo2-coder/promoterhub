@@ -6,19 +6,15 @@ import { Settings, Save, RefreshCw } from "lucide-react";
 import { useState, useEffect } from "react";
 
 const DEFAULT_SETTINGS = {
-  geoRadiusKm: 0.5 as number,
   weightPhotos: 30,
   weightHours: 25,
   weightVisits: 25,
   weightMaterials: 10,
   weightQuality: 10,
-  notifyGeoAlert: true,
   notifyLowHours: true,
   notifyPhotoRejected: true,
   notifyMaterialRequest: true,
 };
-
-const GEO_OPTIONS = [0.1, 0.2, 0.3, 0.5, 1, 2, 5, 10];
 
 export default function SettingsPage() {
   const settingsQuery = trpc.settings.get.useQuery();
@@ -35,13 +31,11 @@ export default function SettingsPage() {
   useEffect(() => {
     if (settingsQuery.data) {
       setForm({
-        geoRadiusKm: Number(settingsQuery.data.geoRadiusKm) ?? DEFAULT_SETTINGS.geoRadiusKm,
         weightPhotos: settingsQuery.data.weightPhotos ?? DEFAULT_SETTINGS.weightPhotos,
         weightHours: settingsQuery.data.weightHours ?? DEFAULT_SETTINGS.weightHours,
         weightVisits: settingsQuery.data.weightVisits ?? DEFAULT_SETTINGS.weightVisits,
         weightMaterials: settingsQuery.data.weightMaterials ?? DEFAULT_SETTINGS.weightMaterials,
         weightQuality: settingsQuery.data.weightQuality ?? DEFAULT_SETTINGS.weightQuality,
-        notifyGeoAlert: settingsQuery.data.notifyGeoAlert ?? DEFAULT_SETTINGS.notifyGeoAlert,
         notifyLowHours: settingsQuery.data.notifyLowHours ?? DEFAULT_SETTINGS.notifyLowHours,
         notifyPhotoRejected: settingsQuery.data.notifyPhotoRejected ?? DEFAULT_SETTINGS.notifyPhotoRejected,
         notifyMaterialRequest: settingsQuery.data.notifyMaterialRequest ?? DEFAULT_SETTINGS.notifyMaterialRequest,
@@ -65,7 +59,7 @@ export default function SettingsPage() {
 
   const handleSave = () => {
     if (!weightsValid) return;
-    saveMutation.mutate({ ...form, geoRadiusKm: String(form.geoRadiusKm) });
+    saveMutation.mutate({ ...form, geoRadiusKm: "0.5" });
   };
 
   const scoreWeights = [
@@ -77,7 +71,6 @@ export default function SettingsPage() {
   ];
 
   const notifications = [
-    { key: "notifyGeoAlert" as const, label: "Alertas de Geofencing", desc: "Notificar quando promotor sair do raio do PDV" },
     { key: "notifyLowHours" as const, label: "Horas Insuficientes", desc: "Notificar quando promotor tiver poucas horas registradas" },
     { key: "notifyPhotoRejected" as const, label: "Rejeição de Fotos", desc: "Notificar quando foto for rejeitada" },
     { key: "notifyMaterialRequest" as const, label: "Solicitação de Materiais", desc: "Notificar quando promotor solicitar material" },
@@ -87,7 +80,7 @@ export default function SettingsPage() {
     <div className="p-6 max-w-3xl mx-auto">
       <PageHeader
         title="Configurações"
-        subtitle="Geofencing, score e notificações"
+        subtitle="Score e notificações"
         icon={Settings}
         iconColor="text-gray-600"
         iconBg="bg-gray-100"
@@ -107,27 +100,6 @@ export default function SettingsPage() {
         <div className="text-center py-20 text-gray-400">Carregando configurações...</div>
       ) : (
         <div className="space-y-6">
-          {/* Geofencing */}
-          <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
-            <h3 className="font-semibold text-gray-900 text-sm mb-1">Raio de Geofencing</h3>
-            <p className="text-xs text-gray-500 mb-4">Distância máxima permitida do PDV para registrar ponto</p>
-            <div className="flex flex-wrap gap-2">
-              {GEO_OPTIONS.map((opt) => (
-                <button
-                  key={opt}
-                  onClick={() => update("geoRadiusKm", opt)}
-                  className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${
-                    form.geoRadiusKm === opt
-                      ? "bg-blue-600 text-white"
-                      : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-                  }`}
-                >
-                  {opt < 1 ? `${opt * 1000}m` : `${opt}km`}
-                </button>
-              ))}
-            </div>
-          </div>
-
           {/* Score Weights */}
           <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
             <div className="flex items-center justify-between mb-1">

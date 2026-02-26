@@ -2,7 +2,7 @@
 
 import { trpc } from "@/lib/trpc";
 import { PageHeader } from "@/components/page-header";
-import { Clock, RefreshCw, ChevronLeft, ChevronRight, CheckCircle, XCircle, MapPin, Calendar } from "lucide-react";
+import { Clock, RefreshCw, ChevronLeft, ChevronRight, Calendar } from "lucide-react";
 import { useState } from "react";
 import { getMonthName } from "@/lib/utils";
 
@@ -60,13 +60,11 @@ export default function ClockPage() {
   const dailyEntries = dailyQuery.data ?? [];
   const dailyEntryCount = dailyEntries.filter((e) => e.entryType === "entry").length;
   const dailyExitCount = dailyEntries.filter((e) => e.entryType === "exit").length;
-  const dailyOutside = dailyEntries.filter((e) => !e.isWithinRadius).length;
 
   // Monthly stats
   const monthlyEntries = monthlyQuery.data ?? [];
   const monthlyEntryCount = monthlyEntries.filter((e) => e.entryType === "entry").length;
   const monthlyExitCount = monthlyEntries.filter((e) => e.entryType === "exit").length;
-  const monthlyOutside = monthlyEntries.filter((e) => !e.isWithinRadius).length;
   // Count unique days with at least one entry
   const uniqueDays = new Set(
     monthlyEntries.map((e) => new Date(e.entryTime).toDateString())
@@ -76,7 +74,6 @@ export default function ClockPage() {
   const entries = viewMode === "day" ? dailyEntries : monthlyEntries;
   const entryCount = viewMode === "day" ? dailyEntryCount : monthlyEntryCount;
   const exitCount = viewMode === "day" ? dailyExitCount : monthlyExitCount;
-  const outsideRadius = viewMode === "day" ? dailyOutside : monthlyOutside;
 
   const refetch = () => {
     if (viewMode === "day") dailyQuery.refetch();
@@ -180,7 +177,7 @@ export default function ClockPage() {
       )}
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+      <div className="grid grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
         <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4">
           <p className="text-xs text-gray-500 mb-1">Total de Registros</p>
           <p className="text-2xl font-bold text-gray-900">{entries.length}</p>
@@ -192,10 +189,6 @@ export default function ClockPage() {
         <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4">
           <p className="text-xs text-gray-500 mb-1">Saídas</p>
           <p className="text-2xl font-bold text-orange-500">{exitCount}</p>
-        </div>
-        <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4">
-          <p className="text-xs text-gray-500 mb-1">Fora do Raio</p>
-          <p className="text-2xl font-bold text-red-500">{outsideRadius}</p>
         </div>
       </div>
 
@@ -210,18 +203,16 @@ export default function ClockPage() {
               <th className="text-center px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">
                 {viewMode === "month" ? "Data e Hora" : "Horário"}
               </th>
-              <th className="text-center px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide hidden lg:table-cell">Distância</th>
-              <th className="text-center px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Raio</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-50">
             {isLoading ? (
               <tr>
-                <td colSpan={6} className="text-center py-12 text-gray-400 text-sm">Carregando...</td>
+                <td colSpan={4} className="text-center py-12 text-gray-400 text-sm">Carregando...</td>
               </tr>
             ) : entries.length === 0 ? (
               <tr>
-                <td colSpan={6} className="text-center py-12">
+                <td colSpan={4} className="text-center py-12">
                   <div className="flex flex-col items-center gap-2">
                     <Clock size={32} className="text-gray-200" />
                     <p className="text-gray-400 text-sm">
@@ -262,23 +253,6 @@ export default function ClockPage() {
                       </span>
                     ) : (
                       <span className="text-sm font-mono text-gray-900">{formatTime(entry.entryTime)}</span>
-                    )}
-                  </td>
-                  <td className="px-4 py-4 text-center hidden lg:table-cell">
-                    {entry.distanceFromStore ? (
-                      <div className="flex items-center justify-center gap-1 text-xs text-gray-500">
-                        <MapPin size={11} />
-                        {parseFloat(entry.distanceFromStore).toFixed(2)} km
-                      </div>
-                    ) : (
-                      <span className="text-xs text-gray-400">—</span>
-                    )}
-                  </td>
-                  <td className="px-4 py-4 text-center">
-                    {entry.isWithinRadius ? (
-                      <CheckCircle size={16} className="text-green-500 mx-auto" />
-                    ) : (
-                      <XCircle size={16} className="text-red-500 mx-auto" />
                     )}
                   </td>
                 </tr>

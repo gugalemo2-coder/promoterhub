@@ -4,7 +4,7 @@ import { trpc } from "@/lib/trpc";
 import { PageHeader } from "@/components/page-header";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { formatDateTime } from "@/lib/utils";
-import { Bell, RefreshCw, CheckCircle, MapPin } from "lucide-react";
+import { Bell, RefreshCw, CheckCircle } from "lucide-react";
 import { useState } from "react";
 
 export default function AlertsPage() {
@@ -32,7 +32,7 @@ export default function AlertsPage() {
   return (
     <div className="p-6 max-w-7xl mx-auto">
       <PageHeader
-        title="Alertas de Geofencing"
+        title="Alertas"
         subtitle={`${openCount} alertas abertos`}
         icon={Bell}
         iconColor="text-red-600"
@@ -85,7 +85,7 @@ export default function AlertsPage() {
               <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${
                 !alert.acknowledged ? "bg-red-50" : "bg-gray-50"
               }`}>
-                <MapPin size={18} className={!alert.acknowledged ? "text-red-500" : "text-gray-400"} />
+                <Bell size={18} className={!alert.acknowledged ? "text-red-500" : "text-gray-400"} />
               </div>
 
               <div className="flex-1 min-w-0">
@@ -96,7 +96,7 @@ export default function AlertsPage() {
                   <StatusBadge status={alert.acknowledged ? "resolved" : "open"} />
                 </div>
                 <p className="text-xs text-gray-500 mt-1">
-                  Distância: {(alert as any).distanceMeters ? `${Math.round((alert as any).distanceMeters)}m` : "—"} do PDV
+                  {alert.alertType?.replace(/_/g, " ") ?? "—"}
                 </p>
                 {(alert as any).notes && (
                   <p className="text-xs text-gray-400 mt-1 italic">"{(alert as any).notes}"</p>
