@@ -694,3 +694,6 @@
 - [x] Seleção múltipla em lote (long press ou botão no header) com aprovação/rejeição em lote
 - [x] Backend: getPhotosWithDetails (JOIN com brands, stores, appUsers)
 - [x] Backend: updateStatusBatch (aprovar/rejeitar múltiplas fotos)
+
+## Fase — Badge de Fotos Pendentes
+- [x] Badge vermelho com contador de fotos pendentes no ícone da aba Fotos (Gestor/Master)

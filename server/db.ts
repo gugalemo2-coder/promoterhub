@@ -324,6 +324,12 @@ export async function getPhotosWithDetails(filters: { userId?: number; brandId?:
     .offset(filters.offset ?? 0);
   return rows;
 }
+export async function countPendingPhotos(): Promise<number> {
+  const db = await getDb();
+  if (!db) return 0;
+  const result = await db.select({ count: sql<number>`count(*)` }).from(photos).where(eq(photos.status, "pending"));
+  return Number(result[0]?.count ?? 0);
+}
 export async function updatePhoto(id: number, data: Partial<InsertPhoto>): Promise<void> {
   const db = await getDb();
   if (!db) throw new Error("Database not available");

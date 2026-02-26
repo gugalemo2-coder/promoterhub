@@ -101,6 +101,7 @@ export const appRouter = router({
     updateStatus: protectedProcedure.input(z.object({ id: z.number(), status: z.enum(["pending", "approved", "rejected"]), qualityRating: z.number().min(1).max(5).optional(), managerNotes: z.string().optional() })).mutation(({ input }) => db.updatePhoto(input.id, { status: input.status, qualityRating: input.qualityRating, managerNotes: input.managerNotes })),
     updateStatusBatch: protectedProcedure.input(z.object({ ids: z.array(z.number()), status: z.enum(["pending", "approved", "rejected"]) })).mutation(async ({ input }) => { await Promise.all(input.ids.map((id) => db.updatePhoto(id, { status: input.status }))); return { success: true, count: input.ids.length }; }),
     listAllWithDetails: protectedProcedure.input(z.object({ brandId: z.number().optional(), storeId: z.number().optional(), userId: z.number().optional(), startDate: z.string().optional(), endDate: z.string().optional(), status: z.enum(["pending", "approved", "rejected"]).optional(), limit: z.number().default(100), offset: z.number().default(0) })).query(({ input }) => db.getPhotosWithDetails({ ...input, startDate: input.startDate ? new Date(input.startDate) : undefined, endDate: input.endDate ? new Date(input.endDate) : undefined })),
+    countPending: protectedProcedure.query(() => db.countPendingPhotos()),
   }),
   materials: router({
     list: protectedProcedure.input(z.object({ brandId: z.number().optional() })).query(({ input }) => db.getMaterials(input.brandId)),
