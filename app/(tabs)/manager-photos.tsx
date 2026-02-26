@@ -5,6 +5,7 @@ import { useCallback, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  Animated,
   Dimensions,
   FlatList,
   Modal,
@@ -15,12 +16,19 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { Gesture, GestureDetector } from "react-native-gesture-handler";
+import Reanimated, {
+  useAnimatedStyle,
+  useSharedValue,
+  withTiming,
+  runOnJS,
+} from "react-native-reanimated";
 import { ScreenContainer } from "@/components/screen-container";
 import { useColors } from "@/hooks/use-colors";
 import { useRole } from "@/lib/role-context";
 import { trpc } from "@/lib/trpc";
 
-const { width: SCREEN_WIDTH } = Dimensions.get("window");
+const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
 const PHOTO_SIZE = (SCREEN_WIDTH - 48 - 8) / 3;
 
 type FilterType = "brand" | "store" | "promoter" | "date" | "status";
@@ -34,8 +42,61 @@ type PhotoItem = {
   brandId?: number | null;
   storeId?: number | null;
   userId?: number | null;
+  brandName?: string | null;
+  storeName?: string | null;
+  userName?: string | null;
 };
 
+// ─── Zoomable Image Component ─────────────────────────────────────────────────
+function ZoomableImage({ uri }: { uri: string }) {
+  const scale = useSharedValue(1);
+  const savedScale = useSharedValue(1);
+
+  const pinchGesture = Gesture.Pinch()
+    .onUpdate((e) => {
+      scale.value = Math.min(Math.max(savedScale.value * e.scale, 1), 4);
+    })
+    .onEnd(() => {
+      if (scale.value < 1.05) {
+        scale.value = withTiming(1, { duration: 200 });
+        savedScale.value = 1;
+      } else {
+        savedScale.value = scale.value;
+      }
+    });
+
+  const doubleTapGesture = Gesture.Tap()
+    .numberOfTaps(2)
+    .onEnd(() => {
+      if (scale.value > 1.1) {
+        scale.value = withTiming(1, { duration: 200 });
+        savedScale.value = 1;
+      } else {
+        scale.value = withTiming(2.5, { duration: 200 });
+        savedScale.value = 2.5;
+      }
+    });
+
+  const composed = Gesture.Simultaneous(pinchGesture, doubleTapGesture);
+
+  const animatedStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: scale.value }],
+  }));
+
+  return (
+    <GestureDetector gesture={composed}>
+      <Reanimated.View style={[styles.previewImage, animatedStyle]}>
+        <Image
+          source={{ uri }}
+          style={{ width: "100%", height: "100%" }}
+          contentFit="contain"
+        />
+      </Reanimated.View>
+    </GestureDetector>
+  );
+}
+
+// ─── Main Screen ──────────────────────────────────────────────────────────────
 export default function ManagerPhotosScreen() {
   const colors = useColors();
   const router = useRouter();
@@ -51,11 +112,17 @@ export default function ManagerPhotosScreen() {
   const [selectedStatus, setSelectedStatus] = useState<PhotoStatus | undefined>();
   const [activeFilter, setActiveFilter] = useState<FilterType | null>(null);
 
-  // Selected photo for preview + approval
+  // Preview modal state
   const [previewVisible, setPreviewVisible] = useState(false);
   const [previewIndex, setPreviewIndex] = useState<number>(0);
   const [approving, setApproving] = useState(false);
+  const [showInfo, setShowInfo] = useState(false);
   const previewFlatListRef = useRef<FlatList<PhotoItem>>(null);
+
+  // Batch selection state
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+  const [batchProcessing, setBatchProcessing] = useState(false);
 
   // Data
   const { data: brands } = trpc.brands.list.useQuery();
@@ -65,7 +132,7 @@ export default function ManagerPhotosScreen() {
   const startDate = selectedDate ? `${selectedDate}T00:00:00.000Z` : undefined;
   const endDate = selectedDate ? `${selectedDate}T23:59:59.999Z` : undefined;
 
-  const { data: photos, isLoading, refetch } = trpc.photos.listAll.useQuery({
+  const { data: photos, isLoading, refetch } = trpc.photos.listAllWithDetails.useQuery({
     brandId: selectedBrandId,
     storeId: selectedStoreId,
     userId: selectedUserId,
@@ -76,6 +143,7 @@ export default function ManagerPhotosScreen() {
   });
 
   const updateStatusMutation = trpc.photos.updateStatus.useMutation();
+  const updateStatusBatchMutation = trpc.photos.updateStatusBatch.useMutation();
 
   // Sort: if date filter active → chronological; otherwise newest first
   const sortedPhotos = useMemo((): PhotoItem[] => {
@@ -92,11 +160,13 @@ export default function ManagerPhotosScreen() {
 
   const openPhoto = useCallback((index: number) => {
     setPreviewIndex(index);
+    setShowInfo(false);
     setPreviewVisible(true);
   }, []);
 
   const closePreview = useCallback(() => {
     setPreviewVisible(false);
+    setShowInfo(false);
   }, []);
 
   const clearFilters = useCallback(() => {
@@ -108,6 +178,48 @@ export default function ManagerPhotosScreen() {
   }, []);
 
   const hasFilters = selectedBrandId || selectedStoreId || selectedUserId || selectedDate || selectedStatus;
+
+  const toggleSelection = useCallback((id: number) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }, []);
+
+  const exitSelectionMode = useCallback(() => {
+    setSelectionMode(false);
+    setSelectedIds(new Set());
+  }, []);
+
+  const handleBatchAction = async (status: PhotoStatus) => {
+    if (selectedIds.size === 0) return;
+    const label = status === "approved" ? "aprovar" : "rejeitar";
+    Alert.alert(
+      "Confirmar",
+      `Deseja ${label} ${selectedIds.size} foto${selectedIds.size > 1 ? "s" : ""}?`,
+      [
+        { text: "Cancelar", style: "cancel" },
+        {
+          text: status === "approved" ? "Aprovar" : "Rejeitar",
+          style: status === "rejected" ? "destructive" : "default",
+          onPress: async () => {
+            setBatchProcessing(true);
+            try {
+              await updateStatusBatchMutation.mutateAsync({ ids: Array.from(selectedIds), status });
+              await refetch();
+              exitSelectionMode();
+            } catch {
+              Alert.alert("Erro", "Não foi possível processar as fotos.");
+            } finally {
+              setBatchProcessing(false);
+            }
+          },
+        },
+      ]
+    );
+  };
 
   const getStatusLabel = (s?: PhotoStatus) => {
     if (s === "approved") return "Aprovadas";
@@ -151,9 +263,10 @@ export default function ManagerPhotosScreen() {
     }
   };
 
-  const formatDate = (iso: string) => {
-    const d = new Date(iso);
-    return `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}/${d.getFullYear()}`;
+  const formatDate = (iso: string | Date | null) => {
+    if (!iso) return "—";
+    const d = new Date(iso as string);
+    return `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}/${d.getFullYear()} ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
   };
 
   const renderFilterChip = (label: string, type: FilterType, active: boolean) => (
@@ -185,7 +298,7 @@ export default function ManagerPhotosScreen() {
       ];
       return (
         <View style={[styles.dropdown, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-          <ScrollView style={styles.dropdownScroll} showsVerticalScrollIndicator={true} nestedScrollEnabled>
+          <ScrollView style={styles.dropdownScroll} showsVerticalScrollIndicator nestedScrollEnabled>
             <TouchableOpacity
               style={[styles.dropdownItem, { borderBottomColor: colors.border }]}
               onPress={() => { setSelectedStatus(undefined); setActiveFilter(null); }}
@@ -225,29 +338,32 @@ export default function ManagerPhotosScreen() {
       });
       return (
         <View style={[styles.dropdown, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-          <ScrollView style={styles.dropdownScroll} showsVerticalScrollIndicator={true} nestedScrollEnabled>
+          <ScrollView style={styles.dropdownScroll} showsVerticalScrollIndicator nestedScrollEnabled>
             <TouchableOpacity
               style={[styles.dropdownItem, { borderBottomColor: colors.border }]}
               onPress={() => { setSelectedDate(undefined); setActiveFilter(null); }}
             >
               <Text style={[styles.dropdownItemText, { color: colors.muted }]}>Todas as datas</Text>
             </TouchableOpacity>
-            {dates.map((d) => (
-              <TouchableOpacity
-                key={d}
-                style={[
-                  styles.dropdownItem,
-                  { borderBottomColor: colors.border },
-                  selectedDate === d && { backgroundColor: accentColor + "15" },
-                ]}
-                onPress={() => { setSelectedDate(d); setActiveFilter(null); }}
-              >
-                <Text style={[styles.dropdownItemText, { color: selectedDate === d ? accentColor : colors.foreground }]}>
-                  {formatDate(d + "T00:00:00")}
-                </Text>
-                {selectedDate === d && <Ionicons name="checkmark" size={16} color={accentColor} />}
-              </TouchableOpacity>
-            ))}
+            {dates.map((d) => {
+              const label = formatDate(d + "T00:00:00").split(" ")[0];
+              return (
+                <TouchableOpacity
+                  key={d}
+                  style={[
+                    styles.dropdownItem,
+                    { borderBottomColor: colors.border },
+                    selectedDate === d && { backgroundColor: accentColor + "15" },
+                  ]}
+                  onPress={() => { setSelectedDate(d); setActiveFilter(null); }}
+                >
+                  <Text style={[styles.dropdownItemText, { color: selectedDate === d ? accentColor : colors.foreground }]}>
+                    {label}
+                  </Text>
+                  {selectedDate === d && <Ionicons name="checkmark" size={16} color={accentColor} />}
+                </TouchableOpacity>
+              );
+            })}
           </ScrollView>
         </View>
       );
@@ -278,7 +394,7 @@ export default function ManagerPhotosScreen() {
 
     return (
       <View style={[styles.dropdown, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-        <ScrollView style={styles.dropdownScroll} showsVerticalScrollIndicator={true} nestedScrollEnabled>
+        <ScrollView style={styles.dropdownScroll} showsVerticalScrollIndicator nestedScrollEnabled>
           <TouchableOpacity
             style={[styles.dropdownItem, { borderBottomColor: colors.border }]}
             onPress={() => onSelect(undefined)}
@@ -322,31 +438,67 @@ export default function ManagerPhotosScreen() {
             {isLoading ? "Carregando..." : `${sortedPhotos.length} foto${sortedPhotos.length !== 1 ? "s" : ""}`}
           </Text>
         </View>
-        {hasFilters && (
-          <TouchableOpacity style={styles.clearBtn} onPress={clearFilters}>
+        {/* Batch select toggle */}
+        {!selectionMode ? (
+          <TouchableOpacity
+            style={[styles.batchBtn, { borderColor: accentColor }]}
+            onPress={() => setSelectionMode(true)}
+          >
+            <Ionicons name="checkmark-done-outline" size={18} color={accentColor} />
+          </TouchableOpacity>
+        ) : (
+          <TouchableOpacity style={styles.clearBtn} onPress={exitSelectionMode}>
             <Ionicons name="close-circle" size={22} color={colors.error} />
+          </TouchableOpacity>
+        )}
+        {hasFilters && !selectionMode && (
+          <TouchableOpacity style={styles.clearBtn} onPress={clearFilters}>
+            <Ionicons name="funnel-outline" size={20} color={colors.error} />
           </TouchableOpacity>
         )}
       </View>
 
-      {/* Filter bar */}
-      <View style={[styles.filterBar, { borderBottomColor: colors.border, backgroundColor: colors.background }]}>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterScroll}>
-          {renderFilterChip(getBrandName(selectedBrandId), "brand", !!selectedBrandId)}
-          {renderFilterChip(getStoreName(selectedStoreId), "store", !!selectedStoreId)}
-          {renderFilterChip(getPromoterName(selectedUserId), "promoter", !!selectedUserId)}
-          {renderFilterChip(
-            selectedDate ? formatDate(selectedDate + "T00:00:00") : "Data",
-            "date",
-            !!selectedDate
-          )}
-          {renderFilterChip(
-            getStatusLabel(selectedStatus),
-            "status",
-            !!selectedStatus
-          )}
-        </ScrollView>
-      </View>
+      {/* Batch action bar */}
+      {selectionMode && (
+        <View style={[styles.batchBar, { backgroundColor: colors.surface, borderBottomColor: colors.border }]}>
+          <Text style={[styles.batchBarText, { color: colors.foreground }]}>
+            {selectedIds.size === 0 ? "Toque para selecionar" : `${selectedIds.size} selecionada${selectedIds.size > 1 ? "s" : ""}`}
+          </Text>
+          <View style={{ flexDirection: "row", gap: 8 }}>
+            <TouchableOpacity
+              style={[styles.batchActionBtn, { backgroundColor: "#E02424", opacity: selectedIds.size === 0 || batchProcessing ? 0.4 : 1 }]}
+              onPress={() => handleBatchAction("rejected")}
+              disabled={selectedIds.size === 0 || batchProcessing}
+            >
+              {batchProcessing ? <ActivityIndicator size="small" color="#fff" /> : <Text style={styles.batchActionText}>Rejeitar</Text>}
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.batchActionBtn, { backgroundColor: "#0E9F6E", opacity: selectedIds.size === 0 || batchProcessing ? 0.4 : 1 }]}
+              onPress={() => handleBatchAction("approved")}
+              disabled={selectedIds.size === 0 || batchProcessing}
+            >
+              {batchProcessing ? <ActivityIndicator size="small" color="#fff" /> : <Text style={styles.batchActionText}>Aprovar</Text>}
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
+
+      {/* Filter bar (hidden in selection mode) */}
+      {!selectionMode && (
+        <View style={[styles.filterBar, { borderBottomColor: colors.border, backgroundColor: colors.background }]}>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterScroll}>
+            {renderFilterChip(getBrandName(selectedBrandId), "brand", !!selectedBrandId)}
+            {renderFilterChip(getStoreName(selectedStoreId), "store", !!selectedStoreId)}
+            {renderFilterChip(getPromoterName(selectedUserId), "promoter", !!selectedUserId)}
+            {renderFilterChip(
+              selectedDate ? formatDate(selectedDate + "T00:00:00").split(" ")[0] : "Data",
+              "date",
+              !!selectedDate
+            )}
+            {renderFilterChip(getStatusLabel(selectedStatus), "status", !!selectedStatus)}
+          </ScrollView>
+        </View>
+      )}
 
       {/* Dropdown overlay */}
       {activeFilter && (
@@ -376,39 +528,65 @@ export default function ManagerPhotosScreen() {
           numColumns={3}
           contentContainerStyle={styles.grid}
           columnWrapperStyle={styles.row}
-          renderItem={({ item, index }) => (
-            <TouchableOpacity
-              style={[styles.photoCell, { width: PHOTO_SIZE, height: PHOTO_SIZE }]}
-              onPress={() => openPhoto(index)}
-              activeOpacity={0.85}
-            >
-              <Image
-                source={{ uri: item.photoUrl }}
-                style={styles.photoImage}
-                contentFit="cover"
-                transition={200}
-              />
-              {item.status === "approved" && (
-                <View style={[styles.statusBadge, { backgroundColor: "#0E9F6E" }]}>
-                  <Ionicons name="checkmark" size={10} color="#fff" />
-                </View>
-              )}
-              {item.status === "rejected" && (
-                <View style={[styles.statusBadge, { backgroundColor: "#E02424" }]}>
-                  <Ionicons name="close" size={10} color="#fff" />
-                </View>
-              )}
-              {(!item.status || item.status === "pending") && (
-                <View style={[styles.statusBadge, { backgroundColor: "#F59E0B" }]}>
-                  <Ionicons name="time" size={10} color="#fff" />
-                </View>
-              )}
-            </TouchableOpacity>
-          )}
+          renderItem={({ item, index }) => {
+            const isSelected = selectedIds.has(item.id);
+            return (
+              <TouchableOpacity
+                style={[
+                  styles.photoCell,
+                  { width: PHOTO_SIZE, height: PHOTO_SIZE },
+                  isSelected && styles.photoCellSelected,
+                ]}
+                onPress={() => {
+                  if (selectionMode) {
+                    toggleSelection(item.id);
+                  } else {
+                    openPhoto(index);
+                  }
+                }}
+                onLongPress={() => {
+                  if (!selectionMode) {
+                    setSelectionMode(true);
+                    setSelectedIds(new Set([item.id]));
+                  }
+                }}
+                activeOpacity={0.85}
+              >
+                <Image
+                  source={{ uri: item.photoUrl }}
+                  style={styles.photoImage}
+                  contentFit="cover"
+                  transition={200}
+                />
+                {/* Status badge */}
+                {item.status === "approved" && (
+                  <View style={[styles.statusBadge, { backgroundColor: "#0E9F6E" }]}>
+                    <Ionicons name="checkmark" size={10} color="#fff" />
+                  </View>
+                )}
+                {item.status === "rejected" && (
+                  <View style={[styles.statusBadge, { backgroundColor: "#E02424" }]}>
+                    <Ionicons name="close" size={10} color="#fff" />
+                  </View>
+                )}
+                {(!item.status || item.status === "pending") && (
+                  <View style={[styles.statusBadge, { backgroundColor: "#F59E0B" }]}>
+                    <Ionicons name="time" size={10} color="#fff" />
+                  </View>
+                )}
+                {/* Selection overlay */}
+                {selectionMode && (
+                  <View style={[styles.selectionOverlay, isSelected && styles.selectionOverlayActive]}>
+                    {isSelected && <Ionicons name="checkmark-circle" size={28} color="#fff" />}
+                  </View>
+                )}
+              </TouchableOpacity>
+            );
+          }}
         />
       )}
 
-      {/* Photo Preview Modal with Swipe + Approve/Reject */}
+      {/* Photo Preview Modal with Swipe + Zoom + Info Panel + Approve/Reject */}
       <Modal visible={previewVisible} transparent animationType="fade" onRequestClose={closePreview}>
         <View style={styles.previewOverlay}>
           {/* Close button */}
@@ -423,7 +601,15 @@ export default function ManagerPhotosScreen() {
             </Text>
           </View>
 
-          {/* Status badge for current photo */}
+          {/* Info toggle button */}
+          <TouchableOpacity
+            style={styles.infoToggleBtn}
+            onPress={() => setShowInfo((v) => !v)}
+          >
+            <Ionicons name={showInfo ? "information-circle" : "information-circle-outline"} size={28} color="#fff" />
+          </TouchableOpacity>
+
+          {/* Status badge */}
           {currentStatus && (
             <View style={[
               styles.previewStatusBadge,
@@ -440,7 +626,7 @@ export default function ManagerPhotosScreen() {
             </View>
           )}
 
-          {/* Swipeable photo list */}
+          {/* Swipeable photo list with zoom */}
           <FlatList
             ref={previewFlatListRef}
             data={sortedPhotos}
@@ -458,15 +644,12 @@ export default function ManagerPhotosScreen() {
               const newIndex = Math.round(e.nativeEvent.contentOffset.x / SCREEN_WIDTH);
               if (newIndex >= 0 && newIndex < sortedPhotos.length) {
                 setPreviewIndex(newIndex);
+                setShowInfo(false);
               }
             }}
             renderItem={({ item }) => (
-              <View style={{ width: SCREEN_WIDTH, alignItems: "center", justifyContent: "center" }}>
-                <Image
-                  source={{ uri: item.photoUrl }}
-                  style={styles.previewImage}
-                  contentFit="contain"
-                />
+              <View style={{ width: SCREEN_WIDTH, height: SCREEN_HEIGHT * 0.65, alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
+                <ZoomableImage uri={item.photoUrl} />
               </View>
             )}
             style={{ width: SCREEN_WIDTH }}
@@ -480,6 +663,7 @@ export default function ManagerPhotosScreen() {
                 const newIdx = previewIndex - 1;
                 previewFlatListRef.current?.scrollToIndex({ index: newIdx, animated: true });
                 setPreviewIndex(newIdx);
+                setShowInfo(false);
               }}
             >
               <Ionicons name="chevron-back" size={32} color="rgba(255,255,255,0.85)" />
@@ -492,10 +676,33 @@ export default function ManagerPhotosScreen() {
                 const newIdx = previewIndex + 1;
                 previewFlatListRef.current?.scrollToIndex({ index: newIdx, animated: true });
                 setPreviewIndex(newIdx);
+                setShowInfo(false);
               }}
             >
               <Ionicons name="chevron-forward" size={32} color="rgba(255,255,255,0.85)" />
             </TouchableOpacity>
+          )}
+
+          {/* Info panel (toggle) */}
+          {showInfo && currentPhoto && (
+            <View style={styles.infoPanel}>
+              <View style={styles.infoRow}>
+                <Ionicons name="person-outline" size={16} color="#ccc" />
+                <Text style={styles.infoText}>{currentPhoto.userName ?? "—"}</Text>
+              </View>
+              <View style={styles.infoRow}>
+                <Ionicons name="storefront-outline" size={16} color="#ccc" />
+                <Text style={styles.infoText}>{currentPhoto.storeName ?? "—"}</Text>
+              </View>
+              <View style={styles.infoRow}>
+                <Ionicons name="pricetag-outline" size={16} color="#ccc" />
+                <Text style={styles.infoText}>{currentPhoto.brandName ?? "—"}</Text>
+              </View>
+              <View style={styles.infoRow}>
+                <Ionicons name="calendar-outline" size={16} color="#ccc" />
+                <Text style={styles.infoText}>{formatDate(currentPhoto.photoTimestamp)}</Text>
+              </View>
+            </View>
           )}
 
           {/* Action buttons */}
@@ -561,6 +768,27 @@ const styles = StyleSheet.create({
   headerTitle: { fontSize: 18, fontWeight: "700" },
   headerCount: { fontSize: 13, marginTop: 1 },
   clearBtn: { padding: 4 },
+  batchBtn: {
+    padding: 6,
+    borderRadius: 8,
+    borderWidth: 1,
+  },
+  batchBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderBottomWidth: 0.5,
+    gap: 12,
+  },
+  batchBarText: { fontSize: 14, fontWeight: "500", flex: 1 },
+  batchActionBtn: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 8,
+  },
+  batchActionText: { color: "#fff", fontSize: 14, fontWeight: "600" },
   filterBar: { borderBottomWidth: 0.5 },
   filterScroll: { paddingHorizontal: 16, paddingVertical: 10, gap: 8, flexDirection: "row" },
   filterChip: {
@@ -610,6 +838,11 @@ const styles = StyleSheet.create({
   grid: { padding: 16, gap: 4 },
   row: { gap: 4 },
   photoCell: { borderRadius: 8, overflow: "hidden" },
+  photoCellSelected: {
+    borderWidth: 3,
+    borderColor: "#7C3AED",
+    borderRadius: 8,
+  },
   photoImage: { width: "100%", height: "100%" },
   statusBadge: {
     position: "absolute",
@@ -621,6 +854,19 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
+  selectionOverlay: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: "rgba(0,0,0,0.25)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  selectionOverlayActive: {
+    backgroundColor: "rgba(124,58,237,0.45)",
+  },
   previewOverlay: {
     flex: 1,
     backgroundColor: "rgba(0,0,0,0.95)",
@@ -629,7 +875,7 @@ const styles = StyleSheet.create({
   },
   previewImage: {
     width: SCREEN_WIDTH,
-    height: SCREEN_WIDTH * 1.2,
+    height: SCREEN_HEIGHT * 0.65,
   },
   previewClose: {
     position: "absolute",
@@ -652,9 +898,15 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "600",
   },
+  infoToggleBtn: {
+    position: "absolute",
+    top: 50,
+    left: 16,
+    zIndex: 20,
+  },
   previewStatusBadge: {
     position: "absolute",
-    top: 54,
+    top: 96,
     left: 16,
     flexDirection: "row",
     alignItems: "center",
@@ -668,8 +920,8 @@ const styles = StyleSheet.create({
   navArrowLeft: {
     position: "absolute",
     left: 8,
-    top: "50%",
-    marginTop: -24,
+    top: "45%",
+    marginTop: -22,
     width: 44,
     height: 44,
     alignItems: "center",
@@ -681,8 +933,8 @@ const styles = StyleSheet.create({
   navArrowRight: {
     position: "absolute",
     right: 8,
-    top: "50%",
-    marginTop: -24,
+    top: "45%",
+    marginTop: -22,
     width: 44,
     height: 44,
     alignItems: "center",
@@ -690,6 +942,28 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(0,0,0,0.35)",
     borderRadius: 22,
     zIndex: 20,
+  },
+  infoPanel: {
+    position: "absolute",
+    bottom: 130,
+    left: 16,
+    right: 16,
+    backgroundColor: "rgba(0,0,0,0.75)",
+    borderRadius: 16,
+    padding: 16,
+    gap: 10,
+    zIndex: 20,
+  },
+  infoRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  infoText: {
+    color: "#fff",
+    fontSize: 14,
+    fontWeight: "500",
+    flex: 1,
   },
   previewActions: {
     position: "absolute",
@@ -712,21 +986,9 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     maxWidth: 180,
   },
-  rejectBtn: {
-    backgroundColor: "#E02424",
-  },
-  approveBtn: {
-    backgroundColor: "#0E9F6E",
-  },
-  actionBtnActive: {
-    opacity: 0.5,
-  },
-  actionBtnDisabled: {
-    opacity: 0.6,
-  },
-  actionBtnText: {
-    color: "#fff",
-    fontSize: 16,
-    fontWeight: "700",
-  },
+  rejectBtn: { backgroundColor: "#E02424" },
+  approveBtn: { backgroundColor: "#0E9F6E" },
+  actionBtnActive: { opacity: 0.5 },
+  actionBtnDisabled: { opacity: 0.6 },
+  actionBtnText: { color: "#fff", fontSize: 16, fontWeight: "700" },
 });

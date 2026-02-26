@@ -281,6 +281,49 @@ export async function getPhotos(filters: { userId?: number; brandId?: number; st
   return db.select().from(photos).where(conditions.length > 0 ? and(...conditions) : undefined).orderBy(desc(photos.photoTimestamp)).limit(filters.limit ?? 50).offset(filters.offset ?? 0);
 }
 
+export async function getPhotosWithDetails(filters: { userId?: number; brandId?: number; storeId?: number; startDate?: Date; endDate?: Date; status?: "pending" | "approved" | "rejected"; limit?: number; offset?: number; }): Promise<Array<Photo & { brandName: string | null; storeName: string | null; userName: string | null }>> {
+  const db = await getDb();
+  if (!db) return [];
+  const conditions = [];
+  if (filters.userId) conditions.push(eq(photos.userId, filters.userId));
+  if (filters.brandId) conditions.push(eq(photos.brandId, filters.brandId));
+  if (filters.storeId) conditions.push(eq(photos.storeId, filters.storeId));
+  if (filters.startDate) conditions.push(gte(photos.photoTimestamp, filters.startDate));
+  if (filters.endDate) conditions.push(lte(photos.photoTimestamp, filters.endDate));
+  if (filters.status) conditions.push(eq(photos.status, filters.status));
+  const rows = await db
+    .select({
+      id: photos.id,
+      userId: photos.userId,
+      brandId: photos.brandId,
+      storeId: photos.storeId,
+      photoUrl: photos.photoUrl,
+      thumbnailUrl: photos.thumbnailUrl,
+      latitude: photos.latitude,
+      longitude: photos.longitude,
+      photoTimestamp: photos.photoTimestamp,
+      fileSize: photos.fileSize,
+      fileType: photos.fileType,
+      description: photos.description,
+      qualityRating: photos.qualityRating,
+      status: photos.status,
+      managerNotes: photos.managerNotes,
+      createdAt: photos.createdAt,
+      updatedAt: photos.updatedAt,
+      brandName: brands.name,
+      storeName: stores.name,
+      userName: appUsers.name,
+    })
+    .from(photos)
+    .leftJoin(brands, eq(photos.brandId, brands.id))
+    .leftJoin(stores, eq(photos.storeId, stores.id))
+    .leftJoin(appUsers, eq(photos.userId, appUsers.id))
+    .where(conditions.length > 0 ? and(...conditions) : undefined)
+    .orderBy(desc(photos.photoTimestamp))
+    .limit(filters.limit ?? 50)
+    .offset(filters.offset ?? 0);
+  return rows;
+}
 export async function updatePhoto(id: number, data: Partial<InsertPhoto>): Promise<void> {
   const db = await getDb();
   if (!db) throw new Error("Database not available");

@@ -681,3 +681,16 @@
 - [x] Implementar navegação por swipe horizontal entre fotos no modal de preview (manager-photos.tsx)
 - [x] Exibir indicador de posição (ex: "3 / 12") no topo do modal
 - [x] Manter botões Aprovar/Rejeitar na parte inferior durante a navegação
+
+## Fase — Melhorias no Modal de Fotos
+- [ ] Zoom com pinch (dois dedos) na foto aberta no modal
+- [ ] Painel de informações (promotor, loja, data, marca) que aparece/some ao tocar na foto
+- [ ] Modo de seleção múltipla na grade de fotos com aprovação/rejeição em lote
+
+## Fase — Melhorias no Modal de Fotos (Gestor/Master)
+- [x] Zoom com pinch (dois dedos) e double-tap para ampliar/reduzir foto no modal
+- [x] Painel de informações toggle (toque no botão "i") com promotor, loja, marca e data
+- [x] Painel some ao navegar para outra foto
+- [x] Seleção múltipla em lote (long press ou botão no header) com aprovação/rejeição em lote
+- [x] Backend: getPhotosWithDetails (JOIN com brands, stores, appUsers)
+- [x] Backend: updateStatusBatch (aprovar/rejeitar múltiplas fotos)
