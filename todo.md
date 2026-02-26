@@ -808,3 +808,11 @@
 - [x] Adicionar coluna "Méd. Diária (h)" ao relatório PDF de ranking mensal
 - [x] Adicionar coluna "Méd. Diária (h)" ao relatório Excel/CSV de ranking mensal
 - [x] Incluir "Dias Úteis Trabalhados" como coluna adicional nos relatórios
+
+## Fase 26 — Correções Pré-Publicação
+
+- [x] Corrigir "Uncaught Error" ao aprovar/recusar solicitação de material
+- [x] Corrigir exclusão de materiais (bug persistente)
+- [x] Corrigir exclusão de arquivos (bug persistente)
+- [x] Limpar registros de fotos do banco de dados antes da publicação
+- [x] Limpar registros de ponto do banco de dados antes da publicação

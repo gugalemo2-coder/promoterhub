@@ -9,11 +9,11 @@ import {
   Alert,
   FlatList,
   Modal,
-  Pressable,
   ScrollView,
   StyleSheet,
   Text,
   TextInput,
+  TouchableOpacity,
   View,
 } from "react-native";
 
@@ -35,6 +35,18 @@ export default function MaterialsScreen() {
   const [newMaterialDesc, setNewMaterialDesc] = useState("");
   const [newMaterialQty, setNewMaterialQty] = useState("0");
   const [newMaterialBrandId, setNewMaterialBrandId] = useState<number | null>(null);
+
+  // Reject modal state (replaces Alert.prompt which doesn't work on web)
+  const [showRejectModal, setShowRejectModal] = useState(false);
+  const [rejectTargetId, setRejectTargetId] = useState<number | null>(null);
+  const [rejectReason, setRejectReason] = useState("");
+  const [rejectLoading, setRejectLoading] = useState(false);
+
+  // Delete confirm modal state
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deleteTargetId, setDeleteTargetId] = useState<number | null>(null);
+  const [deleteTargetName, setDeleteTargetName] = useState("");
+  const [deleteLoading, setDeleteLoading] = useState(false);
 
   const { data: materials, refetch: refetchMaterials } = trpc.materials.list.useQuery({});
   const { data: brands } = trpc.brands.list.useQuery();
@@ -80,7 +92,7 @@ export default function MaterialsScreen() {
       setShowRequestModal(false);
       Alert.alert("Solicitação enviada!", "Sua solicitação foi enviada ao gestor.");
       refetchMyRequests();
-    } catch (err) {
+    } catch {
       Alert.alert("Erro", "Não foi possível enviar a solicitação.");
     }
   };
@@ -89,21 +101,36 @@ export default function MaterialsScreen() {
     try {
       await approveMutation.mutateAsync({ id });
       refetchAllRequests();
-    } catch (err) {
+    } catch {
       Alert.alert("Erro", "Não foi possível aprovar.");
     }
   };
 
-  const handleReject = async (id: number) => {
-    Alert.prompt("Motivo da recusa", "Informe o motivo:", async (reason) => {
-      if (!reason) return;
-      try {
-        await rejectMutation.mutateAsync({ id, rejectionReason: reason });
-        refetchAllRequests();
-      } catch (err) {
-        Alert.alert("Erro", "Não foi possível recusar.");
-      }
-    });
+  // Opens the custom reject modal (replaces Alert.prompt)
+  const handleReject = (id: number) => {
+    setRejectTargetId(id);
+    setRejectReason("");
+    setShowRejectModal(true);
+  };
+
+  const handleConfirmReject = async () => {
+    if (!rejectTargetId) return;
+    if (!rejectReason.trim()) {
+      Alert.alert("Motivo obrigatório", "Informe o motivo da recusa.");
+      return;
+    }
+    setRejectLoading(true);
+    try {
+      await rejectMutation.mutateAsync({ id: rejectTargetId, rejectionReason: rejectReason.trim() });
+      setShowRejectModal(false);
+      setRejectTargetId(null);
+      setRejectReason("");
+      refetchAllRequests();
+    } catch {
+      Alert.alert("Erro", "Não foi possível recusar a solicitação.");
+    } finally {
+      setRejectLoading(false);
+    }
   };
 
   const handleDeliver = async (id: number) => {
@@ -111,7 +138,7 @@ export default function MaterialsScreen() {
       await deliverMutation.mutateAsync({ id });
       refetchAllRequests();
       Alert.alert("Entregue!", "Material marcado como entregue.");
-    } catch (err) {
+    } catch {
       Alert.alert("Erro", "Não foi possível marcar como entregue.");
     }
   };
@@ -139,32 +166,32 @@ export default function MaterialsScreen() {
       setNewMaterialBrandId(null);
       refetchMaterials();
       Alert.alert("Material criado!", "Material adicionado ao catálogo.");
-    } catch (err) {
+    } catch {
       Alert.alert("Erro", "Não foi possível criar o material.");
     }
   };
 
+  // Opens the custom delete confirm modal
   const handleDeleteMaterial = (id: number, name: string) => {
-    Alert.alert(
-      "Excluir material",
-      `Deseja excluir "${name}"? Os promotores não poderão mais visualizá-lo.`,
-      [
-        { text: "Cancelar", style: "cancel" },
-        {
-          text: "Excluir",
-          style: "destructive",
-          onPress: async () => {
-            try {
-              await deleteMaterialMutation.mutateAsync({ id });
-              refetchMaterials();
-            } catch (err: any) {
-              const msg = err?.message ?? "Não foi possível excluir o material.";
-              Alert.alert("Erro", msg);
-            }
-          },
-        },
-      ]
-    );
+    setDeleteTargetId(id);
+    setDeleteTargetName(name);
+    setShowDeleteModal(true);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!deleteTargetId) return;
+    setDeleteLoading(true);
+    try {
+      await deleteMaterialMutation.mutateAsync({ id: deleteTargetId });
+      setShowDeleteModal(false);
+      setDeleteTargetId(null);
+      setDeleteTargetName("");
+      refetchMaterials();
+    } catch (err: any) {
+      Alert.alert("Erro", err?.message ?? "Não foi possível excluir o material.");
+    } finally {
+      setDeleteLoading(false);
+    }
   };
 
   const priorityColor = (p: string) => {
@@ -190,27 +217,29 @@ export default function MaterialsScreen() {
       <View style={[styles.header, { backgroundColor: colors.primary }]}>
         <Text style={styles.headerTitle}>Materiais</Text>
         {isManager && (
-          <Pressable
-            style={({ pressed }) => [styles.addBtn, pressed && { opacity: 0.7 }]}
+          <TouchableOpacity
+            style={styles.addBtn}
             onPress={() => setShowAddMaterialModal(true)}
+            activeOpacity={0.7}
           >
             <Ionicons name="add" size={22} color="#FFFFFF" />
-          </Pressable>
+          </TouchableOpacity>
         )}
       </View>
 
       {/* Tabs */}
       <View style={[styles.tabs, { borderBottomColor: colors.border }]}>
         {(["catalog", "requests"] as const).map((tab) => (
-          <Pressable
+          <TouchableOpacity
             key={tab}
             style={[styles.tab, activeTab === tab && { borderBottomColor: colors.primary, borderBottomWidth: 2 }]}
             onPress={() => setActiveTab(tab)}
+            activeOpacity={0.7}
           >
             <Text style={[styles.tabText, { color: activeTab === tab ? colors.primary : colors.muted }]}>
               {tab === "catalog" ? "Catálogo" : "Solicitações"}
             </Text>
-          </Pressable>
+          </TouchableOpacity>
         ))}
       </View>
 
@@ -259,20 +288,22 @@ export default function MaterialsScreen() {
                       </Text>
                     </View>
                     {!isManager && item.quantityAvailable > 0 && (
-                      <Pressable
-                        style={({ pressed }) => [styles.requestBtn, { backgroundColor: colors.primary }, pressed && { opacity: 0.8 }]}
+                      <TouchableOpacity
+                        style={[styles.requestBtn, { backgroundColor: colors.primary }]}
                         onPress={() => handleRequestMaterial(item.id)}
+                        activeOpacity={0.8}
                       >
                         <Text style={styles.requestBtnText}>Solicitar</Text>
-                      </Pressable>
+                      </TouchableOpacity>
                     )}
                     {isManager && (
-                      <Pressable
-                        style={({ pressed }) => [styles.deleteMatBtn, pressed && { opacity: 0.6 }]}
+                      <TouchableOpacity
+                        style={styles.deleteMatBtn}
                         onPress={() => handleDeleteMaterial(item.id, item.name)}
+                        activeOpacity={0.7}
                       >
                         <Ionicons name="trash-outline" size={16} color="#EF4444" />
-                      </Pressable>
+                      </TouchableOpacity>
                     )}
                   </View>
                 </View>
@@ -315,30 +346,33 @@ export default function MaterialsScreen() {
                 {item.notes && <Text style={[styles.requestNotes, { color: colors.muted }]}>{item.notes}</Text>}
                 {isManager && item.status === "pending" && (
                   <View style={styles.requestActions}>
-                    <Pressable
+                    <TouchableOpacity
                       style={[styles.actionBtn, { backgroundColor: "#0E9F6E20" }]}
                       onPress={() => handleApprove(item.id)}
+                      activeOpacity={0.75}
                     >
                       <Ionicons name="checkmark" size={16} color="#0E9F6E" />
                       <Text style={[styles.actionBtnText, { color: "#0E9F6E" }]}>Aprovar</Text>
-                    </Pressable>
-                    <Pressable
+                    </TouchableOpacity>
+                    <TouchableOpacity
                       style={[styles.actionBtn, { backgroundColor: "#E0242420" }]}
                       onPress={() => handleReject(item.id)}
+                      activeOpacity={0.75}
                     >
                       <Ionicons name="close" size={16} color="#E02424" />
                       <Text style={[styles.actionBtnText, { color: "#E02424" }]}>Recusar</Text>
-                    </Pressable>
+                    </TouchableOpacity>
                   </View>
                 )}
                 {isManager && item.status === "approved" && (
-                  <Pressable
+                  <TouchableOpacity
                     style={[styles.deliverBtn, { backgroundColor: colors.primary }]}
                     onPress={() => handleDeliver(item.id)}
+                    activeOpacity={0.8}
                   >
                     <Ionicons name="checkmark-done" size={16} color="#FFFFFF" />
                     <Text style={styles.deliverBtnText}>Marcar como Entregue</Text>
-                  </Pressable>
+                  </TouchableOpacity>
                 )}
               </View>
             );
@@ -346,7 +380,7 @@ export default function MaterialsScreen() {
         />
       )}
 
-      {/* Request Modal */}
+      {/* ── Request Modal ── */}
       <Modal visible={showRequestModal} transparent animationType="slide">
         <View style={styles.modalOverlay}>
           <View style={[styles.modalContent, { backgroundColor: colors.background }]}>
@@ -362,15 +396,16 @@ export default function MaterialsScreen() {
             <Text style={[styles.modalLabel, { color: colors.muted }]}>Prioridade</Text>
             <View style={styles.priorityRow}>
               {(["low", "medium", "high"] as RequestPriority[]).map((p) => (
-                <Pressable
+                <TouchableOpacity
                   key={p}
                   style={[styles.priorityOption, priority === p && { backgroundColor: priorityColor(p) + "20", borderColor: priorityColor(p) }, { borderColor: colors.border }]}
                   onPress={() => setPriority(p)}
+                  activeOpacity={0.7}
                 >
                   <Text style={[styles.priorityOptionText, { color: priority === p ? priorityColor(p) : colors.muted }]}>
                     {p === "high" ? "Alta" : p === "medium" ? "Média" : "Baixa"}
                   </Text>
-                </Pressable>
+                </TouchableOpacity>
               ))}
             </View>
             <Text style={[styles.modalLabel, { color: colors.muted }]}>Observações (opcional)</Text>
@@ -384,18 +419,91 @@ export default function MaterialsScreen() {
               placeholderTextColor={colors.muted}
             />
             <View style={styles.modalActions}>
-              <Pressable style={[styles.modalBtn, { backgroundColor: colors.border }]} onPress={() => setShowRequestModal(false)}>
+              <TouchableOpacity style={[styles.modalBtn, { backgroundColor: colors.border }]} onPress={() => setShowRequestModal(false)} activeOpacity={0.8}>
                 <Text style={[styles.modalBtnText, { color: colors.foreground }]}>Cancelar</Text>
-              </Pressable>
-              <Pressable style={[styles.modalBtn, { backgroundColor: colors.primary }]} onPress={handleSubmitRequest}>
+              </TouchableOpacity>
+              <TouchableOpacity style={[styles.modalBtn, { backgroundColor: colors.primary }]} onPress={handleSubmitRequest} activeOpacity={0.8}>
                 <Text style={[styles.modalBtnText, { color: "#FFFFFF" }]}>Enviar</Text>
-              </Pressable>
+              </TouchableOpacity>
             </View>
           </View>
         </View>
       </Modal>
 
-      {/* Add Material Modal (Manager) */}
+      {/* ── Reject Modal (replaces Alert.prompt) ── */}
+      <Modal visible={showRejectModal} transparent animationType="fade">
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { backgroundColor: colors.background, borderTopLeftRadius: 20, borderTopRightRadius: 20 }]}>
+            <Text style={[styles.modalTitle, { color: colors.foreground }]}>Recusar Solicitação</Text>
+            <Text style={[styles.modalLabel, { color: colors.muted }]}>Motivo da recusa *</Text>
+            <TextInput
+              style={[styles.input, styles.textArea, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.foreground }]}
+              value={rejectReason}
+              onChangeText={setRejectReason}
+              multiline
+              numberOfLines={3}
+              placeholder="Informe o motivo da recusa..."
+              placeholderTextColor={colors.muted}
+              autoFocus
+            />
+            <View style={styles.modalActions}>
+              <TouchableOpacity
+                style={[styles.modalBtn, { backgroundColor: colors.border }]}
+                onPress={() => { setShowRejectModal(false); setRejectReason(""); }}
+                activeOpacity={0.8}
+              >
+                <Text style={[styles.modalBtnText, { color: colors.foreground }]}>Cancelar</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.modalBtn, { backgroundColor: "#E02424", opacity: rejectLoading ? 0.6 : 1 }]}
+                onPress={handleConfirmReject}
+                disabled={rejectLoading}
+                activeOpacity={0.8}
+              >
+                <Text style={[styles.modalBtnText, { color: "#FFFFFF" }]}>
+                  {rejectLoading ? "Recusando..." : "Recusar"}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ── Delete Confirm Modal ── */}
+      <Modal visible={showDeleteModal} transparent animationType="fade">
+        <View style={styles.modalOverlay}>
+          <View style={[styles.deleteModalContent, { backgroundColor: colors.background }]}>
+            <View style={styles.deleteIconWrap}>
+              <Ionicons name="trash-outline" size={32} color="#EF4444" />
+            </View>
+            <Text style={[styles.deleteModalTitle, { color: colors.foreground }]}>Excluir material?</Text>
+            <Text style={[styles.deleteModalDesc, { color: colors.muted }]}>
+              "{deleteTargetName}" será removido do catálogo e os promotores não poderão mais visualizá-lo.
+            </Text>
+            <View style={styles.modalActions}>
+              <TouchableOpacity
+                style={[styles.modalBtn, { backgroundColor: colors.border }]}
+                onPress={() => setShowDeleteModal(false)}
+                activeOpacity={0.8}
+              >
+                <Text style={[styles.modalBtnText, { color: colors.foreground }]}>Cancelar</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.modalBtn, { backgroundColor: "#EF4444", opacity: deleteLoading ? 0.6 : 1 }]}
+                onPress={handleConfirmDelete}
+                disabled={deleteLoading}
+                activeOpacity={0.8}
+              >
+                <Text style={[styles.modalBtnText, { color: "#FFFFFF" }]}>
+                  {deleteLoading ? "Excluindo..." : "Excluir"}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ── Add Material Modal (Manager) ── */}
       <Modal visible={showAddMaterialModal} transparent animationType="slide">
         <View style={styles.modalOverlay}>
           <ScrollView>
@@ -404,13 +512,14 @@ export default function MaterialsScreen() {
               <Text style={[styles.modalLabel, { color: colors.muted }]}>Marca *</Text>
               <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 12 }}>
                 {brands?.map((b) => (
-                  <Pressable
+                  <TouchableOpacity
                     key={b.id}
                     style={[styles.brandOption, newMaterialBrandId === b.id && { backgroundColor: (b.colorHex ?? "#3B82F6") + "20", borderColor: b.colorHex ?? "#3B82F6" }, { borderColor: colors.border }]}
                     onPress={() => setNewMaterialBrandId(b.id)}
+                    activeOpacity={0.7}
                   >
                     <Text style={[styles.brandOptionText, { color: newMaterialBrandId === b.id ? (b.colorHex ?? "#3B82F6") : colors.muted }]}>{b.name}</Text>
-                  </Pressable>
+                  </TouchableOpacity>
                 ))}
               </ScrollView>
               <Text style={[styles.modalLabel, { color: colors.muted }]}>Nome *</Text>
@@ -441,12 +550,12 @@ export default function MaterialsScreen() {
                 returnKeyType="done"
               />
               <View style={styles.modalActions}>
-                <Pressable style={[styles.modalBtn, { backgroundColor: colors.border }]} onPress={() => setShowAddMaterialModal(false)}>
+                <TouchableOpacity style={[styles.modalBtn, { backgroundColor: colors.border }]} onPress={() => setShowAddMaterialModal(false)} activeOpacity={0.8}>
                   <Text style={[styles.modalBtnText, { color: colors.foreground }]}>Cancelar</Text>
-                </Pressable>
-                <Pressable style={[styles.modalBtn, { backgroundColor: colors.primary }]} onPress={handleAddMaterial}>
+                </TouchableOpacity>
+                <TouchableOpacity style={[styles.modalBtn, { backgroundColor: colors.primary }]} onPress={handleAddMaterial} activeOpacity={0.8}>
                   <Text style={[styles.modalBtnText, { color: "#FFFFFF" }]}>Criar</Text>
-                </Pressable>
+                </TouchableOpacity>
               </View>
             </View>
           </ScrollView>
@@ -512,4 +621,9 @@ const styles = StyleSheet.create({
   modalBtnText: { fontSize: 16, fontWeight: "700" },
   brandOption: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 10, borderWidth: 1.5, marginRight: 8 },
   brandOptionText: { fontSize: 14, fontWeight: "600" },
+  // Delete confirm modal
+  deleteModalContent: { margin: 24, borderRadius: 20, padding: 24, gap: 12, alignItems: "center" },
+  deleteIconWrap: { width: 64, height: 64, borderRadius: 32, backgroundColor: "#FEE2E2", alignItems: "center", justifyContent: "center", marginBottom: 4 },
+  deleteModalTitle: { fontSize: 18, fontWeight: "700", textAlign: "center" },
+  deleteModalDesc: { fontSize: 14, textAlign: "center", lineHeight: 20 },
 });

@@ -14,11 +14,11 @@ import {
   Alert,
   FlatList,
   Modal,
-  Pressable,
   ScrollView,
   StyleSheet,
   Text,
   TextInput,
+  TouchableOpacity,
   View,
   ActivityIndicator,
 } from "react-native";
@@ -36,6 +36,12 @@ export default function FilesScreen() {
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<string | null>(null);
 
+  // Delete confirm modal state
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deleteTargetId, setDeleteTargetId] = useState<number | null>(null);
+  const [deleteTargetName, setDeleteTargetName] = useState("");
+  const [deleteLoading, setDeleteLoading] = useState(false);
+
   const { data: brands } = trpc.brands.list.useQuery();
   const { data: files, refetch } = trpc.stockFiles.list.useQuery({ brandId: selectedBrandId ?? undefined });
   const uploadMutation = trpc.stockFiles.upload.useMutation();
@@ -51,7 +57,6 @@ export default function FilesScreen() {
       const asset = result.assets[0];
 
       if (Platform.OS === "web") {
-        // Web: read as base64 via FileReader
         setUploadProgress("Lendo arquivo...");
         const response = await fetch(asset.uri);
         const blob = await response.blob();
@@ -67,10 +72,9 @@ export default function FilesScreen() {
         setUploadProgress(null);
         setSelectedFile({ name: asset.name, uri: asset.uri, base64, type: asset.mimeType ?? "application/octet-stream" });
       } else {
-        // Native: just store the URI — we'll use FileSystem.uploadAsync
         setSelectedFile({ name: asset.name, uri: asset.uri, type: asset.mimeType ?? "application/octet-stream" });
       }
-    } catch (err) {
+    } catch {
       setUploadProgress(null);
       Alert.alert("Erro", "Não foi possível selecionar o arquivo. Tente novamente.");
     }
@@ -85,7 +89,6 @@ export default function FilesScreen() {
     setUploadProgress("Enviando arquivo...");
     try {
       if (Platform.OS === "web") {
-        // Web: use tRPC with base64
         await uploadMutation.mutateAsync({
           brandId: uploadBrandId,
           fileBase64: selectedFile.base64!,
@@ -94,7 +97,6 @@ export default function FilesScreen() {
           description: uploadDesc.trim() || undefined,
         });
       } else {
-        // Native: use FileSystem.uploadAsync (multipart) — much more efficient
         const FS = await import("expo-file-system/legacy");
         const token = await Auth.getSessionToken();
         const apiBase = getApiBaseUrl();
@@ -128,8 +130,10 @@ export default function FilesScreen() {
       setUploadBrandId(null);
       setUploadProgress(null);
       refetch();
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      Alert.alert("✅ Arquivo enviado!", "O arquivo foi distribuído com sucesso para os promotores.");
+      if (Platform.OS !== "web") {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      }
+      Alert.alert("Arquivo enviado!", "O arquivo foi distribuído com sucesso para os promotores.");
     } catch (err: any) {
       setUploadProgress(null);
       const msg = err?.message ?? "Não foi possível enviar o arquivo.";
@@ -139,30 +143,30 @@ export default function FilesScreen() {
     }
   };
 
+  // Opens the custom delete confirm modal (replaces Alert.alert with buttons, which doesn't work reliably on web)
   const handleDeleteFile = (id: number, fileName: string) => {
-    Alert.alert(
-      "Excluir arquivo",
-      `Deseja excluir "${fileName}"? Os promotores não poderão mais acessá-lo.`,
-      [
-        { text: "Cancelar", style: "cancel" },
-        {
-          text: "Excluir",
-          style: "destructive",
-          onPress: async () => {
-            try {
-              await deleteMutation.mutateAsync({ id });
-              if (Platform.OS !== "web") {
-                Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-              }
-              refetch();
-            } catch (err: any) {
-              const msg = err?.message ?? "Não foi possível excluir o arquivo.";
-              Alert.alert("Erro", msg);
-            }
-          },
-        },
-      ]
-    );
+    setDeleteTargetId(id);
+    setDeleteTargetName(fileName);
+    setShowDeleteModal(true);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!deleteTargetId) return;
+    setDeleteLoading(true);
+    try {
+      await deleteMutation.mutateAsync({ id: deleteTargetId });
+      setShowDeleteModal(false);
+      setDeleteTargetId(null);
+      setDeleteTargetName("");
+      if (Platform.OS !== "web") {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      }
+      refetch();
+    } catch (err: any) {
+      Alert.alert("Erro", err?.message ?? "Não foi possível excluir o arquivo.");
+    } finally {
+      setDeleteLoading(false);
+    }
   };
 
   const handleOpenFile = async (url: string) => {
@@ -200,32 +204,35 @@ export default function FilesScreen() {
       <View style={[styles.header, { backgroundColor: colors.primary }]}>
         <Text style={styles.headerTitle}>Arquivos</Text>
         {isManager && (
-          <Pressable
-            style={({ pressed }) => [styles.addBtn, pressed && { opacity: 0.7 }]}
+          <TouchableOpacity
+            style={styles.addBtn}
             onPress={() => setShowUploadModal(true)}
+            activeOpacity={0.7}
           >
             <Ionicons name="cloud-upload-outline" size={22} color="#FFFFFF" />
-          </Pressable>
+          </TouchableOpacity>
         )}
       </View>
 
       {/* Brand Filter */}
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={[styles.brandFilter, { borderBottomColor: colors.border }]}>
-        <Pressable
+        <TouchableOpacity
           style={[styles.brandTab, !selectedBrandId && { borderBottomColor: colors.primary, borderBottomWidth: 2 }]}
           onPress={() => setSelectedBrandId(null)}
+          activeOpacity={0.7}
         >
           <Text style={[styles.brandTabText, { color: !selectedBrandId ? colors.primary : colors.muted }]}>Todos</Text>
-        </Pressable>
+        </TouchableOpacity>
         {brands?.map((brand) => (
-          <Pressable
+          <TouchableOpacity
             key={brand.id}
             style={[styles.brandTab, selectedBrandId === brand.id && { borderBottomColor: brand.colorHex ?? colors.primary, borderBottomWidth: 2 }]}
             onPress={() => setSelectedBrandId(brand.id)}
+            activeOpacity={0.7}
           >
             <View style={[styles.brandDot, { backgroundColor: brand.colorHex ?? colors.primary }]} />
             <Text style={[styles.brandTabText, { color: selectedBrandId === brand.id ? (brand.colorHex ?? colors.primary) : colors.muted }]}>{brand.name}</Text>
-          </Pressable>
+          </TouchableOpacity>
         ))}
       </ScrollView>
 
@@ -248,9 +255,10 @@ export default function FilesScreen() {
           const iconColor = getFileIconColor(item.fileType ?? "");
           return (
             <View style={[styles.fileCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-              <Pressable
-                style={({ pressed }) => [styles.fileCardInner, pressed && { opacity: 0.8 }]}
+              <TouchableOpacity
+                style={styles.fileCardInner}
                 onPress={() => handleOpenFile(item.fileUrl)}
+                activeOpacity={0.8}
               >
                 <View style={[styles.fileIcon, { backgroundColor: iconColor + "15" }]}>
                   <Ionicons name={getFileIcon(item.fileType ?? "") as any} size={28} color={iconColor} />
@@ -273,22 +281,57 @@ export default function FilesScreen() {
                   </View>
                 </View>
                 <Ionicons name="open-outline" size={20} color={colors.muted} />
-              </Pressable>
+              </TouchableOpacity>
               {isManager && (
-                <Pressable
-                  style={({ pressed }) => [styles.deleteBtn, pressed && { opacity: 0.6 }]}
+                <TouchableOpacity
+                  style={[styles.deleteBtn, { borderTopColor: colors.border }]}
                   onPress={() => handleDeleteFile(item.id, item.fileName)}
+                  activeOpacity={0.7}
                 >
                   <Ionicons name="trash-outline" size={18} color="#EF4444" />
                   <Text style={styles.deleteBtnText}>Excluir</Text>
-                </Pressable>
+                </TouchableOpacity>
               )}
             </View>
           );
         }}
       />
 
-      {/* Upload Modal */}
+      {/* ── Delete Confirm Modal ── */}
+      <Modal visible={showDeleteModal} transparent animationType="fade">
+        <View style={styles.deleteModalOverlay}>
+          <View style={[styles.deleteModalContent, { backgroundColor: colors.background }]}>
+            <View style={styles.deleteIconWrap}>
+              <Ionicons name="trash-outline" size={32} color="#EF4444" />
+            </View>
+            <Text style={[styles.deleteModalTitle, { color: colors.foreground }]}>Excluir arquivo?</Text>
+            <Text style={[styles.deleteModalDesc, { color: colors.muted }]} numberOfLines={3}>
+              "{deleteTargetName}" será removido e os promotores não poderão mais acessá-lo.
+            </Text>
+            <View style={styles.deleteModalActions}>
+              <TouchableOpacity
+                style={[styles.deleteModalBtn, { backgroundColor: colors.border }]}
+                onPress={() => setShowDeleteModal(false)}
+                activeOpacity={0.8}
+              >
+                <Text style={[styles.deleteModalBtnText, { color: colors.foreground }]}>Cancelar</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.deleteModalBtn, { backgroundColor: "#EF4444", opacity: deleteLoading ? 0.6 : 1 }]}
+                onPress={handleConfirmDelete}
+                disabled={deleteLoading}
+                activeOpacity={0.8}
+              >
+                <Text style={[styles.deleteModalBtnText, { color: "#FFFFFF" }]}>
+                  {deleteLoading ? "Excluindo..." : "Excluir"}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ── Upload Modal ── */}
       <Modal visible={showUploadModal} transparent animationType="slide">
         <View style={styles.modalOverlay}>
           <View style={[styles.modalContent, { backgroundColor: colors.background }]}>
@@ -297,13 +340,14 @@ export default function FilesScreen() {
             <Text style={[styles.modalLabel, { color: colors.muted }]}>Marca *</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 12 }}>
               {brands?.map((b) => (
-                <Pressable
+                <TouchableOpacity
                   key={b.id}
                   style={[styles.brandOption, { borderColor: uploadBrandId === b.id ? (b.colorHex ?? "#3B82F6") : colors.border }, uploadBrandId === b.id && { backgroundColor: (b.colorHex ?? "#3B82F6") + "20" }]}
                   onPress={() => setUploadBrandId(b.id)}
+                  activeOpacity={0.7}
                 >
                   <Text style={[styles.brandOptionText, { color: uploadBrandId === b.id ? (b.colorHex ?? "#3B82F6") : colors.muted }]}>{b.name}</Text>
-                </Pressable>
+                </TouchableOpacity>
               ))}
             </ScrollView>
 
@@ -318,16 +362,17 @@ export default function FilesScreen() {
               editable={!uploading}
             />
 
-            <Pressable
+            <TouchableOpacity
               style={[styles.pickFileBtn, { backgroundColor: colors.surface, borderColor: selectedFile ? colors.primary : colors.border }]}
               onPress={handlePickFile}
               disabled={uploading}
+              activeOpacity={0.75}
             >
               <Ionicons name="attach-outline" size={22} color={selectedFile ? colors.primary : colors.muted} />
               <Text style={[styles.pickFileBtnText, { color: selectedFile ? colors.primary : colors.muted }]} numberOfLines={1}>
                 {uploadProgress === "Lendo arquivo..." ? "Lendo arquivo..." : selectedFile ? selectedFile.name : "Selecionar arquivo..."}
               </Text>
-            </Pressable>
+            </TouchableOpacity>
 
             {uploading && (
               <View style={styles.progressRow}>
@@ -337,24 +382,26 @@ export default function FilesScreen() {
             )}
 
             <View style={styles.modalActions}>
-              <Pressable
+              <TouchableOpacity
                 style={[styles.modalBtn, { backgroundColor: colors.border, opacity: uploading ? 0.5 : 1 }]}
                 onPress={() => { if (!uploading) { setShowUploadModal(false); setSelectedFile(null); setUploadDesc(""); setUploadBrandId(null); } }}
                 disabled={uploading}
+                activeOpacity={0.8}
               >
                 <Text style={[styles.modalBtnText, { color: colors.foreground }]}>Cancelar</Text>
-              </Pressable>
-              <Pressable
+              </TouchableOpacity>
+              <TouchableOpacity
                 style={[styles.modalBtn, { backgroundColor: colors.primary, opacity: uploading || !selectedFile || !uploadBrandId ? 0.6 : 1 }]}
                 onPress={handleUpload}
                 disabled={uploading || !selectedFile || !uploadBrandId}
+                activeOpacity={0.8}
               >
                 {uploading ? (
                   <ActivityIndicator size="small" color="#FFFFFF" />
                 ) : (
                   <Text style={[styles.modalBtnText, { color: "#FFFFFF" }]}>Enviar</Text>
                 )}
-              </Pressable>
+              </TouchableOpacity>
             </View>
           </View>
         </View>
@@ -383,11 +430,21 @@ const styles = StyleSheet.create({
   brandBadgeText: { fontSize: 11, fontWeight: "700" },
   fileSize: { fontSize: 12 },
   fileDate: { fontSize: 12 },
-  deleteBtn: { borderTopWidth: 1, borderTopColor: "#FEE2E2", backgroundColor: "#FFF5F5", paddingVertical: 10, alignItems: "center", flexDirection: "row", justifyContent: "center", gap: 6 },
+  deleteBtn: { borderTopWidth: 1, backgroundColor: "#FFF5F5", paddingVertical: 10, alignItems: "center", flexDirection: "row", justifyContent: "center", gap: 6 },
   deleteBtnText: { fontSize: 13, fontWeight: "600", color: "#EF4444" },
   emptyState: { flex: 1, alignItems: "center", justifyContent: "center", gap: 12, padding: 40, paddingTop: 80 },
   emptyTitle: { fontSize: 18, fontWeight: "700" },
   emptyDesc: { fontSize: 14, textAlign: "center", lineHeight: 21 },
+  // Delete confirm modal
+  deleteModalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "center", alignItems: "center", padding: 24 },
+  deleteModalContent: { width: "100%", maxWidth: 360, borderRadius: 20, padding: 24, gap: 12, alignItems: "center" },
+  deleteIconWrap: { width: 64, height: 64, borderRadius: 32, backgroundColor: "#FEE2E2", alignItems: "center", justifyContent: "center", marginBottom: 4 },
+  deleteModalTitle: { fontSize: 18, fontWeight: "700", textAlign: "center" },
+  deleteModalDesc: { fontSize: 14, textAlign: "center", lineHeight: 20 },
+  deleteModalActions: { flexDirection: "row", gap: 12, marginTop: 8, width: "100%" },
+  deleteModalBtn: { flex: 1, paddingVertical: 14, borderRadius: 14, alignItems: "center" },
+  deleteModalBtnText: { fontSize: 16, fontWeight: "700" },
+  // Upload modal
   modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "flex-end" },
   modalContent: { borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, gap: 8 },
   modalTitle: { fontSize: 20, fontWeight: "700", marginBottom: 8 },
