@@ -250,12 +250,18 @@ export default function PromoterRankingScreen() {
       const medalEmoji = (rank: number) => rank === 1 ? "🥇" : rank === 2 ? "🥈" : rank === 3 ? "🥉" : `${rank}°`;
       const scoreColor = (s: number) => s >= 70 ? "#22C55E" : s >= 40 ? "#F59E0B" : "#EF4444";
 
+      const avgDailyTeam = ranking.length > 0
+        ? Math.round((ranking.reduce((s, r) => s + (r.avgDailyHours ?? 0), 0) / ranking.length) * 10) / 10
+        : 0;
+
       const rows = ranking.map((p) => `
         <tr>
           <td style="text-align:center;font-size:18px">${medalEmoji(p.rank)}</td>
           <td style="font-weight:600">${p.userName}</td>
           <td style="text-align:center">${p.totalApprovedPhotos}</td>
-          <td style="text-align:center">${p.totalHoursWorked}h</td>
+          <td style="text-align:center">${p.totalHoursWorked.toFixed(1)}h</td>
+          <td style="text-align:center;color:${(p.avgDailyHours ?? 0) >= 8 ? '#22C55E' : (p.avgDailyHours ?? 0) >= 6 ? '#F59E0B' : '#EF4444'};font-weight:600">${(p.avgDailyHours ?? 0).toFixed(1)}h</td>
+          <td style="text-align:center;color:#6b7280">${p.workedDays ?? 0}d</td>
           <td style="text-align:center">${p.totalVisits}</td>
           <td style="text-align:center">${p.totalMaterialRequests}</td>
           <td style="text-align:center;font-weight:700;color:${scoreColor(p.score)}">${p.score}</td>
@@ -287,13 +293,14 @@ export default function PromoterRankingScreen() {
         <div class="summary">
           <div class="summary-card"><div class="val">${ranking.length}</div><div class="lbl">Promotores</div></div>
           <div class="summary-card"><div class="val">${ranking.reduce((s, r) => s + r.totalApprovedPhotos, 0)}</div><div class="lbl">Fotos Aprovadas</div></div>
-          <div class="summary-card"><div class="val">${ranking.reduce((s, r) => s + r.totalHoursWorked, 0)}h</div><div class="lbl">Horas Totais</div></div>
+          <div class="summary-card"><div class="val">${ranking.reduce((s, r) => s + r.totalHoursWorked, 0).toFixed(1)}h</div><div class="lbl">Horas Totais</div></div>
+          <div class="summary-card"><div class="val">${avgDailyTeam}h</div><div class="lbl">Méd. Diária</div></div>
           <div class="summary-card"><div class="val">${ranking.reduce((s, r) => s + r.totalVisits, 0)}</div><div class="lbl">Visitas</div></div>
           <div class="summary-card"><div class="val">${avgScore}</div><div class="lbl">Score Médio</div></div>
         </div>
         <div class="content">
           <table>
-            <thead><tr><th>#</th><th style="text-align:left">Promotor</th><th>Fotos</th><th>Horas</th><th>Visitas</th><th>Materiais</th><th>Score</th></tr></thead>
+            <thead><tr><th>#</th><th style="text-align:left">Promotor</th><th>Fotos</th><th>Horas Total</th><th>Méd. Diária</th><th>Dias</th><th>Visitas</th><th>Materiais</th><th>Score</th></tr></thead>
             <tbody>${rows}</tbody>
           </table>
           <div class="formula">Score = Fotos Aprovadas 30% + Horas Trabalhadas 25% + Visitas a PDVs 25% + Materiais Solicitados 10% + Qualidade das Fotos 10% − Alertas de Geo</div>

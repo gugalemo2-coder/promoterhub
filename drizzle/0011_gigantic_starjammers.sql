@@ -1,0 +1,1 @@
+ALTER TABLE `app_settings` ADD `dailyHoursAlertThreshold` int DEFAULT 6 NOT NULL;

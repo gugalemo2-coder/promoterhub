@@ -181,6 +181,66 @@ export async function notifyNewPhotoForReview(
 }
 
 /**
+ * Check all promoters for the current month and notify managers about those
+ * whose daily average hours are below the configured threshold.
+ * Returns a list of promoter names that triggered the alert.
+ */
+export async function checkAndNotifyLowDailyHours(
+  managerId: number
+): Promise<{ notified: string[]; threshold: number }> {
+  const settings = await db.getAppSettings(managerId);
+  const threshold = settings?.dailyHoursAlertThreshold ?? 6;
+  const notifyEnabled = settings?.notifyLowHours ?? true;
+
+  if (!notifyEnabled || threshold <= 0) return { notified: [], threshold };
+
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = now.getMonth() + 1;
+
+  // Get full ranking with avgDailyHours for all promoters
+  const ranking = await db.getPromoterRanking(year, month);
+
+  // Filter promoters with avgDailyHours below threshold (only those who worked at least 1 day)
+  const lowPromoters = ranking.filter(
+    (p) => p.workedDays > 0 && p.avgDailyHours < threshold
+  );
+
+  if (lowPromoters.length === 0) return { notified: [], threshold };
+
+  const managerTokens = await getManagerTokens();
+  if (managerTokens.length === 0) return { notified: lowPromoters.map((p) => p.userName), threshold };
+
+  const names = lowPromoters.map((p) => p.userName).join(", ");
+  const body =
+    lowPromoters.length === 1
+      ? `${lowPromoters[0].userName} está com média de ${lowPromoters[0].avgDailyHours}h/dia (abaixo de ${threshold}h).`
+      : `${lowPromoters.length} promotores abaixo de ${threshold}h/dia: ${names}.`;
+
+  await sendPushNotifications(
+    managerTokens.map((to) => ({
+      to,
+      title: "⏱️ Média diária baixa",
+      body,
+      data: { type: "low_hours_alert", action: "daily_avg" },
+      sound: "default" as const,
+      priority: "high" as const,
+    }))
+  );
+
+  // Save to notification history for the manager
+  await db.createNotification({
+    userId: managerId,
+    title: "⏱️ Média diária baixa",
+    body,
+    type: "geo_alert",
+    isRead: false,
+  }).catch(() => {});
+
+  return { notified: lowPromoters.map((p) => p.userName), threshold };
+}
+
+/**
  * Notify a promoter when a new file is available for their brand.
  */
 export async function notifyNewFileAvailable(promoterUserIds: number[], brandName: string, fileName: string): Promise<void> {

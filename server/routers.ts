@@ -332,12 +332,18 @@ export const appRouter = router({
         weightMaterials: z.number().int().min(0).max(100).optional(),
         weightQuality: z.number().int().min(0).max(100).optional(),
         weightDailyAvg: z.number().int().min(0).max(100).optional(),
+        dailyHoursAlertThreshold: z.number().int().min(0).max(24).optional(),
         notifyGeoAlert: z.boolean().optional(),
         notifyLowHours: z.boolean().optional(),
         notifyMaterialRequest: z.boolean().optional(),
         notifyPhotoRejected: z.boolean().optional(),
       }))
       .mutation(({ ctx, input }) => db.upsertAppSettings(ctx.user.id, input)),
+    checkLowHours: protectedProcedure
+      .mutation(async ({ ctx }) => {
+        const appUserId = getAppUserId(ctx.user);
+        return push.checkAndNotifyLowDailyHours(appUserId);
+      }),
   }),
 });
 export type AppRouter = typeof appRouter;

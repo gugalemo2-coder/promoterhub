@@ -48,8 +48,11 @@ export default function SettingsScreen() {
   const [notifyLowHours, setNotifyLowHours] = useState(DEFAULTS.notifyLowHours);
   const [notifyMaterialRequest, setNotifyMaterialRequest] = useState(DEFAULTS.notifyMaterialRequest);
   const [notifyPhotoRejected, setNotifyPhotoRejected] = useState(DEFAULTS.notifyPhotoRejected);
+  const [dailyHoursAlertThreshold, setDailyHoursAlertThreshold] = useState(6);
   const [saving, setSaving] = useState(false);
   const [dirty, setDirty] = useState(false);
+  const [checkingLowHours, setCheckingLowHours] = useState(false);
+  const checkLowHoursMutation = trpc.settings.checkLowHours.useMutation();
 
   useEffect(() => {
     if (savedSettings) {
@@ -62,6 +65,7 @@ export default function SettingsScreen() {
       setNotifyLowHours(savedSettings.notifyLowHours);
       setNotifyMaterialRequest(savedSettings.notifyMaterialRequest);
       setNotifyPhotoRejected(savedSettings.notifyPhotoRejected);
+      setDailyHoursAlertThreshold(savedSettings.dailyHoursAlertThreshold ?? 6);
     }
   }, [savedSettings]);
 
@@ -85,6 +89,7 @@ export default function SettingsScreen() {
         weightMaterials,
         weightQuality,
         weightDailyAvg,
+        dailyHoursAlertThreshold,
         notifyLowHours,
         notifyMaterialRequest,
         notifyPhotoRejected,
@@ -239,6 +244,65 @@ export default function SettingsScreen() {
               />
             </View>
           ))}
+
+          {/* Threshold for low daily hours */}
+          {notifyLowHours && (
+            <View style={[styles.thresholdRow, { borderTopColor: colors.border }]}>
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.toggleLabel, { color: colors.foreground }]}>Limiar de horas/dia</Text>
+                <Text style={[styles.thresholdHint, { color: colors.muted }]}>Notificar quando média abaixo de</Text>
+              </View>
+              <View style={styles.weightControls}>
+                <TouchableOpacity
+                  onPress={() => { setDailyHoursAlertThreshold(Math.max(1, dailyHoursAlertThreshold - 1)); mark(); }}
+                  style={[styles.weightBtn, { backgroundColor: colors.border }]}
+                  activeOpacity={0.7}
+                >
+                  <Ionicons name="remove" size={16} color={colors.foreground} />
+                </TouchableOpacity>
+                <Text style={[styles.weightValue, { color: colors.foreground }]}>{dailyHoursAlertThreshold}h</Text>
+                <TouchableOpacity
+                  onPress={() => { setDailyHoursAlertThreshold(Math.min(12, dailyHoursAlertThreshold + 1)); mark(); }}
+                  style={[styles.weightBtn, { backgroundColor: colors.border }]}
+                  activeOpacity={0.7}
+                >
+                  <Ionicons name="add" size={16} color={colors.foreground} />
+                </TouchableOpacity>
+              </View>
+            </View>
+          )}
+
+          {/* Check now button */}
+          <TouchableOpacity
+            style={[styles.checkNowBtn, { borderTopColor: colors.border, opacity: checkingLowHours ? 0.6 : 1 }]}
+            activeOpacity={0.75}
+            disabled={checkingLowHours}
+            onPress={async () => {
+              setCheckingLowHours(true);
+              try {
+                const result = await checkLowHoursMutation.mutateAsync();
+                if (result.notified.length === 0) {
+                  Alert.alert("✅ Tudo certo", `Nenhum promotor abaixo de ${result.threshold}h/dia no mês atual.`);
+                } else {
+                  Alert.alert(
+                    "⚠️ Alerta enviado",
+                    `${result.notified.length} promotor(es) com média abaixo de ${result.threshold}h/dia:\n\n${result.notified.join(", ")}`
+                  );
+                }
+              } catch {
+                Alert.alert("Erro", "Não foi possível verificar as horas.");
+              } finally {
+                setCheckingLowHours(false);
+              }
+            }}
+          >
+            {checkingLowHours ? (
+              <ActivityIndicator size="small" color={colors.primary} />
+            ) : (
+              <Ionicons name="search-outline" size={18} color={colors.primary} />
+            )}
+            <Text style={[styles.checkNowText, { color: colors.primary }]}>Verificar agora</Text>
+          </TouchableOpacity>
         </View>
 
         {/* ── GESTÃO ── */}
@@ -414,6 +478,26 @@ const styles = StyleSheet.create({
   },
   navLabel: { fontSize: 15, fontWeight: "600" },
   navDesc: { fontSize: 12, marginTop: 1 },
+  // Threshold row
+  thresholdRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingVertical: 10,
+    borderTopWidth: StyleSheet.hairlineWidth,
+  },
+  thresholdHint: { fontSize: 11, marginTop: 2 },
+  // Check now button
+  checkNowBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    paddingVertical: 12,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    marginTop: 4,
+  },
+  checkNowText: { fontSize: 14, fontWeight: "600" },
   // Save button
   saveBtn: {
     flexDirection: "row",

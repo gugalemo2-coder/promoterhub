@@ -794,3 +794,17 @@
 - [x] Corrigir botão de exclusão de arquivos no PWA (gestor/master)
 - [x] Corrigir botão de exclusão de materiais no PWA (gestor/master)
 - [x] Investigar causa raiz (token de autenticação, endpoint, permissão)
+
+## Fase 24 — Notificação de Média Diária Baixa
+
+- [x] Adicionar campo `dailyHoursAlertThreshold` nas configurações (limiar em horas, padrão 6)
+- [x] Migrar banco de dados para o novo campo
+- [x] Criar job/endpoint no servidor que verifica promotores com média abaixo do limiar e envia push notification
+- [x] Adicionar controle do limiar na tela de Configurações do app
+- [x] Adicionar botão "Verificar agora" na tela de Configurações para disparar a verificação manualmente
+
+## Fase 25 — Exportação de Relatório com Média Diária
+
+- [x] Adicionar coluna "Méd. Diária (h)" ao relatório PDF de ranking mensal
+- [x] Adicionar coluna "Méd. Diária (h)" ao relatório Excel/CSV de ranking mensal
+- [x] Incluir "Dias Úteis Trabalhados" como coluna adicional nos relatórios

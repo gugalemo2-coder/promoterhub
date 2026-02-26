@@ -299,6 +299,8 @@ export const appSettings = mysqlTable("app_settings", {
   weightQuality: int("weightQuality").default(10).notNull(),
   // Weight for daily average hours (0 = disabled)
   weightDailyAvg: int("weightDailyAvg").default(0).notNull(),
+  // Alert threshold for low daily hours (in hours, 0 = disabled)
+  dailyHoursAlertThreshold: int("dailyHoursAlertThreshold").default(6).notNull(),
   // Notification toggles
   notifyGeoAlert: boolean("notifyGeoAlert").default(true).notNull(),
   notifyLowHours: boolean("notifyLowHours").default(true).notNull(),

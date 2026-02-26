@@ -149,6 +149,7 @@ export default function ReportsScreen() {
         `RESUMO GERAL`,
         `Horas trabalhadas: ${report.totalHours.toFixed(1)}h`,
         `Dias trabalhados: ${report.workingDays}`,
+        `Média diária de horas: ${report.workingDays > 0 ? (report.totalHours / report.workingDays).toFixed(1) : "0.0"}h/dia`,
         `Fotos enviadas: ${report.totalPhotos}`,
         `Solicitações de material: ${report.totalRequests}`,
         "",
