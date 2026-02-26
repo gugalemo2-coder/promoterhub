@@ -118,6 +118,13 @@ export const appRouter = router({
     create: protectedProcedure.input(z.object({ brandId: z.number(), name: z.string().min(1).max(255), description: z.string().optional(), photoUrl: z.string().optional(), quantityAvailable: z.number().min(0).default(0), unit: z.enum(["unit", "box", "pack", "kg", "liter"]).default("unit") })).mutation(async ({ ctx, input }) => { const id = await db.createMaterial({ ...input, createdBy: ctx.user.id }); return { id }; }),
     update: protectedProcedure.input(z.object({ id: z.number(), quantityAvailable: z.number().min(0).optional(), status: z.enum(["active", "inactive", "discontinued"]).optional(), description: z.string().optional() })).mutation(({ input }) => db.updateMaterial(input.id, input)),
     uploadPhoto: protectedProcedure.input(z.object({ fileBase64: z.string(), fileType: z.string().default("image/jpeg"), fileName: z.string().default("material.jpg") })).mutation(async ({ input }) => { const buffer = Buffer.from(input.fileBase64, "base64"); const fileKey = `materials/${Date.now()}-${input.fileName}`; const { url } = await storagePut(fileKey, buffer, input.fileType); return { url }; }),
+    delete: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ input }) => {
+        // Soft-delete: mark as discontinued so promoters can't see it
+        await db.updateMaterial(input.id, { status: "discontinued" });
+        return { success: true };
+      }),
   }),
   materialRequests: router({
     create: protectedProcedure
@@ -170,9 +177,23 @@ export const appRouter = router({
         const fileKey = `stock-files/${input.brandId}/${Date.now()}-${input.fileName}`;
         const { url } = await storagePut(fileKey, buffer, input.fileType);
         const id = await db.createStockFile({ brandId: input.brandId, fileUrl: url, fileName: input.fileName, fileType: input.fileType, fileSize: buffer.length, description: input.description, uploadedBy: ctx.user.id, visibility: input.visibility });
+        // Notify all promoters about the new file
+        try {
+          const brand = await db.getBrandById(input.brandId);
+          const promoterIds = await db.getAllPromoterUserIds();
+          if (promoterIds.length > 0) {
+            push.notifyNewFileAvailable(promoterIds, brand?.name ?? "Marca", input.fileName).catch(() => {});
+          }
+        } catch (_) {}
         return { id, fileUrl: url };
       }),
     list: protectedProcedure.input(z.object({ brandId: z.number().optional() })).query(({ input }) => db.getStockFiles(input.brandId)),
+    delete: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ input }) => {
+        await db.deleteStockFile(input.id);
+        return { success: true };
+      }),
   }),
   geoAlerts: router({
     list: protectedProcedure.input(z.object({ acknowledged: z.boolean().optional(), limit: z.number().default(50) })).query(({ input }) => db.getGeoAlerts(input)),

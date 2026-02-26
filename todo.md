@@ -744,3 +744,10 @@
 - [x] Aplicar logo da Dinâmica Corretora no header do portal web
 - [x] Aplicar logo da Dinâmica Corretora na tela de login do portal web
 - [x] Atualizar favicon do portal web com a logo da Dinâmica
+
+## Fase 17 — Upload de Arquivos, Notificações e Exclusão
+
+- [x] Corrigir bug de upload de arquivo no PWA (trava sem feedback após clicar em Enviar)
+- [x] Adicionar notificação de confirmação no PWA após envio de arquivo bem-sucedido
+- [x] Implementar exclusão de materiais pelo gestor/master (ocultar para promotor)
+- [x] Implementar exclusão de arquivos pelo gestor/master (ocultar para promotor)

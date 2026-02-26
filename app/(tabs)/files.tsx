@@ -4,6 +4,7 @@ import { useRole } from "@/lib/role-context";
 import { trpc } from "@/lib/trpc";
 import { Ionicons } from "@expo/vector-icons";
 import * as DocumentPicker from "expo-document-picker";
+import * as Haptics from "expo-haptics";
 import * as Linking from "expo-linking";
 import { Platform } from "react-native";
 import { useState } from "react";
@@ -17,6 +18,7 @@ import {
   Text,
   TextInput,
   View,
+  ActivityIndicator,
 } from "react-native";
 
 export default function FilesScreen() {
@@ -30,48 +32,49 @@ export default function FilesScreen() {
   const [uploadDesc, setUploadDesc] = useState("");
   const [selectedFile, setSelectedFile] = useState<{ name: string; base64: string; type: string } | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState<string | null>(null);
 
   const { data: brands } = trpc.brands.list.useQuery();
   const { data: files, refetch } = trpc.stockFiles.list.useQuery({ brandId: selectedBrandId ?? undefined });
   const uploadMutation = trpc.stockFiles.upload.useMutation();
+  const deleteMutation = trpc.stockFiles.delete.useMutation();
 
   const handlePickFile = async () => {
-    const result = await DocumentPicker.getDocumentAsync({
-      type: ["application/pdf", "image/*", "application/vnd.ms-excel", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"],
-      copyToCacheDirectory: true,
-    });
-    if (result.canceled || !result.assets[0]) return;
-    const asset = result.assets[0];
-
     try {
+      const result = await DocumentPicker.getDocumentAsync({
+        type: ["application/pdf", "image/*", "application/vnd.ms-excel", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"],
+        copyToCacheDirectory: true,
+      });
+      if (result.canceled || !result.assets[0]) return;
+      const asset = result.assets[0];
+
+      setUploadProgress("Lendo arquivo...");
       let base64: string;
       if (Platform.OS === "web") {
-        // On web, DocumentPicker returns a blob URI or data URI
-        // Fetch the blob and convert to base64
         const response = await fetch(asset.uri);
         const blob = await response.blob();
         base64 = await new Promise<string>((resolve, reject) => {
           const reader = new FileReader();
           reader.onload = () => {
-            const result = reader.result as string;
-            // Remove data URL prefix (e.g., "data:application/pdf;base64,")
-            const b64 = result.split(",")[1];
+            const dataUrl = reader.result as string;
+            const b64 = dataUrl.split(",")[1];
             resolve(b64);
           };
           reader.onerror = reject;
           reader.readAsDataURL(blob);
         });
       } else {
-        // On native, use expo-file-system
         const FS = await import("expo-file-system/legacy");
         base64 = await FS.readAsStringAsync(asset.uri, { encoding: FS.EncodingType.Base64 });
       }
+      setUploadProgress(null);
       setSelectedFile({
         name: asset.name,
         base64,
         type: asset.mimeType ?? "application/octet-stream",
       });
     } catch (err) {
+      setUploadProgress(null);
       Alert.alert("Erro", "Não foi possível ler o arquivo. Tente novamente.");
     }
   };
@@ -82,6 +85,7 @@ export default function FilesScreen() {
       return;
     }
     setUploading(true);
+    setUploadProgress("Enviando arquivo...");
     try {
       await uploadMutation.mutateAsync({
         brandId: uploadBrandId,
@@ -94,13 +98,44 @@ export default function FilesScreen() {
       setSelectedFile(null);
       setUploadDesc("");
       setUploadBrandId(null);
+      setUploadProgress(null);
       refetch();
-      Alert.alert("Arquivo enviado!", "O arquivo foi distribuído com sucesso.");
-    } catch (err) {
-      Alert.alert("Erro", "Não foi possível enviar o arquivo.");
+      if (Platform.OS !== "web") {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      }
+      Alert.alert("✅ Arquivo enviado!", "O arquivo foi distribuído com sucesso para os promotores.");
+    } catch (err: any) {
+      setUploadProgress(null);
+      const msg = err?.message ?? "Não foi possível enviar o arquivo.";
+      Alert.alert("Erro no envio", msg);
     } finally {
       setUploading(false);
     }
+  };
+
+  const handleDeleteFile = (id: number, fileName: string) => {
+    Alert.alert(
+      "Excluir arquivo",
+      `Deseja excluir "${fileName}"? Os promotores não poderão mais acessá-lo.`,
+      [
+        { text: "Cancelar", style: "cancel" },
+        {
+          text: "Excluir",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              await deleteMutation.mutateAsync({ id });
+              if (Platform.OS !== "web") {
+                Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+              }
+              refetch();
+            } catch {
+              Alert.alert("Erro", "Não foi possível excluir o arquivo.");
+            }
+          },
+        },
+      ]
+    );
   };
 
   const handleOpenFile = async (url: string) => {
@@ -185,32 +220,42 @@ export default function FilesScreen() {
           const brand = brands?.find((b) => b.id === item.brandId);
           const iconColor = getFileIconColor(item.fileType ?? "");
           return (
-            <Pressable
-              style={({ pressed }) => [styles.fileCard, { backgroundColor: colors.surface, borderColor: colors.border }, pressed && { opacity: 0.8 }]}
-              onPress={() => handleOpenFile(item.fileUrl)}
-            >
-              <View style={[styles.fileIcon, { backgroundColor: iconColor + "15" }]}>
-                <Ionicons name={getFileIcon(item.fileType ?? "") as any} size={28} color={iconColor} />
-              </View>
-              <View style={styles.fileInfo}>
-                <Text style={[styles.fileName, { color: colors.foreground }]} numberOfLines={2}>{item.fileName}</Text>
-                {item.description && (
-                  <Text style={[styles.fileDesc, { color: colors.muted }]} numberOfLines={1}>{item.description}</Text>
-                )}
-                <View style={styles.fileMeta}>
-                  {brand && (
-                    <View style={[styles.brandBadge, { backgroundColor: (brand.colorHex ?? "#3B82F6") + "20" }]}>
-                      <Text style={[styles.brandBadgeText, { color: brand.colorHex ?? "#3B82F6" }]}>{brand.name}</Text>
-                    </View>
-                  )}
-                  <Text style={[styles.fileSize, { color: colors.muted }]}>{formatFileSize(item.fileSize ?? 0)}</Text>
-                  <Text style={[styles.fileDate, { color: colors.muted }]}>
-                    {new Date(item.createdAt).toLocaleDateString("pt-BR")}
-                  </Text>
+            <View style={[styles.fileCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+              <Pressable
+                style={({ pressed }) => [styles.fileCardInner, pressed && { opacity: 0.8 }]}
+                onPress={() => handleOpenFile(item.fileUrl)}
+              >
+                <View style={[styles.fileIcon, { backgroundColor: iconColor + "15" }]}>
+                  <Ionicons name={getFileIcon(item.fileType ?? "") as any} size={28} color={iconColor} />
                 </View>
-              </View>
-              <Ionicons name="open-outline" size={20} color={colors.muted} />
-            </Pressable>
+                <View style={styles.fileInfo}>
+                  <Text style={[styles.fileName, { color: colors.foreground }]} numberOfLines={2}>{item.fileName}</Text>
+                  {item.description && (
+                    <Text style={[styles.fileDesc, { color: colors.muted }]} numberOfLines={1}>{item.description}</Text>
+                  )}
+                  <View style={styles.fileMeta}>
+                    {brand && (
+                      <View style={[styles.brandBadge, { backgroundColor: (brand.colorHex ?? "#3B82F6") + "20" }]}>
+                        <Text style={[styles.brandBadgeText, { color: brand.colorHex ?? "#3B82F6" }]}>{brand.name}</Text>
+                      </View>
+                    )}
+                    <Text style={[styles.fileSize, { color: colors.muted }]}>{formatFileSize(item.fileSize ?? 0)}</Text>
+                    <Text style={[styles.fileDate, { color: colors.muted }]}>
+                      {new Date(item.createdAt).toLocaleDateString("pt-BR")}
+                    </Text>
+                  </View>
+                </View>
+                <Ionicons name="open-outline" size={20} color={colors.muted} />
+              </Pressable>
+              {isManager && (
+                <Pressable
+                  style={({ pressed }) => [styles.deleteBtn, pressed && { opacity: 0.6 }]}
+                  onPress={() => handleDeleteFile(item.id, item.fileName)}
+                >
+                  <Ionicons name="trash-outline" size={18} color="#EF4444" />
+                </Pressable>
+              )}
+            </View>
           );
         }}
       />
@@ -226,7 +271,7 @@ export default function FilesScreen() {
               {brands?.map((b) => (
                 <Pressable
                   key={b.id}
-                  style={[styles.brandOption, uploadBrandId === b.id && { backgroundColor: (b.colorHex ?? "#3B82F6") + "20", borderColor: b.colorHex ?? "#3B82F6" }, { borderColor: colors.border }]}
+                  style={[styles.brandOption, { borderColor: uploadBrandId === b.id ? (b.colorHex ?? "#3B82F6") : colors.border }, uploadBrandId === b.id && { backgroundColor: (b.colorHex ?? "#3B82F6") + "20" }]}
                   onPress={() => setUploadBrandId(b.id)}
                 >
                   <Text style={[styles.brandOptionText, { color: uploadBrandId === b.id ? (b.colorHex ?? "#3B82F6") : colors.muted }]}>{b.name}</Text>
@@ -242,28 +287,45 @@ export default function FilesScreen() {
               placeholder="Descreva o arquivo..."
               placeholderTextColor={colors.muted}
               returnKeyType="done"
+              editable={!uploading}
             />
 
             <Pressable
               style={[styles.pickFileBtn, { backgroundColor: colors.surface, borderColor: selectedFile ? colors.primary : colors.border }]}
               onPress={handlePickFile}
+              disabled={uploading}
             >
               <Ionicons name="attach-outline" size={22} color={selectedFile ? colors.primary : colors.muted} />
-              <Text style={[styles.pickFileBtnText, { color: selectedFile ? colors.primary : colors.muted }]}>
-                {selectedFile ? selectedFile.name : "Selecionar arquivo..."}
+              <Text style={[styles.pickFileBtnText, { color: selectedFile ? colors.primary : colors.muted }]} numberOfLines={1}>
+                {uploadProgress === "Lendo arquivo..." ? "Lendo arquivo..." : selectedFile ? selectedFile.name : "Selecionar arquivo..."}
               </Text>
             </Pressable>
 
+            {uploading && (
+              <View style={styles.progressRow}>
+                <ActivityIndicator size="small" color={colors.primary} />
+                <Text style={[styles.progressText, { color: colors.muted }]}>{uploadProgress ?? "Enviando..."}</Text>
+              </View>
+            )}
+
             <View style={styles.modalActions}>
-              <Pressable style={[styles.modalBtn, { backgroundColor: colors.border }]} onPress={() => { setShowUploadModal(false); setSelectedFile(null); }}>
+              <Pressable
+                style={[styles.modalBtn, { backgroundColor: colors.border, opacity: uploading ? 0.5 : 1 }]}
+                onPress={() => { if (!uploading) { setShowUploadModal(false); setSelectedFile(null); setUploadDesc(""); setUploadBrandId(null); } }}
+                disabled={uploading}
+              >
                 <Text style={[styles.modalBtnText, { color: colors.foreground }]}>Cancelar</Text>
               </Pressable>
               <Pressable
-                style={[styles.modalBtn, { backgroundColor: colors.primary, opacity: uploading ? 0.7 : 1 }]}
+                style={[styles.modalBtn, { backgroundColor: colors.primary, opacity: uploading || !selectedFile || !uploadBrandId ? 0.6 : 1 }]}
                 onPress={handleUpload}
-                disabled={uploading}
+                disabled={uploading || !selectedFile || !uploadBrandId}
               >
-                <Text style={[styles.modalBtnText, { color: "#FFFFFF" }]}>{uploading ? "Enviando..." : "Enviar"}</Text>
+                {uploading ? (
+                  <ActivityIndicator size="small" color="#FFFFFF" />
+                ) : (
+                  <Text style={[styles.modalBtnText, { color: "#FFFFFF" }]}>Enviar</Text>
+                )}
               </Pressable>
             </View>
           </View>
@@ -282,7 +344,8 @@ const styles = StyleSheet.create({
   brandTabText: { fontSize: 14, fontWeight: "600" },
   brandDot: { width: 8, height: 8, borderRadius: 4 },
   list: { padding: 16, gap: 12 },
-  fileCard: { flexDirection: "row", alignItems: "center", borderRadius: 16, padding: 14, borderWidth: 1, gap: 14 },
+  fileCard: { borderRadius: 16, borderWidth: 1, overflow: "hidden" },
+  fileCardInner: { flexDirection: "row", alignItems: "center", padding: 14, gap: 14 },
   fileIcon: { width: 52, height: 52, borderRadius: 14, alignItems: "center", justifyContent: "center" },
   fileInfo: { flex: 1, gap: 4 },
   fileName: { fontSize: 15, fontWeight: "600" },
@@ -292,6 +355,7 @@ const styles = StyleSheet.create({
   brandBadgeText: { fontSize: 11, fontWeight: "700" },
   fileSize: { fontSize: 12 },
   fileDate: { fontSize: 12 },
+  deleteBtn: { borderTopWidth: 1, borderTopColor: "#FEE2E2", backgroundColor: "#FFF5F5", paddingVertical: 10, alignItems: "center", flexDirection: "row", justifyContent: "center", gap: 6 },
   emptyState: { flex: 1, alignItems: "center", justifyContent: "center", gap: 12, padding: 40, paddingTop: 80 },
   emptyTitle: { fontSize: 18, fontWeight: "700" },
   emptyDesc: { fontSize: 14, textAlign: "center", lineHeight: 21 },
@@ -302,8 +366,10 @@ const styles = StyleSheet.create({
   input: { borderWidth: 1, borderRadius: 12, padding: 14, fontSize: 16 },
   pickFileBtn: { borderWidth: 1.5, borderRadius: 12, padding: 14, flexDirection: "row", alignItems: "center", gap: 10, borderStyle: "dashed" },
   pickFileBtnText: { flex: 1, fontSize: 15 },
+  progressRow: { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 8 },
+  progressText: { fontSize: 14 },
   modalActions: { flexDirection: "row", gap: 12, marginTop: 8 },
-  modalBtn: { flex: 1, paddingVertical: 14, borderRadius: 14, alignItems: "center" },
+  modalBtn: { flex: 1, paddingVertical: 14, borderRadius: 14, alignItems: "center", justifyContent: "center" },
   modalBtnText: { fontSize: 16, fontWeight: "700" },
   brandOption: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 10, borderWidth: 1.5, marginRight: 8 },
   brandOptionText: { fontSize: 14, fontWeight: "600" },

@@ -1565,3 +1565,18 @@ export async function upsertAppSettings(managerId: number, data: Partial<Omit<Ap
   if (!db) throw new Error("Database not available");
   await db.insert(appSettings).values({ managerId, ...data }).onDuplicateKeyUpdate({ set: data });
 }
+
+// ─── STOCK FILES — DELETE ─────────────────────────────────────────────────────
+export async function deleteStockFile(id: number): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.delete(stockFiles).where(eq(stockFiles.id, id));
+}
+
+// ─── PROMOTER USER IDs (for push notifications) ───────────────────────────────
+export async function getAllPromoterUserIds(): Promise<number[]> {
+  const db = await getDb();
+  if (!db) return [];
+  const result = await db.select({ id: appUsers.id }).from(appUsers).where(eq(appUsers.appRole, "promoter"));
+  return result.map((r) => r.id);
+}

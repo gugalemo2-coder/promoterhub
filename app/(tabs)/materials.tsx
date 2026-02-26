@@ -47,6 +47,7 @@ export default function MaterialsScreen() {
   const rejectMutation = trpc.materialRequests.reject.useMutation();
   const deliverMutation = trpc.materialRequests.deliver.useMutation();
   const createMaterialMutation = trpc.materials.create.useMutation();
+  const deleteMaterialMutation = trpc.materials.delete.useMutation();
 
   const displayRequests = isManager ? allRequests : myRequests;
 
@@ -141,6 +142,28 @@ export default function MaterialsScreen() {
     } catch (err) {
       Alert.alert("Erro", "Não foi possível criar o material.");
     }
+  };
+
+  const handleDeleteMaterial = (id: number, name: string) => {
+    Alert.alert(
+      "Excluir material",
+      `Deseja excluir "${name}"? Os promotores não poderão mais visualizá-lo.`,
+      [
+        { text: "Cancelar", style: "cancel" },
+        {
+          text: "Excluir",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              await deleteMaterialMutation.mutateAsync({ id });
+              refetchMaterials();
+            } catch {
+              Alert.alert("Erro", "Não foi possível excluir o material.");
+            }
+          },
+        },
+      ]
+    );
   };
 
   const priorityColor = (p: string) => {
@@ -240,6 +263,14 @@ export default function MaterialsScreen() {
                         onPress={() => handleRequestMaterial(item.id)}
                       >
                         <Text style={styles.requestBtnText}>Solicitar</Text>
+                      </Pressable>
+                    )}
+                    {isManager && (
+                      <Pressable
+                        style={({ pressed }) => [styles.deleteMatBtn, pressed && { opacity: 0.6 }]}
+                        onPress={() => handleDeleteMaterial(item.id, item.name)}
+                      >
+                        <Ionicons name="trash-outline" size={16} color="#EF4444" />
                       </Pressable>
                     )}
                   </View>
@@ -446,6 +477,7 @@ const styles = StyleSheet.create({
   stockText: { fontSize: 13, fontWeight: "600" },
   requestBtn: { paddingHorizontal: 14, paddingVertical: 6, borderRadius: 10 },
   requestBtnText: { fontSize: 13, fontWeight: "700", color: "#FFFFFF" },
+  deleteMatBtn: { padding: 6, borderRadius: 8, backgroundColor: "#FFF5F5" },
   requestCard: { borderRadius: 16, padding: 16, borderWidth: 1, gap: 8 },
   requestHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
   requestMaterial: { flex: 1, fontSize: 15, fontWeight: "700" },
