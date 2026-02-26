@@ -770,3 +770,11 @@
 - [x] Exibir fotos enviadas no mês no perfil do promotor
 - [x] Corrigir upload de arquivos no PWA (modal não abre ou trava)
 - [x] Corrigir visualizador de PDF do ranking (botões fechar e salvar)
+
+## Fase 21 — Correção do Cálculo de Média de Horas
+
+- [x] Corrigir cálculo de média de horas: soma das horas ÷ dias efetivamente trabalhados (excluindo domingos e dias sem registro)
+
+## Fase 22 — Ajuste do Cálculo de Média de Horas
+
+- [x] Excluir sábados e domingos do cálculo de média de horas por dia trabalhado (considerar apenas segunda a sexta)

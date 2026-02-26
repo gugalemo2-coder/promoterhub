@@ -1536,25 +1536,28 @@ export async function getPromoterDetail(
     monthlyTrend.push({ month: `${MONTH_NAMES[m - 1]}/${y}`, score: mScore, approvedPhotos: mApproved, hoursWorked: mHours, visits: mVisits });
   }
 
-  // ─── Average monthly hours (last 6 months) ──────────────────────────────────
-  let totalMonthlyHoursSum = 0;
-  let monthsWithData = 0;
-  for (let i = 1; i <= 6; i++) {
-    const d = new Date(year, month - 1 - i, 1);
-    const m2 = d.getMonth() + 1;
-    const y2 = d.getFullYear();
-    const mStart2 = new Date(y2, m2 - 1, 1);
-    const mEnd2 = new Date(y2, m2, 0, 23, 59, 59);
-    const mTimeRows2 = await db.select({ entryType: timeEntries.entryType, entryTime: timeEntries.entryTime })
-      .from(timeEntries).where(and(eq(timeEntries.userId, promoterId), gte(timeEntries.entryTime, mStart2), lte(timeEntries.entryTime, mEnd2))).orderBy(timeEntries.entryTime);
-    let mH = 0; let mL: Date | null = null;
-    for (const r of mTimeRows2) {
-      if (r.entryType === "entry") { mL = new Date(r.entryTime); }
-      else if (r.entryType === "exit" && mL) { const dH = (new Date(r.entryTime).getTime() - mL.getTime()) / 3600000; if (dH > 0 && dH < 24) mH += dH; mL = null; }
+  // ─── Avg hours per worked day in current month (excluding Sundays & days without records) ──
+  // Group the already-fetched timeRows by calendar date, skip Sundays (getDay() === 0)
+  const dailyHoursMap: Record<string, number> = {};
+  let curMonthEntry: Date | null = null;
+  for (const row of timeRows) {
+    if (row.entryType === "entry") {
+      curMonthEntry = new Date(row.entryTime);
+    } else if (row.entryType === "exit" && curMonthEntry) {
+      const diffH = (new Date(row.entryTime).getTime() - curMonthEntry.getTime()) / 3600000;
+      if (diffH > 0 && diffH < 24) {
+        const dayKey = curMonthEntry.toISOString().split("T")[0];
+        const dayOfWeek = curMonthEntry.getDay(); // 0 = Sunday, 6 = Saturday
+        if (dayOfWeek >= 1 && dayOfWeek <= 5) { // Monday to Friday only
+          dailyHoursMap[dayKey] = (dailyHoursMap[dayKey] ?? 0) + diffH;
+        }
+      }
+      curMonthEntry = null;
     }
-    if (mH > 0) { totalMonthlyHoursSum += mH; monthsWithData++; }
   }
-  const avgMonthlyHours = monthsWithData > 0 ? Math.round((totalMonthlyHoursSum / monthsWithData) * 10) / 10 : 0;
+  const workedDays = Object.keys(dailyHoursMap).length;
+  const totalWorkedHoursMonth = Object.values(dailyHoursMap).reduce((s, h) => s + h, 0);
+  const avgMonthlyHours = workedDays > 0 ? Math.round((totalWorkedHoursMonth / workedDays) * 10) / 10 : 0;
 
   // ─── Last week hours (last completed Sun–Sat week) ───────────────────────────
   const todayNow = new Date();
