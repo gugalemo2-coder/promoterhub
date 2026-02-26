@@ -331,6 +331,7 @@ export const appRouter = router({
         weightVisits: z.number().int().min(0).max(100).optional(),
         weightMaterials: z.number().int().min(0).max(100).optional(),
         weightQuality: z.number().int().min(0).max(100).optional(),
+        weightDailyAvg: z.number().int().min(0).max(100).optional(),
         notifyGeoAlert: z.boolean().optional(),
         notifyLowHours: z.boolean().optional(),
         notifyMaterialRequest: z.boolean().optional(),

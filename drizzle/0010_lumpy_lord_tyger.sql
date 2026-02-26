@@ -1,0 +1,1 @@
+ALTER TABLE `app_settings` ADD `weightDailyAvg` int DEFAULT 0 NOT NULL;

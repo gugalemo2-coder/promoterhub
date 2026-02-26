@@ -13,27 +13,52 @@ import * as Auth from "@/lib/_core/auth";
 export const trpc = createTRPCReact<AppRouter>();
 
 /**
+ * A custom fetch wrapper that dynamically resolves the API base URL on every request.
+ *
+ * This is necessary because on native (iOS/Android), Constants.expoConfig.hostUri
+ * may not be available at app initialization time, so we must resolve the URL
+ * at request time rather than at client creation time.
+ */
+function createDynamicFetch(): typeof fetch {
+  return async (input, init) => {
+    const apiBase = getApiBaseUrl();
+    // Replace the placeholder base URL with the dynamically resolved one
+    let url = typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url;
+
+    // If the URL starts with "/api/trpc" (relative), prepend the base
+    if (url.startsWith("/api/trpc")) {
+      url = `${apiBase}${url}`;
+    } else if (url.includes("__DYNAMIC_BASE__")) {
+      // Replace our placeholder with the real base
+      url = url.replace("__DYNAMIC_BASE__", apiBase);
+    }
+
+    return fetch(url, {
+      ...init,
+      credentials: "include",
+    });
+  };
+}
+
+/**
  * Creates the tRPC client with proper configuration.
  * Call this once in your app's root layout.
  */
 export function createTRPCClient() {
+  const dynamicFetch = createDynamicFetch();
+
   return trpc.createClient({
     links: [
       httpLink({
-        url: `${getApiBaseUrl()}/api/trpc`,
+        // Use a relative URL — the custom fetch will prepend the base dynamically
+        url: "/api/trpc",
         // tRPC v11: transformer MUST be inside httpLink, not at root
         transformer: superjson,
         async headers() {
           const token = await Auth.getSessionToken();
           return token ? { Authorization: `Bearer ${token}` } : {};
         },
-        // Custom fetch to include credentials for cookie-based auth
-        fetch(url, options) {
-          return fetch(url, {
-            ...options,
-            credentials: "include",
-          });
-        },
+        fetch: dynamicFetch,
       }),
     ],
   });

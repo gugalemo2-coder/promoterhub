@@ -5,6 +5,7 @@ import net from "net";
 import { createExpressMiddleware } from "@trpc/server/adapters/express";
 import { registerOAuthRoutes } from "./oauth";
 import { registerCustomAuthRoutes, seedMasterAccount } from "./custom-auth";
+import { registerFileUploadRoutes } from "../file-upload";
 import { appRouter } from "../routers";
 import { createContext } from "./context";
 
@@ -57,6 +58,7 @@ async function startServer() {
 
   registerOAuthRoutes(app);
   registerCustomAuthRoutes(app);
+  registerFileUploadRoutes(app);
   // Seed master account on startup
   seedMasterAccount().catch(console.error);
 

@@ -273,11 +273,19 @@ export default function PromoterDetailScreen() {
           {/* Score Metrics */}
           <View style={[styles.section, { backgroundColor: colors.surface, borderColor: colors.border }]}>
             <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Composição do Score</Text>
-            <MetricBar label="Fotos Aprovadas (30%)" value={data.totalApprovedPhotos} max={50} color="#22C55E" />
-            <MetricBar label="Horas Trabalhadas (25%)" value={data.totalHoursWorked} max={160} color="#3B82F6" />
-            <MetricBar label="Visitas a PDVs (25%)" value={data.totalVisits} max={80} color="#8B5CF6" />
-            <MetricBar label="Materiais Solicitados (10%)" value={data.totalMaterialRequests} max={20} color="#F59E0B" />
-            <MetricBar label="Qualidade das Fotos (10%)" value={data.avgQualityRating} max={5} color="#EC4899" />
+            <MetricBar label={`Fotos Aprovadas`} value={data.totalApprovedPhotos} max={50} color="#22C55E" />
+            <MetricBar label={`Horas Trabalhadas`} value={data.totalHoursWorked} max={160} color="#3B82F6" />
+            <MetricBar label={`Visitas a PDVs`} value={data.totalVisits} max={80} color="#8B5CF6" />
+            <MetricBar label={`Materiais Solicitados`} value={data.totalMaterialRequests} max={20} color="#F59E0B" />
+            <MetricBar label={`Qualidade das Fotos`} value={data.avgQualityRating} max={5} color="#EC4899" />
+            {(data.weightDailyAvg ?? 0) > 0 && (
+              <>
+                <MetricBar label={`Média Diária de Horas`} value={data.avgMonthlyHours} max={8} color="#06B6D4" />
+                <Text style={[styles.metricHint, { color: colors.muted }]}>
+                  {data.workedDays} dia{data.workedDays !== 1 ? "s" : ""} úteis trabalhados • referência: 8h/dia
+                </Text>
+              </>
+            )}
             {data.geoAlertCount > 0 && (
               <View style={styles.penaltyRow}>
                 <Ionicons name="warning" size={14} color="#EF4444" />
@@ -432,6 +440,7 @@ const styles = StyleSheet.create({
   metricValue: { fontSize: 12, fontWeight: "600", width: 32, textAlign: "right" },
   penaltyRow: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 4 },
   penaltyText: { fontSize: 12, fontWeight: "600" },
+  metricHint: { fontSize: 11, marginTop: 2, marginBottom: 4 },
   trendTabs: { flexDirection: "row", gap: 6, flexWrap: "wrap" },
   trendTab: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 20, backgroundColor: "#F3F4F6" },
   trendTabText: { fontSize: 12, fontWeight: "600" },

@@ -1,5 +1,6 @@
 import * as Linking from "expo-linking";
 import * as ReactNative from "react-native";
+import Constants from "expo-constants";
 
 // Extract scheme from bundle ID (last segment timestamp, prefixed with "manus")
 // e.g., "space.manus.my.app.t20240115103045" -> "manus20240115103045"
@@ -42,6 +43,26 @@ export function getApiBaseUrl(): string {
     const apiHostname = hostname.replace(/^8081-/, "3000-");
     if (apiHostname !== hostname) {
       return `${protocol}//${apiHostname}`;
+    }
+  }
+
+  // On native (iOS/Android), derive from the Metro bundler host
+  // Constants.expoConfig.hostUri = "192.168.x.x:8081" or "hostname:8081"
+  // We replace port 8081 with 3000 to get the API server address
+  if (ReactNative.Platform.OS !== "web") {
+    const hostUri = (Constants.expoConfig as any)?.hostUri as string | undefined;
+    if (hostUri) {
+      // hostUri format: "host:port" — replace port with 3000
+      const host = hostUri.split(":")[0];
+      // Check if host looks like a Manus sandbox domain (contains dots and letters)
+      // Manus sandbox: 8081-sandboxid.region.domain -> 3000-sandboxid.region.domain
+      if (host.includes(".") && !host.match(/^\d+\.\d+\.\d+\.\d+$/)) {
+        // It's a domain, not an IP — use https
+        const apiHost = hostUri.replace(/^8081-/, "3000-").replace(/:\d+$/, "");
+        return `https://${apiHost}`;
+      }
+      // Local IP address — use http
+      return `http://${host}:3000`;
     }
   }
 

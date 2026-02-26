@@ -157,8 +157,9 @@ export default function MaterialsScreen() {
             try {
               await deleteMaterialMutation.mutateAsync({ id });
               refetchMaterials();
-            } catch {
-              Alert.alert("Erro", "Não foi possível excluir o material.");
+            } catch (err: any) {
+              const msg = err?.message ?? "Não foi possível excluir o material.";
+              Alert.alert("Erro", msg);
             }
           },
         },

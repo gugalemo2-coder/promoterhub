@@ -894,6 +894,8 @@ export interface PromoterMonthlyStats {
   totalHoursWorked: number;
   totalVisits: number;
   avgScoreStores: number;
+  avgDailyHours: number;
+  workedDays: number;
   brandBreakdown: { brandId: number; brandName: string; approvedPhotos: number }[];
 }
 
@@ -903,7 +905,7 @@ export async function getPromoterMonthlyStats(
   month: number
 ): Promise<PromoterMonthlyStats> {
   const db = await getDb();
-  if (!db) return { totalApprovedPhotos: 0, totalRejectedPhotos: 0, totalMaterialRequests: 0, totalHoursWorked: 0, totalVisits: 0, avgScoreStores: 0, brandBreakdown: [] };
+  if (!db) return { totalApprovedPhotos: 0, totalRejectedPhotos: 0, totalMaterialRequests: 0, totalHoursWorked: 0, totalVisits: 0, avgScoreStores: 0, avgDailyHours: 0, workedDays: 0, brandBreakdown: [] };
 
   const startDate = new Date(year, month - 1, 1);
   const endDate = new Date(year, month, 0, 23, 59, 59);
@@ -958,17 +960,31 @@ export async function getPromoterMonthlyStats(
       )
     );
 
-  // Compute hours worked from entry/exit pairs
-  const entryTimes = entries.filter((e) => e.entryType === "entry").map((e) => e.entryTime.getTime());
-  const exitTimes = entries.filter((e) => e.entryType === "exit").map((e) => e.entryTime.getTime());
+  // Compute hours worked from entry/exit pairs (ordered)
+  const sortedEntries = [...entries].sort((a, b) => new Date(a.entryTime).getTime() - new Date(b.entryTime).getTime());
   let totalMinutes = 0;
-  const pairs = Math.min(entryTimes.length, exitTimes.length);
-  for (let i = 0; i < pairs; i++) {
-    const diff = (exitTimes[i] - entryTimes[i]) / 60000;
-    if (diff > 0 && diff < 720) totalMinutes += diff;
+  let lastEntryTime: Date | null = null;
+  const dailyHoursMapStats: Record<string, number> = {};
+  for (const e of sortedEntries) {
+    if (e.entryType === "entry") {
+      lastEntryTime = new Date(e.entryTime);
+    } else if (e.entryType === "exit" && lastEntryTime) {
+      const diff = (new Date(e.entryTime).getTime() - lastEntryTime.getTime()) / 60000;
+      if (diff > 0 && diff < 720) {
+        totalMinutes += diff;
+        const dayKey = lastEntryTime.toISOString().slice(0, 10);
+        const dow = lastEntryTime.getDay();
+        if (dow >= 1 && dow <= 5) {
+          dailyHoursMapStats[dayKey] = (dailyHoursMapStats[dayKey] ?? 0) + diff / 60;
+        }
+      }
+      lastEntryTime = null;
+    }
   }
-
   const totalVisits = entries.filter((e) => e.entryType === "entry").length;
+  const workedDaysStats = Object.keys(dailyHoursMapStats).length;
+  const totalWorkedHoursStats = Object.values(dailyHoursMapStats).reduce((s, h) => s + h, 0);
+  const avgDailyHoursStats = workedDaysStats > 0 ? Math.round((totalWorkedHoursStats / workedDaysStats) * 10) / 10 : 0;
 
   // Brand breakdown of approved photos
   const allBrands = await db.select().from(brands).where(eq(brands.status, "active"));
@@ -987,6 +1003,8 @@ export async function getPromoterMonthlyStats(
     totalHoursWorked: Math.round((totalMinutes / 60) * 10) / 10,
     totalVisits,
     avgScoreStores: 0, // computed on client from store performance
+    avgDailyHours: avgDailyHoursStats,
+    workedDays: workedDaysStats,
     brandBreakdown,
   };
 }
@@ -1054,6 +1072,8 @@ export interface PromoterRankingEntry {
   totalVisits: number;
   avgQualityRating: number;
   geoAlertCount: number;
+  avgDailyHours: number;
+  workedDays: number;
   score: number;
   rank: number;
 }
@@ -1136,17 +1156,30 @@ export async function getPromoterRanking(
     let totalHoursWorked = 0;
     let totalVisits = 0;
     let lastEntry: Date | null = null;
+    // Track unique worked days (Mon-Fri only) for daily average calculation
+    const workedDaySet = new Set<string>();
+    const hoursPerDay: Record<string, number> = {};
     for (const row of timeRows) {
       if (row.entryType === "entry") {
         lastEntry = new Date(row.entryTime);
         totalVisits++;
+        const dayKey = lastEntry.toISOString().slice(0, 10);
+        const dayOfWeek = lastEntry.getDay(); // 0=Sun, 6=Sat
+        if (dayOfWeek !== 0 && dayOfWeek !== 6) {
+          workedDaySet.add(dayKey);
+        }
       } else if (row.entryType === "exit" && lastEntry) {
         const diffMs = new Date(row.entryTime).getTime() - lastEntry.getTime();
-        totalHoursWorked += diffMs / (1000 * 60 * 60);
+        const diffHours = diffMs / (1000 * 60 * 60);
+        totalHoursWorked += diffHours;
+        const dayKey = lastEntry.toISOString().slice(0, 10);
+        hoursPerDay[dayKey] = (hoursPerDay[dayKey] ?? 0) + diffHours;
         lastEntry = null;
       }
     }
     totalHoursWorked = Math.round(totalHoursWorked * 10) / 10;
+    const workedDays = workedDaySet.size;
+    const avgDailyHours = workedDays > 0 ? Math.round((totalHoursWorked / workedDays) * 10) / 10 : 0;
 
     // Geo alerts (negative factor)
     const alertRows = await db
@@ -1161,23 +1194,43 @@ export async function getPromoterRanking(
       );
     const geoAlertCount = Number(alertRows[0]?.cnt ?? 0);
 
-    // Score composto: fotos 30%, horas 25%, visitas 25%, materiais 10%, qualidade 10%, alertas -5%
+    // Load settings to get configurable weights (including weightDailyAvg)
+    // Use default weights if settings not found
+    const settingsRows = await db.select().from(appSettings).limit(1);
+    const settings = settingsRows[0];
+    const wPhotos = settings?.weightPhotos ?? 30;
+    const wHours = settings?.weightHours ?? 25;
+    const wVisits = settings?.weightVisits ?? 25;
+    const wMaterials = settings?.weightMaterials ?? 10;
+    const wQuality = settings?.weightQuality ?? 10;
+    const wDailyAvg = settings?.weightDailyAvg ?? 0;
+
+    // Score composto com pesos configuráveis
     const maxPhotos = 50;
     const maxHours = 160;
     const maxVisits = 80;
     const maxMaterials = 20;
     const maxQuality = 5;
+    const targetDailyHours = 8; // reference: 8h/day
 
-    const photoScore = Math.min(totalApprovedPhotos / maxPhotos, 1) * 30;
-    const hoursScore = Math.min(totalHoursWorked / maxHours, 1) * 25;
-    const visitsScore = Math.min(totalVisits / maxVisits, 1) * 25;
-    const materialsScore = Math.min(totalMaterialRequests / maxMaterials, 1) * 10;
-    const qualityScore = maxQuality > 0 ? (avgQualityRating / maxQuality) * 10 : 0;
+    const photoScore = Math.min(totalApprovedPhotos / maxPhotos, 1) * wPhotos;
+    const hoursScore = Math.min(totalHoursWorked / maxHours, 1) * wHours;
+    const visitsScore = Math.min(totalVisits / maxVisits, 1) * wVisits;
+    const materialsScore = Math.min(totalMaterialRequests / maxMaterials, 1) * wMaterials;
+    const qualityScore = maxQuality > 0 ? (avgQualityRating / maxQuality) * wQuality : 0;
     const alertPenalty = Math.min(geoAlertCount * 2, 10);
+
+    // Daily average hours score:
+    // - If avg >= 8h: full bonus (up to wDailyAvg points)
+    // - If avg < 8h: proportional (avgDailyHours / 8 * wDailyAvg)
+    // - If no worked days: 0
+    const dailyAvgScore = wDailyAvg > 0 && workedDays > 0
+      ? Math.min(avgDailyHours / targetDailyHours, 1) * wDailyAvg
+      : 0;
 
     const score = Math.max(
       0,
-      Math.round(photoScore + hoursScore + visitsScore + materialsScore + qualityScore - alertPenalty)
+      Math.round(photoScore + hoursScore + visitsScore + materialsScore + qualityScore + dailyAvgScore - alertPenalty)
     );
 
     results.push({
@@ -1190,6 +1243,8 @@ export async function getPromoterRanking(
       totalVisits,
       avgQualityRating: Math.round(avgQualityRating * 10) / 10,
       geoAlertCount,
+      avgDailyHours,
+      workedDays,
       score,
       rank: 0,
     });
@@ -1357,6 +1412,8 @@ export interface PromoterDetailStats {
   avgQualityRating: number;
   geoAlertCount: number;
   avgMonthlyHours: number;
+  workedDays: number;
+  weightDailyAvg: number;
   lastWeekHours: number;
   lastWeekEndDate: string;
   monthPhotos: { id: number; photoUrl: string; thumbnailUrl: string | null; brandName: string; storeName: string; photoTimestamp: string; status: string }[];
@@ -1597,6 +1654,11 @@ export async function getPromoterDetail(
     status: p.status,
   }));
 
+  // Load settings for weightDailyAvg
+  const settingsRowsDetail = await db.select().from(appSettings).limit(1);
+  const settingsDetail = settingsRowsDetail[0];
+  const wDailyAvgDetail = settingsDetail?.weightDailyAvg ?? 0;
+
   return {
     userId: promoter.id,
     userName: (promoter.name ?? promoter.login) as string,
@@ -1611,6 +1673,8 @@ export async function getPromoterDetail(
     avgQualityRating,
     geoAlertCount,
     avgMonthlyHours,
+    workedDays,
+    weightDailyAvg: wDailyAvgDetail,
     lastWeekHours,
     lastWeekEndDate,
     monthPhotos,

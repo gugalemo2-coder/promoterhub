@@ -778,3 +778,19 @@
 ## Fase 22 — Ajuste do Cálculo de Média de Horas
 
 - [x] Excluir sábados e domingos do cálculo de média de horas por dia trabalhado (considerar apenas segunda a sexta)
+
+## Fase 23 — Média Diária no Score do Promotor
+
+- [x] Adicionar campo "Peso — Média Diária de Horas" nas Configurações do app
+- [x] Atualizar o cálculo do score para incluir a média diária (referência 8h/dia, bônus proporcional acima, penalidade abaixo)
+- [x] Atualizar a exibição da composição do score no perfil do promotor
+
+## Bug — Upload de Arquivos por Marca (PWA)
+
+- [x] Corrigir definitivamente o upload de arquivos por marca no PWA (ainda não funciona após tentativas anteriores)
+
+## Bug — Exclusão de Arquivos e Materiais no PWA
+
+- [x] Corrigir botão de exclusão de arquivos no PWA (gestor/master)
+- [x] Corrigir botão de exclusão de materiais no PWA (gestor/master)
+- [x] Investigar causa raiz (token de autenticação, endpoint, permissão)

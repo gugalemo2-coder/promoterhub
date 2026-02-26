@@ -2,6 +2,8 @@ import { ScreenContainer } from "@/components/screen-container";
 import { useColors } from "@/hooks/use-colors";
 import { useRole } from "@/lib/role-context";
 import { trpc } from "@/lib/trpc";
+import { getApiBaseUrl } from "@/constants/oauth";
+import * as Auth from "@/lib/_core/auth";
 import { Ionicons } from "@expo/vector-icons";
 import * as DocumentPicker from "expo-document-picker";
 import * as Haptics from "expo-haptics";
@@ -30,7 +32,7 @@ export default function FilesScreen() {
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [uploadBrandId, setUploadBrandId] = useState<number | null>(null);
   const [uploadDesc, setUploadDesc] = useState("");
-  const [selectedFile, setSelectedFile] = useState<{ name: string; base64: string; type: string } | null>(null);
+  const [selectedFile, setSelectedFile] = useState<{ name: string; uri: string; base64?: string; type: string } | null>(null);
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<string | null>(null);
 
@@ -42,40 +44,35 @@ export default function FilesScreen() {
   const handlePickFile = async () => {
     try {
       const result = await DocumentPicker.getDocumentAsync({
-        type: ["application/pdf", "image/*", "application/vnd.ms-excel", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"],
+        type: ["application/pdf", "image/*", "application/vnd.ms-excel", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "*/*"],
         copyToCacheDirectory: true,
       });
       if (result.canceled || !result.assets[0]) return;
       const asset = result.assets[0];
 
-      setUploadProgress("Lendo arquivo...");
-      let base64: string;
       if (Platform.OS === "web") {
+        // Web: read as base64 via FileReader
+        setUploadProgress("Lendo arquivo...");
         const response = await fetch(asset.uri);
         const blob = await response.blob();
-        base64 = await new Promise<string>((resolve, reject) => {
+        const base64 = await new Promise<string>((resolve, reject) => {
           const reader = new FileReader();
           reader.onload = () => {
             const dataUrl = reader.result as string;
-            const b64 = dataUrl.split(",")[1];
-            resolve(b64);
+            resolve(dataUrl.split(",")[1]);
           };
           reader.onerror = reject;
           reader.readAsDataURL(blob);
         });
+        setUploadProgress(null);
+        setSelectedFile({ name: asset.name, uri: asset.uri, base64, type: asset.mimeType ?? "application/octet-stream" });
       } else {
-        const FS = await import("expo-file-system/legacy");
-        base64 = await FS.readAsStringAsync(asset.uri, { encoding: FS.EncodingType.Base64 });
+        // Native: just store the URI — we'll use FileSystem.uploadAsync
+        setSelectedFile({ name: asset.name, uri: asset.uri, type: asset.mimeType ?? "application/octet-stream" });
       }
-      setUploadProgress(null);
-      setSelectedFile({
-        name: asset.name,
-        base64,
-        type: asset.mimeType ?? "application/octet-stream",
-      });
     } catch (err) {
       setUploadProgress(null);
-      Alert.alert("Erro", "Não foi possível ler o arquivo. Tente novamente.");
+      Alert.alert("Erro", "Não foi possível selecionar o arquivo. Tente novamente.");
     }
   };
 
@@ -87,22 +84,51 @@ export default function FilesScreen() {
     setUploading(true);
     setUploadProgress("Enviando arquivo...");
     try {
-      await uploadMutation.mutateAsync({
-        brandId: uploadBrandId,
-        fileBase64: selectedFile.base64,
-        fileType: selectedFile.type,
-        fileName: selectedFile.name,
-        description: uploadDesc.trim() || undefined,
-      });
+      if (Platform.OS === "web") {
+        // Web: use tRPC with base64
+        await uploadMutation.mutateAsync({
+          brandId: uploadBrandId,
+          fileBase64: selectedFile.base64!,
+          fileType: selectedFile.type,
+          fileName: selectedFile.name,
+          description: uploadDesc.trim() || undefined,
+        });
+      } else {
+        // Native: use FileSystem.uploadAsync (multipart) — much more efficient
+        const FS = await import("expo-file-system/legacy");
+        const token = await Auth.getSessionToken();
+        const apiBase = getApiBaseUrl();
+        const uploadUrl = `${apiBase}/api/files/upload`;
+
+        const uploadResult = await FS.uploadAsync(uploadUrl, selectedFile.uri, {
+          httpMethod: "POST",
+          uploadType: FS.FileSystemUploadType.MULTIPART,
+          fieldName: "file",
+          mimeType: selectedFile.type,
+          parameters: {
+            brandId: String(uploadBrandId),
+            description: uploadDesc.trim() || "",
+          },
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        });
+
+        if (uploadResult.status < 200 || uploadResult.status >= 300) {
+          let errMsg = "Erro ao enviar arquivo.";
+          try {
+            const body = JSON.parse(uploadResult.body);
+            errMsg = body.error || errMsg;
+          } catch {}
+          throw new Error(errMsg);
+        }
+      }
+
       setShowUploadModal(false);
       setSelectedFile(null);
       setUploadDesc("");
       setUploadBrandId(null);
       setUploadProgress(null);
       refetch();
-      if (Platform.OS !== "web") {
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      }
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       Alert.alert("✅ Arquivo enviado!", "O arquivo foi distribuído com sucesso para os promotores.");
     } catch (err: any) {
       setUploadProgress(null);
@@ -129,8 +155,9 @@ export default function FilesScreen() {
                 Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
               }
               refetch();
-            } catch {
-              Alert.alert("Erro", "Não foi possível excluir o arquivo.");
+            } catch (err: any) {
+              const msg = err?.message ?? "Não foi possível excluir o arquivo.";
+              Alert.alert("Erro", msg);
             }
           },
         },
@@ -253,6 +280,7 @@ export default function FilesScreen() {
                   onPress={() => handleDeleteFile(item.id, item.fileName)}
                 >
                   <Ionicons name="trash-outline" size={18} color="#EF4444" />
+                  <Text style={styles.deleteBtnText}>Excluir</Text>
                 </Pressable>
               )}
             </View>
@@ -356,6 +384,7 @@ const styles = StyleSheet.create({
   fileSize: { fontSize: 12 },
   fileDate: { fontSize: 12 },
   deleteBtn: { borderTopWidth: 1, borderTopColor: "#FEE2E2", backgroundColor: "#FFF5F5", paddingVertical: 10, alignItems: "center", flexDirection: "row", justifyContent: "center", gap: 6 },
+  deleteBtnText: { fontSize: 13, fontWeight: "600", color: "#EF4444" },
   emptyState: { flex: 1, alignItems: "center", justifyContent: "center", gap: 12, padding: 40, paddingTop: 80 },
   emptyTitle: { fontSize: 18, fontWeight: "700" },
   emptyDesc: { fontSize: 14, textAlign: "center", lineHeight: 21 },

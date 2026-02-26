@@ -23,6 +23,7 @@ const DEFAULTS = {
   weightVisits: 25,
   weightMaterials: 10,
   weightQuality: 10,
+  weightDailyAvg: 0,
   notifyLowHours: true,
   notifyMaterialRequest: true,
   notifyPhotoRejected: true,
@@ -43,6 +44,7 @@ export default function SettingsScreen() {
   const [weightVisits, setWeightVisits] = useState(DEFAULTS.weightVisits);
   const [weightMaterials, setWeightMaterials] = useState(DEFAULTS.weightMaterials);
   const [weightQuality, setWeightQuality] = useState(DEFAULTS.weightQuality);
+  const [weightDailyAvg, setWeightDailyAvg] = useState(DEFAULTS.weightDailyAvg);
   const [notifyLowHours, setNotifyLowHours] = useState(DEFAULTS.notifyLowHours);
   const [notifyMaterialRequest, setNotifyMaterialRequest] = useState(DEFAULTS.notifyMaterialRequest);
   const [notifyPhotoRejected, setNotifyPhotoRejected] = useState(DEFAULTS.notifyPhotoRejected);
@@ -56,13 +58,14 @@ export default function SettingsScreen() {
       setWeightVisits(savedSettings.weightVisits);
       setWeightMaterials(savedSettings.weightMaterials);
       setWeightQuality(savedSettings.weightQuality);
+      setWeightDailyAvg(savedSettings.weightDailyAvg ?? 0);
       setNotifyLowHours(savedSettings.notifyLowHours);
       setNotifyMaterialRequest(savedSettings.notifyMaterialRequest);
       setNotifyPhotoRejected(savedSettings.notifyPhotoRejected);
     }
   }, [savedSettings]);
 
-  const totalWeight = weightPhotos + weightHours + weightVisits + weightMaterials + weightQuality;
+  const totalWeight = weightPhotos + weightHours + weightVisits + weightMaterials + weightQuality + weightDailyAvg;
   const weightsValid = totalWeight === 100;
 
   const handleSave = async () => {
@@ -81,6 +84,7 @@ export default function SettingsScreen() {
         weightVisits,
         weightMaterials,
         weightQuality,
+        weightDailyAvg,
         notifyLowHours,
         notifyMaterialRequest,
         notifyPhotoRejected,
@@ -147,6 +151,7 @@ export default function SettingsScreen() {
             { label: "Visitas a PDVs", value: weightVisits, setter: setWeightVisits, icon: "storefront-outline" as const },
             { label: "Materiais Solicitados", value: weightMaterials, setter: setWeightMaterials, icon: "cube-outline" as const },
             { label: "Qualidade das Fotos", value: weightQuality, setter: setWeightQuality, icon: "star-outline" as const },
+            { label: "Média Diária de Horas", value: weightDailyAvg, setter: setWeightDailyAvg, icon: "calendar-outline" as const },
           ].map(({ label, value, setter, icon }) => (
             <View key={label} style={styles.weightRow}>
               <View style={styles.weightLabel}>
@@ -172,6 +177,16 @@ export default function SettingsScreen() {
               </View>
             </View>
           ))}
+
+          {/* Daily avg info note */}
+          {weightDailyAvg > 0 && (
+            <View style={[styles.infoNote, { backgroundColor: colors.primary + "12", borderColor: colors.primary + "30" }]}>
+              <Ionicons name="information-circle-outline" size={14} color={colors.primary} />
+              <Text style={[styles.infoNoteText, { color: colors.muted }]}>
+                Média Diária: referência de 8h/dia (dias úteis). Pontuação proporcional à média atingida.
+              </Text>
+            </View>
+          )}
 
           {/* Total indicator */}
           <View
@@ -363,6 +378,16 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   totalText: { fontSize: 13, fontWeight: "600" },
+  infoNote: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 6,
+    padding: 10,
+    borderRadius: 8,
+    borderWidth: 1,
+    marginTop: 8,
+  },
+  infoNoteText: { fontSize: 12, flex: 1, lineHeight: 17 },
   // Notifications
   toggleRow: {
     flexDirection: "row",

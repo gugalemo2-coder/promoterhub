@@ -221,6 +221,15 @@ export default function MyProfileScreen() {
               value={stats?.totalVisits ?? 0}
               color={colors.primary}
             />
+            {(stats?.avgDailyHours ?? 0) > 0 && (
+              <StatCard
+                icon="calendar"
+                label="Méd. Diária"
+                value={`${stats?.avgDailyHours ?? 0}h`}
+                color="#06B6D4"
+                sub={`${stats?.workedDays ?? 0} dias úteis`}
+              />
+            )}
           </View>
 
           {/* Weekly trend chart */}
