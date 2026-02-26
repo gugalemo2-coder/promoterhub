@@ -676,3 +676,8 @@
 - [x] Adicionar botões Aprovar/Rejeitar ao abrir foto na aba Fotos dos Promotores
 - [x] Impactar score do promotor com aprovação/rejeição de fotos
 - [x] Exibir status de aprovação/rejeição no perfil do promotor e nos filtros existentes
+
+## Fase — Swipe Horizontal entre Fotos no Modal
+- [x] Implementar navegação por swipe horizontal entre fotos no modal de preview (manager-photos.tsx)
+- [x] Exibir indicador de posição (ex: "3 / 12") no topo do modal
+- [x] Manter botões Aprovar/Rejeitar na parte inferior durante a navegação

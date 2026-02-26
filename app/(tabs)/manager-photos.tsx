@@ -1,7 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import { Image } from "expo-image";
 import { useRouter } from "expo-router";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -52,8 +52,10 @@ export default function ManagerPhotosScreen() {
   const [activeFilter, setActiveFilter] = useState<FilterType | null>(null);
 
   // Selected photo for preview + approval
-  const [previewPhoto, setPreviewPhoto] = useState<PhotoItem | null>(null);
+  const [previewVisible, setPreviewVisible] = useState(false);
+  const [previewIndex, setPreviewIndex] = useState<number>(0);
   const [approving, setApproving] = useState(false);
+  const previewFlatListRef = useRef<FlatList<PhotoItem>>(null);
 
   // Data
   const { data: brands } = trpc.brands.list.useQuery();
@@ -76,16 +78,26 @@ export default function ManagerPhotosScreen() {
   const updateStatusMutation = trpc.photos.updateStatus.useMutation();
 
   // Sort: if date filter active → chronological; otherwise newest first
-  const sortedPhotos = useMemo(() => {
-    if (!photos) return [];
-    const arr = [...photos] as PhotoItem[];
+  const sortedPhotos = useMemo((): PhotoItem[] => {
+    const arr: PhotoItem[] = (photos ?? []).map((p) => ({
+      ...p,
+      photoUrl: p.photoUrl ?? "",
+      photoTimestamp: p.photoTimestamp ?? null,
+    }));
     if (selectedDate) {
-      arr.sort((a, b) => new Date(a.photoTimestamp ?? 0).getTime() - new Date(b.photoTimestamp ?? 0).getTime());
-    } else {
-      arr.sort((a, b) => new Date(b.photoTimestamp ?? 0).getTime() - new Date(a.photoTimestamp ?? 0).getTime());
+      return arr.sort((a, b) => new Date(a.photoTimestamp ?? 0).getTime() - new Date(b.photoTimestamp ?? 0).getTime());
     }
     return arr;
   }, [photos, selectedDate]);
+
+  const openPhoto = useCallback((index: number) => {
+    setPreviewIndex(index);
+    setPreviewVisible(true);
+  }, []);
+
+  const closePreview = useCallback(() => {
+    setPreviewVisible(false);
+  }, []);
 
   const clearFilters = useCallback(() => {
     setSelectedBrandId(undefined);
@@ -107,24 +119,17 @@ export default function ManagerPhotosScreen() {
   const getBrandName = (id?: number) => brands?.find((b) => b.id === id)?.name ?? "Todas";
   const getStoreName = (id?: number) => stores?.find((s) => s.id === id)?.name ?? "Todas";
   const getPromoterName = (id?: number) => {
-    const p = promoters?.find((p) => p.id === id);
-    return p ? (p.name ?? (p as any).login ?? `Promotor ${p.id}`) : "Todos";
-  };
-
-  const formatDate = (iso?: string) => {
-    if (!iso) return "";
-    const d = new Date(iso);
-    return `${d.getDate().toString().padStart(2, "0")}/${(d.getMonth() + 1).toString().padStart(2, "0")}/${d.getFullYear()}`;
+    const p = promoters?.find((u) => u.id === id);
+    return p ? (p.name ?? p.login ?? `Promotor ${p.id}`) : "Todos";
   };
 
   const handleApprove = async () => {
-    if (!previewPhoto) return;
+    const photo = sortedPhotos[previewIndex];
+    if (!photo) return;
     setApproving(true);
     try {
-      await updateStatusMutation.mutateAsync({ id: previewPhoto.id, status: "approved" });
+      await updateStatusMutation.mutateAsync({ id: photo.id, status: "approved" });
       await refetch();
-      setPreviewPhoto((prev) => prev ? { ...prev, status: "approved" } : null);
-      Alert.alert("Foto Aprovada", "A foto foi aprovada e o score do promotor foi atualizado.");
     } catch {
       Alert.alert("Erro", "Não foi possível aprovar a foto.");
     } finally {
@@ -133,18 +138,22 @@ export default function ManagerPhotosScreen() {
   };
 
   const handleReject = async () => {
-    if (!previewPhoto) return;
+    const photo = sortedPhotos[previewIndex];
+    if (!photo) return;
     setApproving(true);
     try {
-      await updateStatusMutation.mutateAsync({ id: previewPhoto.id, status: "rejected" });
+      await updateStatusMutation.mutateAsync({ id: photo.id, status: "rejected" });
       await refetch();
-      setPreviewPhoto((prev) => prev ? { ...prev, status: "rejected" } : null);
-      Alert.alert("Foto Rejeitada", "A foto foi rejeitada e o promotor será notificado.");
     } catch {
       Alert.alert("Erro", "Não foi possível rejeitar a foto.");
     } finally {
       setApproving(false);
     }
+  };
+
+  const formatDate = (iso: string) => {
+    const d = new Date(iso);
+    return `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}/${d.getFullYear()}`;
   };
 
   const renderFilterChip = (label: string, type: FilterType, active: boolean) => (
@@ -158,35 +167,15 @@ export default function ManagerPhotosScreen() {
         },
       ]}
       onPress={() => setActiveFilter(activeFilter === type ? null : type)}
-      activeOpacity={0.75}
+      activeOpacity={0.7}
     >
-      <Text style={[styles.filterChipText, { color: active ? "#fff" : colors.foreground }]}>
-        {label}
-      </Text>
-      {active && <Ionicons name="chevron-down" size={12} color="#fff" />}
+      <Text style={[styles.filterChipText, { color: active ? "#fff" : colors.foreground }]}>{label}</Text>
+      <Ionicons name="chevron-down" size={14} color={active ? "#fff" : colors.muted} />
     </TouchableOpacity>
   );
 
-  const renderFilterDropdown = () => {
+  const renderDropdown = () => {
     if (!activeFilter) return null;
-
-    let items: { id: number; label: string }[] = [];
-    let onSelect: (id: number | undefined) => void = () => {};
-    let currentId: number | undefined;
-
-    if (activeFilter === "brand") {
-      items = (brands ?? []).map((b) => ({ id: b.id, label: b.name }));
-      onSelect = (id) => { setSelectedBrandId(id); setActiveFilter(null); };
-      currentId = selectedBrandId;
-    } else if (activeFilter === "store") {
-      items = (stores ?? []).map((s) => ({ id: s.id, label: s.name }));
-      onSelect = (id) => { setSelectedStoreId(id); setActiveFilter(null); };
-      currentId = selectedStoreId;
-    } else if (activeFilter === "promoter") {
-      items = (promoters ?? []).map((p) => ({ id: p.id, label: p.name ?? (p as any).login ?? `Promotor ${p.id}` }));
-      onSelect = (id) => { setSelectedUserId(id); setActiveFilter(null); };
-      currentId = selectedUserId;
-    }
 
     if (activeFilter === "status") {
       const statusOptions: { value: PhotoStatus; label: string; color: string }[] = [
@@ -229,12 +218,11 @@ export default function ManagerPhotosScreen() {
 
     if (activeFilter === "date") {
       const today = new Date();
-      const days = Array.from({ length: 14 }, (_, i) => {
+      const dates = Array.from({ length: 30 }, (_, i) => {
         const d = new Date(today);
         d.setDate(today.getDate() - i);
         return d.toISOString().split("T")[0];
       });
-
       return (
         <View style={[styles.dropdown, { backgroundColor: colors.surface, borderColor: colors.border }]}>
           <ScrollView style={styles.dropdownScroll} showsVerticalScrollIndicator={true} nestedScrollEnabled>
@@ -244,29 +232,48 @@ export default function ManagerPhotosScreen() {
             >
               <Text style={[styles.dropdownItemText, { color: colors.muted }]}>Todas as datas</Text>
             </TouchableOpacity>
-            {days.map((d) => {
-              const [year, month, day] = d.split("-");
-              const label = `${day}/${month}/${year}`;
-              return (
-                <TouchableOpacity
-                  key={d}
-                  style={[
-                    styles.dropdownItem,
-                    { borderBottomColor: colors.border },
-                    selectedDate === d && { backgroundColor: accentColor + "15" },
-                  ]}
-                  onPress={() => { setSelectedDate(d); setActiveFilter(null); }}
-                >
-                  <Text style={[styles.dropdownItemText, { color: selectedDate === d ? accentColor : colors.foreground }]}>
-                    {label}
-                  </Text>
-                  {selectedDate === d && <Ionicons name="checkmark" size={16} color={accentColor} />}
-                </TouchableOpacity>
-              );
-            })}
+            {dates.map((d) => (
+              <TouchableOpacity
+                key={d}
+                style={[
+                  styles.dropdownItem,
+                  { borderBottomColor: colors.border },
+                  selectedDate === d && { backgroundColor: accentColor + "15" },
+                ]}
+                onPress={() => { setSelectedDate(d); setActiveFilter(null); }}
+              >
+                <Text style={[styles.dropdownItemText, { color: selectedDate === d ? accentColor : colors.foreground }]}>
+                  {formatDate(d + "T00:00:00")}
+                </Text>
+                {selectedDate === d && <Ionicons name="checkmark" size={16} color={accentColor} />}
+              </TouchableOpacity>
+            ))}
           </ScrollView>
         </View>
       );
+    }
+
+    type ListItem = { id: number; name: string | null; login?: string | null };
+    let items: ListItem[] = [];
+    let onSelect: (id: number | undefined) => void = () => {};
+    let currentId: number | undefined;
+    let allLabel = "Todos";
+
+    if (activeFilter === "brand") {
+      items = (brands ?? []).map((b) => ({ id: b.id, name: b.name }));
+      onSelect = (id) => { setSelectedBrandId(id); setActiveFilter(null); };
+      currentId = selectedBrandId;
+      allLabel = "Todas as marcas";
+    } else if (activeFilter === "store") {
+      items = (stores ?? []).map((s) => ({ id: s.id, name: s.name }));
+      onSelect = (id) => { setSelectedStoreId(id); setActiveFilter(null); };
+      currentId = selectedStoreId;
+      allLabel = "Todas as lojas";
+    } else if (activeFilter === "promoter") {
+      items = (promoters ?? []).map((p) => ({ id: p.id, name: p.name, login: p.login }));
+      onSelect = (id) => { setSelectedUserId(id); setActiveFilter(null); };
+      currentId = selectedUserId;
+      allLabel = "Todos os promotores";
     }
 
     return (
@@ -274,11 +281,9 @@ export default function ManagerPhotosScreen() {
         <ScrollView style={styles.dropdownScroll} showsVerticalScrollIndicator={true} nestedScrollEnabled>
           <TouchableOpacity
             style={[styles.dropdownItem, { borderBottomColor: colors.border }]}
-            onPress={() => { onSelect(undefined); }}
+            onPress={() => onSelect(undefined)}
           >
-            <Text style={[styles.dropdownItemText, { color: colors.muted }]}>
-              {activeFilter === "brand" ? "Todas as marcas" : activeFilter === "store" ? "Todas as lojas" : "Todos os promotores"}
-            </Text>
+            <Text style={[styles.dropdownItemText, { color: colors.muted }]}>{allLabel}</Text>
           </TouchableOpacity>
           {items.map((item) => (
             <TouchableOpacity
@@ -291,7 +296,7 @@ export default function ManagerPhotosScreen() {
               onPress={() => onSelect(item.id)}
             >
               <Text style={[styles.dropdownItemText, { color: currentId === item.id ? accentColor : colors.foreground }]}>
-                {item.label}
+                {item.name ?? item.login ?? `#${item.id}`}
               </Text>
               {currentId === item.id && <Ionicons name="checkmark" size={16} color={accentColor} />}
             </TouchableOpacity>
@@ -301,14 +306,15 @@ export default function ManagerPhotosScreen() {
     );
   };
 
-  const currentStatus = previewPhoto?.status;
+  const currentPhoto = sortedPhotos[previewIndex];
+  const currentStatus = currentPhoto?.status;
 
   return (
-    <ScreenContainer>
+    <ScreenContainer containerClassName="flex-1">
       {/* Header */}
-      <View style={[styles.header, { borderBottomColor: colors.border }]}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-          <Ionicons name="arrow-back" size={24} color={colors.foreground} />
+      <View style={[styles.header, { borderBottomColor: colors.border, backgroundColor: colors.background }]}>
+        <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
+          <Ionicons name="chevron-back" size={24} color={accentColor} />
         </TouchableOpacity>
         <View style={styles.headerText}>
           <Text style={[styles.headerTitle, { color: colors.foreground }]}>Fotos dos Promotores</Text>
@@ -317,30 +323,18 @@ export default function ManagerPhotosScreen() {
           </Text>
         </View>
         {hasFilters && (
-          <TouchableOpacity onPress={clearFilters} style={styles.clearBtn}>
-            <Ionicons name="close-circle" size={20} color={colors.error} />
+          <TouchableOpacity style={styles.clearBtn} onPress={clearFilters}>
+            <Ionicons name="close-circle" size={22} color={colors.error} />
           </TouchableOpacity>
         )}
       </View>
 
-      {/* Filter Bar */}
-      <View style={[styles.filterBar, { borderBottomColor: colors.border }]}>
+      {/* Filter bar */}
+      <View style={[styles.filterBar, { borderBottomColor: colors.border, backgroundColor: colors.background }]}>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterScroll}>
-          {renderFilterChip(
-            selectedBrandId ? getBrandName(selectedBrandId) : "Marca",
-            "brand",
-            !!selectedBrandId
-          )}
-          {renderFilterChip(
-            selectedStoreId ? getStoreName(selectedStoreId) : "Loja",
-            "store",
-            !!selectedStoreId
-          )}
-          {renderFilterChip(
-            selectedUserId ? getPromoterName(selectedUserId) : "Promotor",
-            "promoter",
-            !!selectedUserId
-          )}
+          {renderFilterChip(getBrandName(selectedBrandId), "brand", !!selectedBrandId)}
+          {renderFilterChip(getStoreName(selectedStoreId), "store", !!selectedStoreId)}
+          {renderFilterChip(getPromoterName(selectedUserId), "promoter", !!selectedUserId)}
           {renderFilterChip(
             selectedDate ? formatDate(selectedDate + "T00:00:00") : "Data",
             "date",
@@ -354,16 +348,16 @@ export default function ManagerPhotosScreen() {
         </ScrollView>
       </View>
 
-      {/* Dropdown */}
+      {/* Dropdown overlay */}
       {activeFilter && (
         <Pressable style={styles.dropdownOverlay} onPress={() => setActiveFilter(null)}>
           <View style={styles.dropdownContainer}>
-            {renderFilterDropdown()}
+            {renderDropdown()}
           </View>
         </Pressable>
       )}
 
-      {/* Photo Grid */}
+      {/* Photo grid */}
       {isLoading ? (
         <View style={styles.center}>
           <ActivityIndicator size="large" color={accentColor} />
@@ -382,10 +376,10 @@ export default function ManagerPhotosScreen() {
           numColumns={3}
           contentContainerStyle={styles.grid}
           columnWrapperStyle={styles.row}
-          renderItem={({ item }) => (
+          renderItem={({ item, index }) => (
             <TouchableOpacity
               style={[styles.photoCell, { width: PHOTO_SIZE, height: PHOTO_SIZE }]}
-              onPress={() => setPreviewPhoto(item)}
+              onPress={() => openPhoto(index)}
               activeOpacity={0.85}
             >
               <Image
@@ -414,15 +408,22 @@ export default function ManagerPhotosScreen() {
         />
       )}
 
-      {/* Photo Preview Modal with Approve/Reject */}
-      <Modal visible={!!previewPhoto} transparent animationType="fade" onRequestClose={() => setPreviewPhoto(null)}>
+      {/* Photo Preview Modal with Swipe + Approve/Reject */}
+      <Modal visible={previewVisible} transparent animationType="fade" onRequestClose={closePreview}>
         <View style={styles.previewOverlay}>
           {/* Close button */}
-          <TouchableOpacity style={styles.previewClose} onPress={() => setPreviewPhoto(null)}>
+          <TouchableOpacity style={styles.previewClose} onPress={closePreview}>
             <Ionicons name="close-circle" size={36} color="#fff" />
           </TouchableOpacity>
 
-          {/* Status badge */}
+          {/* Counter: X / N */}
+          <View style={styles.previewCounter}>
+            <Text style={styles.previewCounterText}>
+              {previewIndex + 1} / {sortedPhotos.length}
+            </Text>
+          </View>
+
+          {/* Status badge for current photo */}
           {currentStatus && (
             <View style={[
               styles.previewStatusBadge,
@@ -439,12 +440,63 @@ export default function ManagerPhotosScreen() {
             </View>
           )}
 
-          {/* Photo */}
-          <Image
-            source={{ uri: previewPhoto?.photoUrl ?? "" }}
-            style={styles.previewImage}
-            contentFit="contain"
+          {/* Swipeable photo list */}
+          <FlatList
+            ref={previewFlatListRef}
+            data={sortedPhotos}
+            horizontal
+            pagingEnabled
+            showsHorizontalScrollIndicator={false}
+            keyExtractor={(item) => String(item.id)}
+            initialScrollIndex={previewIndex}
+            getItemLayout={(_, index) => ({
+              length: SCREEN_WIDTH,
+              offset: SCREEN_WIDTH * index,
+              index,
+            })}
+            onMomentumScrollEnd={(e) => {
+              const newIndex = Math.round(e.nativeEvent.contentOffset.x / SCREEN_WIDTH);
+              if (newIndex >= 0 && newIndex < sortedPhotos.length) {
+                setPreviewIndex(newIndex);
+              }
+            }}
+            renderItem={({ item }) => (
+              <View style={{ width: SCREEN_WIDTH, alignItems: "center", justifyContent: "center" }}>
+                <Image
+                  source={{ uri: item.photoUrl }}
+                  style={styles.previewImage}
+                  contentFit="contain"
+                />
+              </View>
+            )}
+            style={{ width: SCREEN_WIDTH }}
           />
+
+          {/* Navigation arrows */}
+          {previewIndex > 0 && (
+            <TouchableOpacity
+              style={styles.navArrowLeft}
+              onPress={() => {
+                const newIdx = previewIndex - 1;
+                previewFlatListRef.current?.scrollToIndex({ index: newIdx, animated: true });
+                setPreviewIndex(newIdx);
+              }}
+            >
+              <Ionicons name="chevron-back" size={32} color="rgba(255,255,255,0.85)" />
+            </TouchableOpacity>
+          )}
+          {previewIndex < sortedPhotos.length - 1 && (
+            <TouchableOpacity
+              style={styles.navArrowRight}
+              onPress={() => {
+                const newIdx = previewIndex + 1;
+                previewFlatListRef.current?.scrollToIndex({ index: newIdx, animated: true });
+                setPreviewIndex(newIdx);
+              }}
+            >
+              <Ionicons name="chevron-forward" size={32} color="rgba(255,255,255,0.85)" />
+            </TouchableOpacity>
+          )}
 
           {/* Action buttons */}
           <View style={styles.previewActions}>
@@ -468,7 +520,6 @@ export default function ManagerPhotosScreen() {
                 </>
               )}
             </TouchableOpacity>
-
             <TouchableOpacity
               style={[
                 styles.actionBtn,
@@ -572,12 +623,35 @@ const styles = StyleSheet.create({
   },
   previewOverlay: {
     flex: 1,
-    backgroundColor: "rgba(0,0,0,0.92)",
+    backgroundColor: "rgba(0,0,0,0.95)",
     alignItems: "center",
     justifyContent: "center",
   },
-  previewImage: { width: "100%", height: "70%" },
-  previewClose: { position: "absolute", top: 50, right: 16, zIndex: 10 },
+  previewImage: {
+    width: SCREEN_WIDTH,
+    height: SCREEN_WIDTH * 1.2,
+  },
+  previewClose: {
+    position: "absolute",
+    top: 50,
+    right: 16,
+    zIndex: 20,
+  },
+  previewCounter: {
+    position: "absolute",
+    top: 56,
+    alignSelf: "center",
+    backgroundColor: "rgba(0,0,0,0.5)",
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: 12,
+    zIndex: 20,
+  },
+  previewCounterText: {
+    color: "#fff",
+    fontSize: 14,
+    fontWeight: "600",
+  },
   previewStatusBadge: {
     position: "absolute",
     top: 54,
@@ -588,9 +662,35 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 12,
-    zIndex: 10,
+    zIndex: 20,
   },
   previewStatusText: { color: "#fff", fontSize: 12, fontWeight: "600" },
+  navArrowLeft: {
+    position: "absolute",
+    left: 8,
+    top: "50%",
+    marginTop: -24,
+    width: 44,
+    height: 44,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(0,0,0,0.35)",
+    borderRadius: 22,
+    zIndex: 20,
+  },
+  navArrowRight: {
+    position: "absolute",
+    right: 8,
+    top: "50%",
+    marginTop: -24,
+    width: 44,
+    height: 44,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(0,0,0,0.35)",
+    borderRadius: 22,
+    zIndex: 20,
+  },
   previewActions: {
     position: "absolute",
     bottom: 40,
@@ -600,6 +700,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
     gap: 16,
     justifyContent: "center",
+    zIndex: 20,
   },
   actionBtn: {
     flex: 1,
