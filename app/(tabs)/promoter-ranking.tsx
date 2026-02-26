@@ -7,9 +7,12 @@ import {
   ActivityIndicator,
   Alert,
   FlatList,
+  Modal,
   Platform,
+  ScrollView,
   StyleSheet,
   Text,
+  TouchableOpacity,
   View,
   Pressable,
 } from "react-native";
@@ -196,14 +199,6 @@ function PromoterCard({
             max={maxValues.materials}
             color={colors.warning}
           />
-          {item.geoAlertCount > 0 && (
-            <View style={styles.alertRow}>
-              <Ionicons name="warning" size={14} color={colors.error} />
-              <Text style={[styles.alertText, { color: colors.error }]}>
-                {item.geoAlertCount} alerta{item.geoAlertCount > 1 ? "s" : ""} de geolocalização
-              </Text>
-            </View>
-          )}
           {item.avgQualityRating > 0 && (
             <View style={styles.qualityRow}>
               <Ionicons name="star" size={14} color="#F59E0B" />
@@ -233,6 +228,7 @@ export default function PromoterRankingScreen() {
   const [year, setYear] = useState(now.getFullYear());
   const [month, setMonth] = useState(now.getMonth() + 1);
   const [exporting, setExporting] = useState(false);
+  const [pdfHtml, setPdfHtml] = useState<string | null>(null);
 
   const MONTHS = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
   const MONTHS_FULL = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
@@ -306,9 +302,7 @@ export default function PromoterRankingScreen() {
       </body></html>`;
 
       if (Platform.OS === "web") {
-        const w = window.open("", "_blank");
-        w?.document.write(html);
-        w?.document.close();
+        setPdfHtml(html);
       } else {
         const path = `${FileSystem.cacheDirectory}ranking-promotores-${MONTHS[month - 1]}-${year}.html`;
         await FileSystem.writeAsStringAsync(path, html, { encoding: FileSystem.EncodingType.UTF8 });
@@ -415,6 +409,44 @@ export default function PromoterRankingScreen() {
           ListFooterComponent={<View style={{ height: 32 }} />}
         />
       )}
+
+      {/* PDF Viewer Modal (web only) */}
+      <Modal visible={!!pdfHtml} transparent animationType="slide" onRequestClose={() => setPdfHtml(null)}>
+        <View style={styles.pdfModalContainer}>
+          <View style={styles.pdfModalHeader}>
+            <Text style={styles.pdfModalTitle}>Ranking de Promotores</Text>
+            <View style={styles.pdfModalActions}>
+              {Platform.OS === "web" && pdfHtml && (
+                <TouchableOpacity
+                  style={styles.pdfDownloadBtn}
+                  onPress={() => {
+                    const blob = new Blob([pdfHtml], { type: "text/html" });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement("a");
+                    a.href = url;
+                    a.download = `ranking-promotores-${MONTHS[month - 1]}-${year}.html`;
+                    a.click();
+                    URL.revokeObjectURL(url);
+                  }}
+                >
+                  <Ionicons name="download-outline" size={20} color="#fff" />
+                  <Text style={styles.pdfDownloadBtnText}>Baixar</Text>
+                </TouchableOpacity>
+              )}
+              <TouchableOpacity style={styles.pdfCloseBtn} onPress={() => setPdfHtml(null)}>
+                <Ionicons name="close" size={22} color="#fff" />
+              </TouchableOpacity>
+            </View>
+          </View>
+          {Platform.OS === "web" && pdfHtml && (
+            <iframe
+              srcDoc={pdfHtml}
+              style={{ flex: 1, border: "none", width: "100%" } as any}
+              title="Ranking PDF"
+            />
+          )}
+        </View>
+      </Modal>
     </ScreenContainer>
   );
 }
@@ -544,4 +576,11 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   exportBtnText: { color: "#fff", fontSize: 13, fontWeight: "700" },
+  pdfModalContainer: { flex: 1, backgroundColor: "#fff", marginTop: 60, borderTopLeftRadius: 20, borderTopRightRadius: 20, overflow: "hidden" },
+  pdfModalHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", backgroundColor: "#1e293b", paddingHorizontal: 16, paddingVertical: 14 },
+  pdfModalTitle: { color: "#fff", fontSize: 16, fontWeight: "700", flex: 1 },
+  pdfModalActions: { flexDirection: "row", alignItems: "center", gap: 8 },
+  pdfDownloadBtn: { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "#0a7ea4", paddingHorizontal: 12, paddingVertical: 7, borderRadius: 20 },
+  pdfDownloadBtnText: { color: "#fff", fontSize: 13, fontWeight: "700" },
+  pdfCloseBtn: { backgroundColor: "rgba(255,255,255,0.15)", padding: 8, borderRadius: 20 },
 });

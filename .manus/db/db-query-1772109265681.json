@@ -1,0 +1,30 @@
+{
+  "query": "SELECT id, login, appRole FROM app_users LIMIT 10;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 3MUjan8YnY9PgZH.4cd173914575 --database cSF363ubWEjutwgRMZGZ84 --execute SELECT id, login, appRole FROM app_users LIMIT 10;",
+  "rows": [
+    {
+      "id": "1",
+      "login": "gustavolemes",
+      "appRole": "master"
+    },
+    {
+      "id": "30001",
+      "login": "lenicialemes",
+      "appRole": "manager"
+    },
+    {
+      "id": "30002",
+      "login": "cicera",
+      "appRole": "manager"
+    },
+    {
+      "id": "60001",
+      "login": "antoniojose",
+      "appRole": "promoter"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tlogin\tappRole\n1\tgustavolemes\tmaster\n30001\tlenicialemes\tmanager\n30002\tcicera\tmanager\n60001\tantoniojose\tpromoter\n",
+  "stderr": "",
+  "execution_time_ms": 58
+}

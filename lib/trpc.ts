@@ -1,5 +1,5 @@
 import { createTRPCReact } from "@trpc/react-query";
-import { httpBatchLink } from "@trpc/client";
+import { httpLink } from "@trpc/client";
 import superjson from "superjson";
 import type { AppRouter } from "@/server/routers";
 import { getApiBaseUrl } from "@/constants/oauth";
@@ -8,9 +8,7 @@ import * as Auth from "@/lib/_core/auth";
 /**
  * tRPC React client for type-safe API calls.
  *
- * IMPORTANT (tRPC v11): The `transformer` must be inside `httpBatchLink`,
- * NOT at the root createClient level. This ensures client and server
- * use the same serialization format (superjson).
+ * Uses httpLink (non-batched) to avoid payload size issues with large file uploads.
  */
 export const trpc = createTRPCReact<AppRouter>();
 
@@ -21,9 +19,9 @@ export const trpc = createTRPCReact<AppRouter>();
 export function createTRPCClient() {
   return trpc.createClient({
     links: [
-      httpBatchLink({
+      httpLink({
         url: `${getApiBaseUrl()}/api/trpc`,
-        // tRPC v11: transformer MUST be inside httpBatchLink, not at root
+        // tRPC v11: transformer MUST be inside httpLink, not at root
         transformer: superjson,
         async headers() {
           const token = await Auth.getSessionToken();

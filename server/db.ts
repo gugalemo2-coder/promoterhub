@@ -1356,6 +1356,10 @@ export interface PromoterDetailStats {
   totalVisits: number;
   avgQualityRating: number;
   geoAlertCount: number;
+  avgMonthlyHours: number;
+  lastWeekHours: number;
+  lastWeekEndDate: string;
+  monthPhotos: { id: number; photoUrl: string; thumbnailUrl: string | null; brandName: string; storeName: string; photoTimestamp: string; status: string }[];
   brandBreakdown: { brandId: number; brandName: string; approvedPhotos: number; rejectedPhotos: number }[];
   storeBreakdown: { storeId: number; storeName: string; visits: number; hoursWorked: number; photos: number }[];
   monthlyTrend: { month: string; score: number; approvedPhotos: number; hoursWorked: number; visits: number }[];
@@ -1371,11 +1375,11 @@ export async function getPromoterDetail(
 
   const { and, gte, lte, eq, count, avg } = await import("drizzle-orm");
 
-  // Get promoter info
+  // Get promoter info from app_users (custom auth table)
   const promoterRows = await db
-    .select({ id: users.id, name: users.name, email: users.email })
-    .from(users)
-    .where(eq(users.id, promoterId));
+    .select({ id: appUsers.id, name: appUsers.name, login: appUsers.login })
+    .from(appUsers)
+    .where(eq(appUsers.id, promoterId));
   if (!promoterRows.length) return null;
   const promoter = promoterRows[0];
 
@@ -1532,10 +1536,68 @@ export async function getPromoterDetail(
     monthlyTrend.push({ month: `${MONTH_NAMES[m - 1]}/${y}`, score: mScore, approvedPhotos: mApproved, hoursWorked: mHours, visits: mVisits });
   }
 
+  // ─── Average monthly hours (last 6 months) ──────────────────────────────────
+  let totalMonthlyHoursSum = 0;
+  let monthsWithData = 0;
+  for (let i = 1; i <= 6; i++) {
+    const d = new Date(year, month - 1 - i, 1);
+    const m2 = d.getMonth() + 1;
+    const y2 = d.getFullYear();
+    const mStart2 = new Date(y2, m2 - 1, 1);
+    const mEnd2 = new Date(y2, m2, 0, 23, 59, 59);
+    const mTimeRows2 = await db.select({ entryType: timeEntries.entryType, entryTime: timeEntries.entryTime })
+      .from(timeEntries).where(and(eq(timeEntries.userId, promoterId), gte(timeEntries.entryTime, mStart2), lte(timeEntries.entryTime, mEnd2))).orderBy(timeEntries.entryTime);
+    let mH = 0; let mL: Date | null = null;
+    for (const r of mTimeRows2) {
+      if (r.entryType === "entry") { mL = new Date(r.entryTime); }
+      else if (r.entryType === "exit" && mL) { const dH = (new Date(r.entryTime).getTime() - mL.getTime()) / 3600000; if (dH > 0 && dH < 24) mH += dH; mL = null; }
+    }
+    if (mH > 0) { totalMonthlyHoursSum += mH; monthsWithData++; }
+  }
+  const avgMonthlyHours = monthsWithData > 0 ? Math.round((totalMonthlyHoursSum / monthsWithData) * 10) / 10 : 0;
+
+  // ─── Last week hours (last completed Sun–Sat week) ───────────────────────────
+  const todayNow = new Date();
+  const dayOfWeekNow = todayNow.getDay();
+  const lastSunday = new Date(todayNow);
+  lastSunday.setDate(todayNow.getDate() - dayOfWeekNow - 7);
+  lastSunday.setHours(0, 0, 0, 0);
+  const lastSaturday = new Date(lastSunday);
+  lastSaturday.setDate(lastSunday.getDate() + 6);
+  lastSaturday.setHours(23, 59, 59, 999);
+  const weekTimeRows = await db.select({ entryType: timeEntries.entryType, entryTime: timeEntries.entryTime })
+    .from(timeEntries).where(and(eq(timeEntries.userId, promoterId), gte(timeEntries.entryTime, lastSunday), lte(timeEntries.entryTime, lastSaturday))).orderBy(timeEntries.entryTime);
+  let lastWeekHours = 0; let wLast: Date | null = null;
+  for (const r of weekTimeRows) {
+    if (r.entryType === "entry") { wLast = new Date(r.entryTime); }
+    else if (r.entryType === "exit" && wLast) { const dH = (new Date(r.entryTime).getTime() - wLast.getTime()) / 3600000; if (dH > 0 && dH < 24) lastWeekHours += dH; wLast = null; }
+  }
+  lastWeekHours = Math.round(lastWeekHours * 10) / 10;
+  const lastWeekEndDate = lastSaturday.toISOString().split("T")[0];
+
+  // ─── Month photos with details ───────────────────────────────────────────────
+  const allStoresForPh = await db.select({ id: stores.id, name: stores.name }).from(stores);
+  const allBrandsForPh = await db.select({ id: brands.id, name: brands.name }).from(brands);
+  const monthPhotoRows = await db
+    .select({ id: photos.id, photoUrl: photos.photoUrl, thumbnailUrl: photos.thumbnailUrl, brandId: photos.brandId, storeId: photos.storeId, photoTimestamp: photos.photoTimestamp, status: photos.status })
+    .from(photos)
+    .where(and(eq(photos.userId, promoterId), gte(photos.photoTimestamp, startDate), lte(photos.photoTimestamp, endDate)))
+    .orderBy(desc(photos.photoTimestamp))
+    .limit(60);
+  const monthPhotos = monthPhotoRows.map((p) => ({
+    id: p.id,
+    photoUrl: p.photoUrl,
+    thumbnailUrl: p.thumbnailUrl ?? null,
+    brandName: allBrandsForPh.find((b) => b.id === p.brandId)?.name ?? "Marca",
+    storeName: allStoresForPh.find((s) => s.id === p.storeId)?.name ?? "PDV",
+    photoTimestamp: p.photoTimestamp instanceof Date ? p.photoTimestamp.toISOString() : String(p.photoTimestamp),
+    status: p.status,
+  }));
+
   return {
     userId: promoter.id,
-    userName: (promoter.name ?? promoter.email) as string,
-    userEmail: promoter.email as string,
+    userName: (promoter.name ?? promoter.login) as string,
+    userEmail: (promoter.login ?? "") as string,
     score,
     rank,
     totalApprovedPhotos,
@@ -1545,6 +1607,10 @@ export async function getPromoterDetail(
     totalVisits,
     avgQualityRating,
     geoAlertCount,
+    avgMonthlyHours,
+    lastWeekHours,
+    lastWeekEndDate,
+    monthPhotos,
     brandBreakdown,
     storeBreakdown,
     monthlyTrend,

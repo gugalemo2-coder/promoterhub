@@ -725,8 +725,8 @@
 - [x] Link separado do PWA mobile
 
 ## Bug — Status de Contas no Painel Desktop
-- [ ] Investigar por que painel desktop mostra todas as contas como "Inativas" enquanto PWA mostra como "Ativas"
-- [ ] Corrigir a leitura/interpretação do campo de status no frontend do painel web
+- [x] Investigar por que painel desktop mostra todas as contas como "Inativas" enquanto PWA mostra como "Ativas"
+- [x] Corrigir a leitura/interpretação do campo de status no frontend do painel web
 
 ## Bug — Status de Contas no Painel Desktop
 - [x] Corrigir campo isActive → active na página de Usuários do painel desktop
@@ -751,3 +751,22 @@
 - [x] Adicionar notificação de confirmação no PWA após envio de arquivo bem-sucedido
 - [x] Implementar exclusão de materiais pelo gestor/master (ocultar para promotor)
 - [x] Implementar exclusão de arquivos pelo gestor/master (ocultar para promotor)
+
+## Fase 18 — Visualizador de PDF do Ranking
+
+- [x] Adicionar botão de fechar no visualizador de PDF do ranking
+- [x] Adicionar botão de salvar/compartilhar o PDF do ranking
+
+## Fase 19 — Correção Definitiva de Upload e PDF
+
+- [x] Diagnosticar e corrigir definitivamente o bug de upload de arquivos no PWA (httpBatchLink → httpLink)
+- [x] Corrigir visualizador de PDF do ranking (botões fechar e salvar)
+
+## Fase 20 — Perfil do Promotor na Aba Equipe
+
+- [x] Corrigir bug "Promotor não encontrado" ao selecionar promotor na aba Equipe
+- [x] Exibir média de horas trabalhadas no mês atual no perfil do promotor
+- [x] Exibir horas trabalhadas na última semana (atualizado somente no domingo)
+- [x] Exibir fotos enviadas no mês no perfil do promotor
+- [x] Corrigir upload de arquivos no PWA (modal não abre ou trava)
+- [x] Corrigir visualizador de PDF do ranking (botões fechar e salvar)

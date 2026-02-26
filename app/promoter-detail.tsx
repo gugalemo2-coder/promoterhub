@@ -5,12 +5,16 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import {
   ActivityIndicator,
   FlatList,
+  Image,
+  Modal,
   ScrollView,
   StyleSheet,
   Text,
+  TouchableOpacity,
   View,
   Pressable,
 } from "react-native";
+import { useState as useStateModal } from "react";
 import { ScreenContainer } from "@/components/screen-container";
 import { useState } from "react";
 import Svg, { Rect, Text as SvgText, G, Circle } from "react-native-svg";
@@ -80,6 +84,7 @@ export default function PromoterDetailScreen() {
   const [year, setYear] = useState(now.getFullYear());
   const [month, setMonth] = useState(now.getMonth() + 1);
   const [trendMetric, setTrendMetric] = useState<"score" | "approvedPhotos" | "hoursWorked" | "visits">("score");
+  const [selectedPhoto, setSelectedPhoto] = useStateModal<string | null>(null);
 
   const MONTHS = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
   const MONTHS_FULL = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
@@ -173,7 +178,8 @@ export default function PromoterDetailScreen() {
                 { label: "Materiais", value: data.totalMaterialRequests, icon: "cube", color: "#F59E0B" },
                 { label: "Horas", value: `${data.totalHoursWorked}h`, icon: "time", color: "#3B82F6" },
                 { label: "Visitas", value: data.totalVisits, icon: "location", color: "#8B5CF6" },
-                { label: "Alertas Geo", value: data.geoAlertCount, icon: "warning", color: "#EF4444" },
+                { label: "Méd. Mensal", value: `${data.avgMonthlyHours}h`, icon: "analytics", color: "#06B6D4" },
+                { label: "Última Semana", value: `${data.lastWeekHours}h`, icon: "calendar", color: "#10B981" },
               ].map((kpi) => (
                 <View key={kpi.label} style={[styles.kpiCard, { backgroundColor: colors.background, borderColor: colors.border }]}>
                   <Ionicons name={kpi.icon as any} size={20} color={kpi.color} />
@@ -192,6 +198,29 @@ export default function PromoterDetailScreen() {
                 </Text>
               </View>
             )}
+          </View>
+
+          {/* Weekly Hours Card */}
+          <View style={[styles.section, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+            <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Horas de Trabalho</Text>
+            <View style={{ flexDirection: "row", gap: 12 }}>
+              <View style={[styles.hoursCard, { backgroundColor: colors.background, borderColor: colors.border }]}>
+                <Ionicons name="time-outline" size={22} color="#3B82F6" />
+                <Text style={[styles.hoursValue, { color: colors.foreground }]}>{data.totalHoursWorked}h</Text>
+                <Text style={[styles.hoursLabel, { color: colors.muted }]}>Total no mês</Text>
+              </View>
+              <View style={[styles.hoursCard, { backgroundColor: colors.background, borderColor: colors.border }]}>
+                <Ionicons name="calendar-outline" size={22} color="#10B981" />
+                <Text style={[styles.hoursValue, { color: colors.foreground }]}>{data.lastWeekHours}h</Text>
+                <Text style={[styles.hoursLabel, { color: colors.muted }]}>Última semana</Text>
+                <Text style={[styles.hoursSubLabel, { color: colors.muted }]}>até {data.lastWeekEndDate}</Text>
+              </View>
+              <View style={[styles.hoursCard, { backgroundColor: colors.background, borderColor: colors.border }]}>
+                <Ionicons name="analytics-outline" size={22} color="#06B6D4" />
+                <Text style={[styles.hoursValue, { color: colors.foreground }]}>{data.avgMonthlyHours}h</Text>
+                <Text style={[styles.hoursLabel, { color: colors.muted }]}>Média mensal</Text>
+              </View>
+            </View>
           </View>
 
           {/* Rank Evolution Card */}
@@ -324,8 +353,49 @@ export default function PromoterDetailScreen() {
               ))}
             </View>
           )}
+
+          {/* Month Photos Grid */}
+          <View style={[styles.section, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+            <Text style={[styles.sectionTitle, { color: colors.foreground }]}>
+              Fotos do Mês ({data.monthPhotos.length})
+            </Text>
+            {data.monthPhotos.length === 0 ? (
+              <Text style={[styles.storeStats, { color: colors.muted, textAlign: "center", paddingVertical: 16 }]}>Nenhuma foto enviada neste mês</Text>
+            ) : (
+              <View style={styles.photoGrid}>
+                {data.monthPhotos.map((p) => (
+                  <TouchableOpacity key={p.id} onPress={() => setSelectedPhoto(p.photoUrl)} activeOpacity={0.8}>
+                    <View style={styles.photoThumbWrap}>
+                      <Image
+                        source={{ uri: p.thumbnailUrl ?? p.photoUrl }}
+                        style={styles.photoThumb}
+                        resizeMode="cover"
+                      />
+                      <View style={[
+                        styles.photoStatusBadge,
+                        { backgroundColor: p.status === "approved" ? "#22C55E" : p.status === "rejected" ? "#EF4444" : "#F59E0B" }
+                      ]} />
+                    </View>
+                    <Text style={[styles.photoThumbLabel, { color: colors.muted }]} numberOfLines={1}>{p.brandName}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            )}
+          </View>
         </ScrollView>
       )}
+
+      {/* Photo Viewer Modal */}
+      <Modal visible={!!selectedPhoto} transparent animationType="fade" onRequestClose={() => setSelectedPhoto(null)}>
+        <View style={styles.photoModalBg}>
+          <TouchableOpacity style={styles.photoModalClose} onPress={() => setSelectedPhoto(null)}>
+            <Ionicons name="close-circle" size={36} color="#fff" />
+          </TouchableOpacity>
+          {selectedPhoto && (
+            <Image source={{ uri: selectedPhoto }} style={styles.photoModalImg} resizeMode="contain" />
+          )}
+        </View>
+      </Modal>
     </ScreenContainer>
   );
 }
@@ -382,4 +452,16 @@ const styles = StyleSheet.create({
   rankEvolutionLabel: { fontSize: 10, textAlign: "center" },
   rankEvolutionDivider: { width: 1, height: 36, backgroundColor: "#E5E7EB" },
   rankChangeRow: { flexDirection: "row", alignItems: "center", gap: 2 },
+  hoursCard: { flex: 1, alignItems: "center", padding: 12, borderRadius: 12, borderWidth: 1, gap: 4 },
+  hoursValue: { fontSize: 18, fontWeight: "800" },
+  hoursLabel: { fontSize: 10, textAlign: "center" },
+  hoursSubLabel: { fontSize: 9, textAlign: "center" },
+  photoGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  photoThumbWrap: { width: 80, height: 80, borderRadius: 8, overflow: "hidden", position: "relative" },
+  photoThumb: { width: 80, height: 80 },
+  photoStatusBadge: { position: "absolute", top: 4, right: 4, width: 10, height: 10, borderRadius: 5, borderWidth: 1, borderColor: "#fff" },
+  photoThumbLabel: { fontSize: 9, textAlign: "center", marginTop: 2, width: 80 },
+  photoModalBg: { flex: 1, backgroundColor: "rgba(0,0,0,0.92)", justifyContent: "center", alignItems: "center" },
+  photoModalClose: { position: "absolute", top: 56, right: 20, zIndex: 10 },
+  photoModalImg: { width: "92%", height: "70%", borderRadius: 12 },
 });
