@@ -1,269 +1,385 @@
 "use client";
-
 import { trpc } from "@/lib/trpc";
-import { PageHeader } from "@/components/page-header";
-import { StatusBadge } from "@/components/ui/status-badge";
 import { formatDateTime } from "@/lib/utils";
-import { Camera, RefreshCw, CheckCircle, XCircle, Clock, Download, ExternalLink } from "lucide-react";
-import { useState } from "react";
+import {
+  Camera, RefreshCw, CheckCircle, XCircle, Download,
+  ExternalLink, Filter, X, CheckSquare, Square, Archive,
+} from "lucide-react";
+import { useState, useCallback } from "react";
+import JSZip from "jszip";
 
 type PhotoStatus = "pending" | "approved" | "rejected" | "all";
 
-function downloadFile(url: string, filename: string) {
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = filename;
-  a.target = "_blank";
-  a.rel = "noopener noreferrer";
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
+interface Photo {
+  id: number;
+  photoUrl?: string | null;
+  status?: string | null;
+  createdAt?: string | Date | null;
+  brandId?: number | null;
+  [key: string]: unknown;
 }
+
+function StatusPill({ status }: { status: string }) {
+  const map: Record<string, { label: string; bg: string; color: string }> = {
+    approved: { label: "Aprovada", bg: "#d1fae5", color: "#065f46" },
+    rejected: { label: "Rejeitada", bg: "#fee2e2", color: "#991b1b" },
+    pending:  { label: "Pendente",  bg: "#fef3c7", color: "#92400e" },
+  };
+  const s = map[status] ?? map.pending;
+  return (
+    <span style={{
+      background: s.bg, color: s.color,
+      fontSize: 10, fontWeight: 700, padding: "2px 7px",
+      borderRadius: 20, whiteSpace: "nowrap",
+    }}>{s.label}</span>
+  );
+}
+
+function PhotoCard({
+  photo, idx, selected, onSelect, onApprove, onReject, onDownload, downloading, selectMode,
+}: {
+  photo: Photo; idx: number; selected: boolean;
+  onSelect: (id: number) => void;
+  onApprove: (id: number) => void;
+  onReject: (id: number) => void;
+  onDownload: (photo: Photo, idx: number) => void;
+  downloading: number | null;
+  selectMode: boolean;
+}) {
+  const [hovered, setHovered] = useState(false);
+  const promoterName = (photo.promoterName as string) ?? "Promotor";
+  const storeName = (photo.storeName as string) ?? "PDV";
+  const brandName = (photo.brandName as string) ?? "";
+  return (
+    <div
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      onClick={() => selectMode && onSelect(photo.id)}
+      style={{
+        background: "white", borderRadius: 12, overflow: "hidden",
+        border: selected ? "2px solid #1A56DB" : "2px solid transparent",
+        boxShadow: hovered ? "0 4px 20px rgba(0,0,0,0.10)" : "0 1px 4px rgba(0,0,0,0.06)",
+        transition: "box-shadow 0.15s, border-color 0.15s",
+        cursor: selectMode ? "pointer" : "default", position: "relative",
+      }}
+    >
+      <div style={{ position: "relative", aspectRatio: "4/3", background: "#f3f4f6", overflow: "hidden" }}>
+        {photo.photoUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={photo.photoUrl} alt="Foto" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+        ) : (
+          <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <Camera size={28} style={{ color: "#d1d5db" }} />
+          </div>
+        )}
+        {(hovered || selected) && !selectMode && (
+          <div style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.45)", display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
+            <button onClick={() => onDownload(photo, idx)} disabled={downloading === photo.id} title="Baixar"
+              style={{ width: 36, height: 36, borderRadius: "50%", background: "rgba(255,255,255,0.9)", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+              {downloading === photo.id ? <div style={{ width: 14, height: 14, border: "2px solid #6b7280", borderTopColor: "transparent", borderRadius: "50%", animation: "spin 0.8s linear infinite" }} /> : <Download size={15} style={{ color: "#374151" }} />}
+            </button>
+            <a href={photo.photoUrl ?? "#"} target="_blank" rel="noopener noreferrer" title="Abrir em nova aba"
+              style={{ width: 36, height: 36, borderRadius: "50%", background: "rgba(255,255,255,0.9)", display: "flex", alignItems: "center", justifyContent: "center", textDecoration: "none" }}>
+              <ExternalLink size={15} style={{ color: "#374151" }} />
+            </a>
+          </div>
+        )}
+        <div onClick={(e) => { e.stopPropagation(); onSelect(photo.id); }}
+          style={{ position: "absolute", top: 8, left: 8, opacity: selectMode || selected ? 1 : hovered ? 0.8 : 0, transition: "opacity 0.15s", cursor: "pointer" }}>
+          {selected ? <CheckSquare size={20} style={{ color: "#1A56DB", filter: "drop-shadow(0 1px 2px rgba(0,0,0,0.4))" }} /> : <Square size={20} style={{ color: "white", filter: "drop-shadow(0 1px 2px rgba(0,0,0,0.4))" }} />}
+        </div>
+        <div style={{ position: "absolute", top: 8, right: 8 }}><StatusPill status={photo.status ?? "pending"} /></div>
+      </div>
+      <div style={{ padding: "10px 12px" }}>
+        <p style={{ fontSize: 12, fontWeight: 600, color: "#111827", margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{promoterName}</p>
+        <p style={{ fontSize: 11, color: "#6b7280", margin: "2px 0 0", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{storeName}{brandName ? ` · ${brandName}` : ""}</p>
+        <p style={{ fontSize: 10, color: "#9ca3af", margin: "3px 0 0" }}>{formatDateTime(photo.createdAt as string)}</p>
+        {photo.status === "pending" && (
+          <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
+            <button onClick={() => onApprove(photo.id)} style={{ flex: 1, padding: "5px 0", borderRadius: 7, border: "none", background: "#d1fae5", color: "#065f46", fontSize: 11, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 4 }}>
+              <CheckCircle size={11} /> Aprovar
+            </button>
+            <button onClick={() => onReject(photo.id)} style={{ flex: 1, padding: "5px 0", borderRadius: 7, border: "none", background: "#fee2e2", color: "#991b1b", fontSize: 11, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 4 }}>
+              <XCircle size={11} /> Rejeitar
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+
 
 export default function PhotosPage() {
   const [status, setStatus] = useState<PhotoStatus>("all");
   const [selectedBrand, setSelectedBrand] = useState<number | undefined>(undefined);
   const [downloading, setDownloading] = useState<number | null>(null);
+  const [selected, setSelected] = useState<Set<number>>(new Set());
+  const [batchLoading, setBatchLoading] = useState(false);
+  const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
 
-  const photos = trpc.photos.listAll.useQuery({
+  const photos = trpc.photos.listAllWithDetails.useQuery({
     status: status === "all" ? undefined : status,
     brandId: selectedBrand,
-    limit: 100,
+    limit: 200,
   });
-
   const brands = trpc.brandsAdmin.listAll.useQuery();
-  const approvePhoto = trpc.photos.updateStatus.useMutation();
+  const updateStatus = trpc.photos.updateStatus.useMutation();
+  const updateBatch = trpc.photos.updateStatusBatch.useMutation();
 
-  const data = photos.data ?? [];
+  const data: Photo[] = (photos.data ?? []) as Photo[];
   const brandList = brands.data ?? [];
+  const selectMode = selected.size > 0;
 
-  const statusTabs: { key: PhotoStatus; label: string; icon: React.ReactNode }[] = [
-    { key: "all", label: "Todas", icon: <Camera size={13} /> },
-    { key: "pending", label: "Pendentes", icon: <Clock size={13} /> },
-    { key: "approved", label: "Aprovadas", icon: <CheckCircle size={13} /> },
-    { key: "rejected", label: "Rejeitadas", icon: <XCircle size={13} /> },
-  ];
+  const showToast = (msg: string, type: "success" | "error" = "success") => {
+    setToast({ msg, type });
+    setTimeout(() => setToast(null), 3000);
+  };
+
+  const toggleSelect = (id: number) => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  const selectAll = () => setSelected(new Set(data.map((p) => p.id)));
+  const clearSelection = () => setSelected(new Set());
 
   const handleApprove = async (id: number) => {
-    await approvePhoto.mutateAsync({ id, status: "approved" });
+    await updateStatus.mutateAsync({ id, status: "approved" });
     photos.refetch();
+    showToast("Foto aprovada com sucesso!");
   };
 
   const handleReject = async (id: number) => {
     const notes = window.prompt("Motivo da rejeição (opcional):");
-    await approvePhoto.mutateAsync({ id, status: "rejected", managerNotes: notes ?? undefined });
+    await updateStatus.mutateAsync({ id, status: "rejected", managerNotes: notes ?? undefined });
     photos.refetch();
+    showToast("Foto rejeitada.");
   };
 
-  const handleDownload = async (photo: (typeof data)[0], idx: number) => {
+  const handleBatchApprove = async () => {
+    if (selected.size === 0) return;
+    setBatchLoading(true);
+    try {
+      await updateBatch.mutateAsync({ ids: Array.from(selected), status: "approved" });
+      photos.refetch();
+      showToast(`${selected.size} foto(s) aprovada(s)!`);
+      clearSelection();
+    } finally { setBatchLoading(false); }
+  };
+
+  const handleBatchReject = async () => {
+    if (selected.size === 0) return;
+    const notes = window.prompt("Motivo da rejeição em lote (opcional):");
+    setBatchLoading(true);
+    try {
+      await updateBatch.mutateAsync({ ids: Array.from(selected), status: "rejected", managerNotes: notes ?? undefined });
+      photos.refetch();
+      showToast(`${selected.size} foto(s) rejeitada(s).`);
+      clearSelection();
+    } finally { setBatchLoading(false); }
+  };
+
+  const downloadSingle = useCallback(async (photo: Photo, idx: number) => {
     if (!photo.photoUrl) return;
     setDownloading(photo.id);
     try {
-      const promoterName = ((photo as any).promoterName ?? "promotor").replace(/\s+/g, "-").toLowerCase();
-      const storeName = ((photo as any).storeName ?? "pdv").replace(/\s+/g, "-").toLowerCase();
-      const date = new Date(photo.createdAt ?? Date.now()).toISOString().slice(0, 10);
-      const ext = photo.photoUrl.split("?")[0].split(".").pop() ?? "jpg";
-      const filename = `foto-${promoterName}-${storeName}-${date}-${idx + 1}.${ext}`;
-
-      // Fetch as blob to force download (avoids browser opening the image)
-      const response = await fetch(photo.photoUrl);
+      const promoterName = ((photo.promoterName as string) ?? "promotor").replace(/\s+/g, "-").toLowerCase();
+      const date = new Date((photo.createdAt as string) ?? Date.now()).toISOString().slice(0, 10);
+      const ext = (photo.photoUrl as string).split("?")[0].split(".").pop() ?? "jpg";
+      const filename = `foto-${promoterName}-${date}-${idx + 1}.${ext}`;
+      const response = await fetch(photo.photoUrl as string);
       const blob = await response.blob();
-      const objectUrl = URL.createObjectURL(blob);
-      downloadFile(objectUrl, filename);
-      setTimeout(() => URL.revokeObjectURL(objectUrl), 5000);
-    } catch {
-      // Fallback: open in new tab
-      window.open(photo.photoUrl, "_blank");
-    } finally {
-      setDownloading(null);
-    }
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url; a.download = filename;
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(url), 5000);
+    } catch { window.open(photo.photoUrl as string, "_blank"); }
+    finally { setDownloading(null); }
+  }, []);
+
+  const handleBatchDownload = async () => {
+    const toDownload = data.filter((p) => selected.has(p.id) && p.photoUrl);
+    if (toDownload.length === 0) return;
+    setBatchLoading(true);
+    try {
+      const zip = new JSZip();
+      await Promise.all(
+        toDownload.map(async (photo, idx) => {
+          const response = await fetch(photo.photoUrl as string);
+          const blob = await response.blob();
+          const promoterName = ((photo.promoterName as string) ?? "promotor").replace(/\s+/g, "-").toLowerCase();
+          const date = new Date((photo.createdAt as string) ?? Date.now()).toISOString().slice(0, 10);
+          const ext = (photo.photoUrl as string).split("?")[0].split(".").pop() ?? "jpg";
+          zip.file(`foto-${promoterName}-${date}-${idx + 1}.${ext}`, blob);
+        })
+      );
+      const content = await zip.generateAsync({ type: "blob" });
+      const url = URL.createObjectURL(content);
+      const a = document.createElement("a");
+      a.href = url; a.download = `fotos-selecionadas-${new Date().toISOString().slice(0, 10)}.zip`;
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(url), 5000);
+      showToast(`${toDownload.length} foto(s) baixada(s) em ZIP!`);
+      clearSelection();
+    } finally { setBatchLoading(false); }
   };
 
-  const handleDownloadAll = async () => {
-    const approved = data.filter((p) => p.photoUrl);
-    if (approved.length === 0) return;
-    for (let i = 0; i < approved.length; i++) {
-      await handleDownload(approved[i], i);
-      // Small delay to avoid browser blocking multiple downloads
-      if (i < approved.length - 1) await new Promise((r) => setTimeout(r, 400));
-    }
-  };
+  const statusTabs = [
+    { key: "all" as PhotoStatus, label: "Todas" },
+    { key: "pending" as PhotoStatus, label: "Pendentes" },
+    { key: "approved" as PhotoStatus, label: "Aprovadas" },
+    { key: "rejected" as PhotoStatus, label: "Rejeitadas" },
+  ];
 
   return (
-    <div className="p-6 max-w-7xl mx-auto">
-      <PageHeader
-        title="Fotos dos Promotores"
-        subtitle={`${data.length} fotos encontradas`}
-        icon={Camera}
-        iconColor="text-purple-600"
-        iconBg="bg-purple-50"
-        actions={
-          <div className="flex items-center gap-2">
-            {data.filter((p) => p.photoUrl).length > 0 && (
-              <button
-                onClick={handleDownloadAll}
-                className="flex items-center gap-2 px-3 py-2 text-sm text-purple-700 hover:text-purple-900 border border-purple-200 rounded-lg hover:bg-purple-50 transition-colors font-medium"
-              >
-                <Download size={14} />
-                Baixar Todas ({data.filter((p) => p.photoUrl).length})
-              </button>
-            )}
+    <div style={{ padding: "28px 32px", maxWidth: 1400, margin: "0 auto" }}>
+      <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
+
+      {toast && (
+        <div style={{
+          position: "fixed", top: 20, right: 24, zIndex: 9999,
+          background: toast.type === "success" ? "#065f46" : "#991b1b",
+          color: "white", padding: "10px 18px", borderRadius: 10,
+          fontSize: 13, fontWeight: 600, boxShadow: "0 4px 16px rgba(0,0,0,0.15)",
+        }}>{toast.msg}</div>
+      )}
+
+      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 24 }}>
+        <div>
+          <h1 style={{ fontSize: 22, fontWeight: 800, color: "#111827", margin: 0 }}>Fotos dos Promotores</h1>
+          <p style={{ fontSize: 13, color: "#6b7280", margin: "4px 0 0" }}>
+            {data.length} foto(s) · {data.filter((p) => p.status === "pending").length} pendente(s) de revisão
+          </p>
+        </div>
+        <button
+          onClick={() => photos.refetch()}
+          style={{
+            display: "flex", alignItems: "center", gap: 6, padding: "8px 14px",
+            background: "white", border: "1px solid #e5e7eb", borderRadius: 8,
+            fontSize: 13, color: "#374151", cursor: "pointer", fontWeight: 500,
+          }}
+        >
+          <RefreshCw size={14} style={{ animation: photos.isFetching ? "spin 0.8s linear infinite" : "none" }} />
+          Atualizar
+        </button>
+      </div>
+
+      <div style={{
+        background: "white", borderRadius: 12, border: "1px solid #e5e7eb",
+        padding: "14px 18px", marginBottom: 20,
+        display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap",
+      }}>
+        <Filter size={15} style={{ color: "#9ca3af" }} />
+        <div style={{ display: "flex", gap: 4 }}>
+          {statusTabs.map((tab) => (
             <button
-              onClick={() => photos.refetch()}
-              className="flex items-center gap-2 px-3 py-2 text-sm text-gray-600 hover:text-gray-900 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+              key={tab.key}
+              onClick={() => setStatus(tab.key)}
+              style={{
+                padding: "5px 14px", borderRadius: 20, border: "none", cursor: "pointer",
+                fontSize: 12, fontWeight: 600,
+                background: status === tab.key ? "#1A56DB" : "#f3f4f6",
+                color: status === tab.key ? "white" : "#6b7280",
+              }}
             >
-              <RefreshCw size={14} />
-              Atualizar
+              {tab.label}
             </button>
-          </div>
-        }
-      />
-
-      {/* Status Tabs */}
-      <div className="flex items-center gap-2 mb-4 flex-wrap">
-        {statusTabs.map((tab) => (
-          <button
-            key={tab.key}
-            onClick={() => setStatus(tab.key)}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
-              status === tab.key
-                ? "bg-blue-600 text-white"
-                : "bg-white border border-gray-200 text-gray-600 hover:bg-gray-50"
-            }`}
-          >
-            {tab.icon}
-            {tab.label}
-          </button>
-        ))}
-
-        {/* Brand filter */}
+          ))}
+        </div>
         <select
           value={selectedBrand ?? ""}
           onChange={(e) => setSelectedBrand(e.target.value ? Number(e.target.value) : undefined)}
-          className="ml-auto px-3 py-1.5 text-xs border border-gray-200 rounded-full focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+          style={{
+            padding: "6px 10px", borderRadius: 8, border: "1px solid #e5e7eb",
+            fontSize: 12, color: "#374151", background: "white", cursor: "pointer", outline: "none",
+          }}
         >
           <option value="">Todas as marcas</option>
           {brandList.map((b) => (
             <option key={b.id} value={b.id}>{b.name}</option>
           ))}
         </select>
+        {data.length > 0 && (
+          <button
+            onClick={selectAll}
+            style={{
+              marginLeft: "auto", padding: "5px 12px", borderRadius: 8, border: "1px solid #e5e7eb",
+              fontSize: 12, color: "#374151", background: "white", cursor: "pointer", fontWeight: 500,
+              display: "flex", alignItems: "center", gap: 5,
+            }}
+          >
+            <CheckSquare size={13} /> Selecionar todas
+          </button>
+        )}
       </div>
 
-      {/* Photos Grid */}
+      {selectMode && (
+        <div style={{
+          background: "#1e3a8a", borderRadius: 12, padding: "12px 18px",
+          marginBottom: 16, display: "flex", alignItems: "center", gap: 12,
+          boxShadow: "0 4px 16px rgba(30,58,138,0.25)",
+        }}>
+          <span style={{ color: "white", fontSize: 13, fontWeight: 600, flex: 1 }}>
+            {selected.size} foto(s) selecionada(s)
+          </span>
+          <button onClick={handleBatchApprove} disabled={batchLoading}
+            style={{ background: "#10b981", border: "none", color: "white", padding: "6px 14px", borderRadius: 7, fontSize: 12, cursor: "pointer", fontWeight: 600, display: "flex", alignItems: "center", gap: 5 }}>
+            <CheckCircle size={13} /> Aprovar
+          </button>
+          <button onClick={handleBatchReject} disabled={batchLoading}
+            style={{ background: "#ef4444", border: "none", color: "white", padding: "6px 14px", borderRadius: 7, fontSize: 12, cursor: "pointer", fontWeight: 600, display: "flex", alignItems: "center", gap: 5 }}>
+            <XCircle size={13} /> Rejeitar
+          </button>
+          <button onClick={handleBatchDownload} disabled={batchLoading}
+            style={{ background: "#7c3aed", border: "none", color: "white", padding: "6px 14px", borderRadius: 7, fontSize: 12, cursor: "pointer", fontWeight: 600, display: "flex", alignItems: "center", gap: 5 }}>
+            <Archive size={13} /> Baixar ZIP
+          </button>
+          <button onClick={clearSelection}
+            style={{ background: "transparent", border: "1px solid rgba(255,255,255,0.3)", color: "white", padding: "6px 10px", borderRadius: 7, fontSize: 12, cursor: "pointer" }}>
+            <X size={13} />
+          </button>
+        </div>
+      )}
+
       {photos.isLoading ? (
-        <div className="text-center py-20 text-gray-400">Carregando fotos...</div>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: 300, color: "#9ca3af", fontSize: 14, flexDirection: "column", gap: 12 }}>
+          <div style={{ width: 32, height: 32, border: "3px solid #e5e7eb", borderTopColor: "#1A56DB", borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
+          Carregando fotos...
+        </div>
       ) : data.length === 0 ? (
-        <div className="text-center py-20 text-gray-400">
-          <Camera size={40} className="mx-auto mb-3 opacity-30" />
-          <p>Nenhuma foto encontrada</p>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: 300, color: "#9ca3af", fontSize: 14, flexDirection: "column", gap: 8 }}>
+          <Camera size={40} style={{ color: "#d1d5db" }} />
+          <p style={{ margin: 0 }}>Nenhuma foto encontrada</p>
         </div>
       ) : (
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: 16 }}>
           {data.map((photo, idx) => (
-            <div key={photo.id} className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden group">
-              {/* Image */}
-              <div className="relative aspect-square bg-gray-100">
-                {photo.photoUrl ? (
-                  <>
-                    <img
-                      src={photo.photoUrl}
-                      alt="Foto do promotor"
-                      className="w-full h-full object-cover"
-                    />
-                    {/* Hover overlay with download + open */}
-                    <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-all flex items-center justify-center gap-2 opacity-0 group-hover:opacity-100">
-                      <button
-                        onClick={() => handleDownload(photo, idx)}
-                        disabled={downloading === photo.id}
-                        title="Baixar foto"
-                        className="w-9 h-9 rounded-full bg-white/90 flex items-center justify-center hover:bg-white transition-colors shadow-sm disabled:opacity-60"
-                      >
-                        {downloading === photo.id ? (
-                          <div className="w-4 h-4 border-2 border-gray-400 border-t-transparent rounded-full animate-spin" />
-                        ) : (
-                          <Download size={15} className="text-gray-700" />
-                        )}
-                      </button>
-                      <a
-                        href={photo.photoUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        title="Abrir em nova aba"
-                        className="w-9 h-9 rounded-full bg-white/90 flex items-center justify-center hover:bg-white transition-colors shadow-sm"
-                      >
-                        <ExternalLink size={15} className="text-gray-700" />
-                      </a>
-                    </div>
-                  </>
-                ) : (
-                  <div className="w-full h-full flex items-center justify-center">
-                    <Camera size={24} className="text-gray-300" />
-                  </div>
-                )}
-                {/* Status overlay */}
-                <div className="absolute top-2 left-2">
-                  <StatusBadge status={photo.status ?? "pending"} />
-                </div>
-              </div>
-
-              {/* Info */}
-              <div className="p-3">
-                <p className="text-xs font-medium text-gray-900 truncate">
-                  {(photo as any).promoterName ?? "Promotor"}
-                </p>
-                <p className="text-xs text-gray-500 truncate mt-0.5">
-                  {(photo as any).storeName ?? "PDV"} · {(photo as any).brandName ?? ""}
-                </p>
-                <p className="text-xs text-gray-400 mt-1">{formatDateTime(photo.createdAt)}</p>
-
-                {/* Manager notes for rejected */}
-                {photo.status === "rejected" && (photo as any).managerNotes && (
-                  <p className="text-xs text-red-500 mt-1 italic truncate">
-                    &ldquo;{(photo as any).managerNotes}&rdquo;
-                  </p>
-                )}
-
-                {/* Actions for pending */}
-                {photo.status === "pending" && (
-                  <div className="flex gap-1.5 mt-2">
-                    <button
-                      onClick={() => handleApprove(photo.id)}
-                      disabled={approvePhoto.isPending}
-                      className="flex-1 flex items-center justify-center gap-1 py-1 rounded-lg bg-green-50 text-green-700 text-xs font-medium hover:bg-green-100 transition-colors disabled:opacity-50"
-                    >
-                      <CheckCircle size={11} />
-                      Aprovar
-                    </button>
-                    <button
-                      onClick={() => handleReject(photo.id)}
-                      disabled={approvePhoto.isPending}
-                      className="flex-1 flex items-center justify-center gap-1 py-1 rounded-lg bg-red-50 text-red-700 text-xs font-medium hover:bg-red-100 transition-colors disabled:opacity-50"
-                    >
-                      <XCircle size={11} />
-                      Rejeitar
-                    </button>
-                  </div>
-                )}
-
-                {/* Download button for approved photos */}
-                {photo.status === "approved" && photo.photoUrl && (
-                  <button
-                    onClick={() => handleDownload(photo, idx)}
-                    disabled={downloading === photo.id}
-                    className="w-full flex items-center justify-center gap-1 py-1 mt-2 rounded-lg bg-purple-50 text-purple-700 text-xs font-medium hover:bg-purple-100 transition-colors disabled:opacity-50"
-                  >
-                    {downloading === photo.id ? (
-                      <div className="w-3 h-3 border-2 border-purple-400 border-t-transparent rounded-full animate-spin" />
-                    ) : (
-                      <Download size={11} />
-                    )}
-                    Baixar
-                  </button>
-                )}
-              </div>
-            </div>
+            <PhotoCard
+              key={photo.id}
+              photo={photo}
+              idx={idx}
+              selected={selected.has(photo.id)}
+              onSelect={toggleSelect}
+              onApprove={handleApprove}
+              onReject={handleReject}
+              onDownload={downloadSingle}
+              downloading={downloading}
+              selectMode={selectMode}
+            />
           ))}
         </div>
+      )}
+
+      {!selectMode && data.length > 0 && (
+        <p style={{ textAlign: "center", fontSize: 11, color: "#9ca3af", marginTop: 20 }}>
+          Clique no ícone de seleção em qualquer foto para ativar a seleção múltipla
+        </p>
       )}
     </div>
   );

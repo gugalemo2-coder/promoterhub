@@ -1,5 +1,4 @@
 "use client";
-
 import { useAuth } from "@/lib/auth-context";
 import { Sidebar } from "@/components/sidebar";
 import { useRouter } from "next/navigation";
@@ -7,38 +6,49 @@ import { useEffect, useState } from "react";
 import { Loader2 } from "lucide-react";
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
-  const { isAuthenticated, loading } = useAuth();
+  const { isAuthenticated, loading, user } = useAuth();
   const router = useRouter();
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [collapsed, setCollapsed] = useState(false);
 
   useEffect(() => {
     if (!loading && !isAuthenticated) {
       router.replace("/login");
     }
-  }, [loading, isAuthenticated, router]);
+    if (!loading && isAuthenticated && user) {
+      const role = (user as any).appRole;
+      if (role !== "manager" && role !== "master") {
+        router.replace("/login");
+      }
+    }
+  }, [loading, isAuthenticated, user, router]);
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-screen bg-gray-50">
-        <div className="flex flex-col items-center gap-3">
-          <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
-          <p className="text-sm text-gray-500">Carregando painel...</p>
-        </div>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100vh", background: "#f9fafb", flexDirection: "column", gap: 12 }}>
+        <div style={{ width: 48, height: 48, background: "#1A56DB", borderRadius: 14, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20, fontWeight: 800, color: "white", marginBottom: 8 }}>P</div>
+        <Loader2 style={{ color: "#1A56DB", animation: "spin 1s linear infinite" }} size={24} />
+        <p style={{ fontSize: 13, color: "#6b7280", margin: 0 }}>Carregando painel...</p>
+        <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
       </div>
     );
   }
 
   if (!isAuthenticated) return null;
 
+  const sidebarW = collapsed ? 68 : 260;
+
   return (
-    <div className="flex h-screen overflow-hidden bg-gray-50">
-      <Sidebar
-        collapsed={sidebarCollapsed}
-        onToggle={() => setSidebarCollapsed((v) => !v)}
-      />
+    <div style={{ display: "flex", minHeight: "100vh", background: "#f9fafb" }}>
+      <Sidebar collapsed={collapsed} onToggle={() => setCollapsed((c) => !c)} />
       <main
-        className="flex-1 overflow-y-auto transition-all duration-300"
-        style={{ marginLeft: sidebarCollapsed ? 64 : 256 }}
+        style={{
+          marginLeft: sidebarW,
+          flex: 1,
+          transition: "margin-left 0.25s cubic-bezier(0.4,0,0.2,1)",
+          minHeight: "100vh",
+          display: "flex",
+          flexDirection: "column",
+        }}
       >
         {children}
       </main>

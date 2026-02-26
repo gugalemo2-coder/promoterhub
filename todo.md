@@ -683,9 +683,9 @@
 - [x] Manter botões Aprovar/Rejeitar na parte inferior durante a navegação
 
 ## Fase — Melhorias no Modal de Fotos
-- [ ] Zoom com pinch (dois dedos) na foto aberta no modal
-- [ ] Painel de informações (promotor, loja, data, marca) que aparece/some ao tocar na foto
-- [ ] Modo de seleção múltipla na grade de fotos com aprovação/rejeição em lote
+- [x] Zoom com pinch (dois dedos) na foto aberta no modal
+- [x] Painel de informações (promotor, loja, data, marca) que aparece/some ao tocar na foto
+- [x] Modo de seleção múltipla na grade de fotos com aprovação/rejeição em lote
 
 ## Fase — Melhorias no Modal de Fotos (Gestor/Master)
 - [x] Zoom com pinch (dois dedos) e double-tap para ampliar/reduzir foto no modal
@@ -710,3 +710,16 @@
 - [x] Frontend: botão Excluir com confirmação na tela master-users.tsx
 - [x] Frontend: botão Ativar/Inativar separados (Ativar verde, Inativar vermelho) na tela master-users.tsx
 - [x] Frontend: modal de confirmação de exclusão com aviso de ação irreversível
+
+## Fase — Painel Web Desktop (Gestor/Master)
+- [x] Estrutura base: Next.js + Tailwind CSS, autenticação com mesmo backend
+- [x] Layout com sidebar colapsável, header e área de conteúdo
+- [x] Dashboard: KPIs, gráficos de desempenho, resumo da equipe
+- [x] Fotos: grade com seleção múltipla, aprovação/rejeição em lote, download individual e em lote (ZIP)
+- [x] Equipe: lista de promotores com detalhes e navegação para perfil
+- [x] Ranking de promotores com score e métricas
+- [x] Dashboard de PDVs com ranking e filtros
+- [x] Relatório mensal com gráficos e exportação
+- [x] Usuários: gestão de contas (somente Master) com ativar/inativar/excluir
+- [x] Configurações do gestor
+- [x] Link separado do PWA mobile
