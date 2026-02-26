@@ -126,7 +126,7 @@ export default function TeamScreen() {
             <Ionicons name="people-outline" size={56} color={colors.muted} />
             <Text style={[styles.emptyTitle, { color: colors.foreground }]}>Nenhum promotor</Text>
             <Text style={[styles.emptyDesc, { color: colors.muted }]}>
-              Os promotores aparecerão aqui após fazerem login
+              Nenhum promotor cadastrado ainda
             </Text>
           </View>
         }
@@ -140,18 +140,18 @@ export default function TeamScreen() {
             onPress={() =>
               router.push({
                 pathname: "/promoter-detail" as any,
-                params: { promoterId: String(item.id), promoterName: item.name ?? `Promotor ${item.id}` },
+                params: { promoterId: String(item.id), promoterName: item.name ?? (item as any).login ?? `Promotor ${item.id}` },
               })
             }
           >
             <View style={[styles.avatar, { backgroundColor: colors.primary + "20" }]}>
               <Text style={[styles.avatarText, { color: colors.primary }]}>
-                {(item.name ?? "?")[0].toUpperCase()}
+                {(item.name ?? (item as any).login ?? "?")[0].toUpperCase()}
               </Text>
             </View>
             <View style={styles.promoterInfo}>
-              <Text style={[styles.promoterName, { color: colors.foreground }]}>{item.name ?? "Sem nome"}</Text>
-              <Text style={[styles.promoterEmail, { color: colors.muted }]}>{item.email ?? "—"}</Text>
+              <Text style={[styles.promoterName, { color: colors.foreground }]}>{item.name ?? (item as any).login ?? "Sem nome"}</Text>
+              <Text style={[styles.promoterEmail, { color: colors.muted }]}>{(item as any).login ?? "—"}</Text>
             </View>
             <Ionicons name="chevron-forward" size={18} color={colors.muted} />
           </Pressable>

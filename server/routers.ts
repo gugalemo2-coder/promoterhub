@@ -185,7 +185,7 @@ export const appRouter = router({
   reports: router({
     daily: protectedProcedure.input(z.object({ date: z.string().optional() })).query(({ input }) => db.getDailyReport(input.date ? new Date(input.date) : new Date())),
     promoterSummary: protectedProcedure.input(z.object({ userId: z.number().optional(), date: z.string().optional() })).query(async ({ ctx, input }) => db.getDailySummary(input.userId ?? ctx.user.id, input.date ? new Date(input.date) : new Date())),
-    allPromoters: protectedProcedure.query(() => db.getAllPromoterUsers()),
+    allPromoters: protectedProcedure.query(() => db.getAllPromoterUsersWithProfile()),
     monthly: protectedProcedure
       .input(z.object({ year: z.number().int().min(2020).max(2100), month: z.number().int().min(1).max(12), userId: z.number().optional() }))
       .query(({ input }) => db.getMonthlyReport(input.year, input.month, input.userId)),
@@ -231,7 +231,7 @@ export const appRouter = router({
       }))
       .query(({ input }) => db.getStorePerformance(input.year, input.month, input.promoterId)),
     promoters: protectedProcedure
-      .query(() => db.getAllPromoterUsers()),
+      .query(() => db.getAllPromoterUsersWithProfile()),
   }),
   promoterProfile: router({
     myStats: protectedProcedure

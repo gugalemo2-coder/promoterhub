@@ -5,6 +5,7 @@ import { trpc } from "@/lib/trpc";
 import { Ionicons } from "@expo/vector-icons";
 import * as DocumentPicker from "expo-document-picker";
 import * as Linking from "expo-linking";
+import { Platform } from "react-native";
 import { useState } from "react";
 import {
   Alert,
@@ -42,14 +43,37 @@ export default function FilesScreen() {
     if (result.canceled || !result.assets[0]) return;
     const asset = result.assets[0];
 
-    // Read as base64
-    const FS = await import("expo-file-system/legacy");
-    const base64 = await FS.readAsStringAsync(asset.uri, { encoding: FS.EncodingType.Base64 });
-    setSelectedFile({
-      name: asset.name,
-      base64,
-      type: asset.mimeType ?? "application/octet-stream",
-    });
+    try {
+      let base64: string;
+      if (Platform.OS === "web") {
+        // On web, DocumentPicker returns a blob URI or data URI
+        // Fetch the blob and convert to base64
+        const response = await fetch(asset.uri);
+        const blob = await response.blob();
+        base64 = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => {
+            const result = reader.result as string;
+            // Remove data URL prefix (e.g., "data:application/pdf;base64,")
+            const b64 = result.split(",")[1];
+            resolve(b64);
+          };
+          reader.onerror = reject;
+          reader.readAsDataURL(blob);
+        });
+      } else {
+        // On native, use expo-file-system
+        const FS = await import("expo-file-system/legacy");
+        base64 = await FS.readAsStringAsync(asset.uri, { encoding: FS.EncodingType.Base64 });
+      }
+      setSelectedFile({
+        name: asset.name,
+        base64,
+        type: asset.mimeType ?? "application/octet-stream",
+      });
+    } catch (err) {
+      Alert.alert("Erro", "Não foi possível ler o arquivo. Tente novamente.");
+    }
   };
 
   const handleUpload = async () => {

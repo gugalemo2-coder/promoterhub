@@ -664,3 +664,15 @@
 - [x] Adicionar mensagem de sucesso (toast/banner) após alterar cargo, redefinir senha e ativar/desativar conta
 - [x] Corrigir persistência de mudança de cargo: usuário alterado deve ver novo cargo ao fazer login
 - [x] Exibir cargo e status atual de forma mais clara na lista de usuários
+
+## Fase — Correções nas Telas de Gestor/Master (Rodada 2)
+- [x] Corrigir erro "Uncaught Error" ao tentar enviar arquivo
+- [x] Corrigir lista de promotores na tela Equipe (não atualiza com novos promotores)
+- [x] Corrigir scroll nos filtros da aba Fotos dos Promotores
+- [x] Corrigir filtro "Filtrar por Promotor" na aba Relatório Mensal
+- [x] Excluir aba "Assinar Relatório"
+- [x] Corrigir filtro de promotores no Dashboard de PDVs
+- [x] Corrigir filtro de promotores no Ranking de Promotores
+- [x] Adicionar botões Aprovar/Rejeitar ao abrir foto na aba Fotos dos Promotores
+- [x] Impactar score do promotor com aprovação/rejeição de fotos
+- [x] Exibir status de aprovação/rejeição no perfil do promotor e nos filtros existentes

@@ -26,12 +26,7 @@ const MENU_ITEMS: MenuItem[] = [
     route: "/(tabs)/reports",
     description: "Relatórios de desempenho e produtividade",
   },
-  {
-    label: "Assinar Relatório",
-    icon: "create-outline",
-    route: "/(tabs)/sign-report",
-    description: "Assinar digitalmente relatórios de visita",
-  },
+
   {
     label: "Dashboard PDVs",
     icon: "storefront-outline",

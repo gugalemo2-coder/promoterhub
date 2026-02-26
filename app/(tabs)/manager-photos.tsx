@@ -4,6 +4,7 @@ import { useRouter } from "expo-router";
 import { useCallback, useMemo, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   Dimensions,
   FlatList,
   Modal,
@@ -22,7 +23,18 @@ import { trpc } from "@/lib/trpc";
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const PHOTO_SIZE = (SCREEN_WIDTH - 48 - 8) / 3;
 
-type FilterType = "brand" | "store" | "promoter" | "date";
+type FilterType = "brand" | "store" | "promoter" | "date" | "status";
+type PhotoStatus = "pending" | "approved" | "rejected";
+
+type PhotoItem = {
+  id: number;
+  photoUrl: string;
+  status: string | null;
+  photoTimestamp: string | Date | null;
+  brandId?: number | null;
+  storeId?: number | null;
+  userId?: number | null;
+};
 
 export default function ManagerPhotosScreen() {
   const colors = useColors();
@@ -36,10 +48,12 @@ export default function ManagerPhotosScreen() {
   const [selectedStoreId, setSelectedStoreId] = useState<number | undefined>();
   const [selectedUserId, setSelectedUserId] = useState<number | undefined>();
   const [selectedDate, setSelectedDate] = useState<string | undefined>();
+  const [selectedStatus, setSelectedStatus] = useState<PhotoStatus | undefined>();
   const [activeFilter, setActiveFilter] = useState<FilterType | null>(null);
 
-  // Selected photo for preview
-  const [previewPhoto, setPreviewPhoto] = useState<string | null>(null);
+  // Selected photo for preview + approval
+  const [previewPhoto, setPreviewPhoto] = useState<PhotoItem | null>(null);
+  const [approving, setApproving] = useState(false);
 
   // Data
   const { data: brands } = trpc.brands.list.useQuery();
@@ -49,19 +63,22 @@ export default function ManagerPhotosScreen() {
   const startDate = selectedDate ? `${selectedDate}T00:00:00.000Z` : undefined;
   const endDate = selectedDate ? `${selectedDate}T23:59:59.999Z` : undefined;
 
-  const { data: photos, isLoading } = trpc.photos.listAll.useQuery({
+  const { data: photos, isLoading, refetch } = trpc.photos.listAll.useQuery({
     brandId: selectedBrandId,
     storeId: selectedStoreId,
     userId: selectedUserId,
     startDate,
     endDate,
+    status: selectedStatus,
     limit: 100,
   });
+
+  const updateStatusMutation = trpc.photos.updateStatus.useMutation();
 
   // Sort: if date filter active → chronological; otherwise newest first
   const sortedPhotos = useMemo(() => {
     if (!photos) return [];
-    const arr = [...photos];
+    const arr = [...photos] as PhotoItem[];
     if (selectedDate) {
       arr.sort((a, b) => new Date(a.photoTimestamp ?? 0).getTime() - new Date(b.photoTimestamp ?? 0).getTime());
     } else {
@@ -75,18 +92,59 @@ export default function ManagerPhotosScreen() {
     setSelectedStoreId(undefined);
     setSelectedUserId(undefined);
     setSelectedDate(undefined);
+    setSelectedStatus(undefined);
   }, []);
 
-  const hasFilters = selectedBrandId || selectedStoreId || selectedUserId || selectedDate;
+  const hasFilters = selectedBrandId || selectedStoreId || selectedUserId || selectedDate || selectedStatus;
+
+  const getStatusLabel = (s?: PhotoStatus) => {
+    if (s === "approved") return "Aprovadas";
+    if (s === "rejected") return "Rejeitadas";
+    if (s === "pending") return "Pendentes";
+    return "Status";
+  };
 
   const getBrandName = (id?: number) => brands?.find((b) => b.id === id)?.name ?? "Todas";
   const getStoreName = (id?: number) => stores?.find((s) => s.id === id)?.name ?? "Todas";
-  const getPromoterName = (id?: number) => promoters?.find((p) => p.id === id)?.name ?? "Todos";
+  const getPromoterName = (id?: number) => {
+    const p = promoters?.find((p) => p.id === id);
+    return p ? (p.name ?? (p as any).login ?? `Promotor ${p.id}`) : "Todos";
+  };
 
   const formatDate = (iso?: string) => {
     if (!iso) return "";
     const d = new Date(iso);
     return `${d.getDate().toString().padStart(2, "0")}/${(d.getMonth() + 1).toString().padStart(2, "0")}/${d.getFullYear()}`;
+  };
+
+  const handleApprove = async () => {
+    if (!previewPhoto) return;
+    setApproving(true);
+    try {
+      await updateStatusMutation.mutateAsync({ id: previewPhoto.id, status: "approved" });
+      await refetch();
+      setPreviewPhoto((prev) => prev ? { ...prev, status: "approved" } : null);
+      Alert.alert("Foto Aprovada", "A foto foi aprovada e o score do promotor foi atualizado.");
+    } catch {
+      Alert.alert("Erro", "Não foi possível aprovar a foto.");
+    } finally {
+      setApproving(false);
+    }
+  };
+
+  const handleReject = async () => {
+    if (!previewPhoto) return;
+    setApproving(true);
+    try {
+      await updateStatusMutation.mutateAsync({ id: previewPhoto.id, status: "rejected" });
+      await refetch();
+      setPreviewPhoto((prev) => prev ? { ...prev, status: "rejected" } : null);
+      Alert.alert("Foto Rejeitada", "A foto foi rejeitada e o promotor será notificado.");
+    } catch {
+      Alert.alert("Erro", "Não foi possível rejeitar a foto.");
+    } finally {
+      setApproving(false);
+    }
   };
 
   const renderFilterChip = (label: string, type: FilterType, active: boolean) => (
@@ -125,15 +183,53 @@ export default function ManagerPhotosScreen() {
       onSelect = (id) => { setSelectedStoreId(id); setActiveFilter(null); };
       currentId = selectedStoreId;
     } else if (activeFilter === "promoter") {
-      items = (promoters ?? []).map((p) => ({ id: p.id, label: p.name ?? `Promotor ${p.id}` }));
+      items = (promoters ?? []).map((p) => ({ id: p.id, label: p.name ?? (p as any).login ?? `Promotor ${p.id}` }));
       onSelect = (id) => { setSelectedUserId(id); setActiveFilter(null); };
       currentId = selectedUserId;
     }
 
+    if (activeFilter === "status") {
+      const statusOptions: { value: PhotoStatus; label: string; color: string }[] = [
+        { value: "approved", label: "Aprovadas", color: "#0E9F6E" },
+        { value: "rejected", label: "Rejeitadas", color: "#E02424" },
+        { value: "pending", label: "Pendentes", color: "#F59E0B" },
+      ];
+      return (
+        <View style={[styles.dropdown, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+          <ScrollView style={styles.dropdownScroll} showsVerticalScrollIndicator={true} nestedScrollEnabled>
+            <TouchableOpacity
+              style={[styles.dropdownItem, { borderBottomColor: colors.border }]}
+              onPress={() => { setSelectedStatus(undefined); setActiveFilter(null); }}
+            >
+              <Text style={[styles.dropdownItemText, { color: colors.muted }]}>Todos os status</Text>
+            </TouchableOpacity>
+            {statusOptions.map((opt) => (
+              <TouchableOpacity
+                key={opt.value}
+                style={[
+                  styles.dropdownItem,
+                  { borderBottomColor: colors.border },
+                  selectedStatus === opt.value && { backgroundColor: opt.color + "15" },
+                ]}
+                onPress={() => { setSelectedStatus(opt.value); setActiveFilter(null); }}
+              >
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                  <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: opt.color }} />
+                  <Text style={[styles.dropdownItemText, { color: selectedStatus === opt.value ? opt.color : colors.foreground }]}>
+                    {opt.label}
+                  </Text>
+                </View>
+                {selectedStatus === opt.value && <Ionicons name="checkmark" size={16} color={opt.color} />}
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        </View>
+      );
+    }
+
     if (activeFilter === "date") {
-      // Simple date input via text — show last 7 days as quick options
       const today = new Date();
-      const days = Array.from({ length: 7 }, (_, i) => {
+      const days = Array.from({ length: 14 }, (_, i) => {
         const d = new Date(today);
         d.setDate(today.getDate() - i);
         return d.toISOString().split("T")[0];
@@ -141,65 +237,71 @@ export default function ManagerPhotosScreen() {
 
       return (
         <View style={[styles.dropdown, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-          <TouchableOpacity
-            style={[styles.dropdownItem, { borderBottomColor: colors.border }]}
-            onPress={() => { setSelectedDate(undefined); setActiveFilter(null); }}
-          >
-            <Text style={[styles.dropdownItemText, { color: colors.muted }]}>Todas as datas</Text>
-          </TouchableOpacity>
-          {days.map((d) => {
-            const [year, month, day] = d.split("-");
-            const label = `${day}/${month}/${year}`;
-            return (
-              <TouchableOpacity
-                key={d}
-                style={[
-                  styles.dropdownItem,
-                  { borderBottomColor: colors.border },
-                  selectedDate === d && { backgroundColor: accentColor + "15" },
-                ]}
-                onPress={() => { setSelectedDate(d); setActiveFilter(null); }}
-              >
-                <Text style={[styles.dropdownItemText, { color: selectedDate === d ? accentColor : colors.foreground }]}>
-                  {label}
-                </Text>
-                {selectedDate === d && <Ionicons name="checkmark" size={16} color={accentColor} />}
-              </TouchableOpacity>
-            );
-          })}
+          <ScrollView style={styles.dropdownScroll} showsVerticalScrollIndicator={true} nestedScrollEnabled>
+            <TouchableOpacity
+              style={[styles.dropdownItem, { borderBottomColor: colors.border }]}
+              onPress={() => { setSelectedDate(undefined); setActiveFilter(null); }}
+            >
+              <Text style={[styles.dropdownItemText, { color: colors.muted }]}>Todas as datas</Text>
+            </TouchableOpacity>
+            {days.map((d) => {
+              const [year, month, day] = d.split("-");
+              const label = `${day}/${month}/${year}`;
+              return (
+                <TouchableOpacity
+                  key={d}
+                  style={[
+                    styles.dropdownItem,
+                    { borderBottomColor: colors.border },
+                    selectedDate === d && { backgroundColor: accentColor + "15" },
+                  ]}
+                  onPress={() => { setSelectedDate(d); setActiveFilter(null); }}
+                >
+                  <Text style={[styles.dropdownItemText, { color: selectedDate === d ? accentColor : colors.foreground }]}>
+                    {label}
+                  </Text>
+                  {selectedDate === d && <Ionicons name="checkmark" size={16} color={accentColor} />}
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
         </View>
       );
     }
 
     return (
       <View style={[styles.dropdown, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-        <TouchableOpacity
-          style={[styles.dropdownItem, { borderBottomColor: colors.border }]}
-          onPress={() => { onSelect(undefined); }}
-        >
-          <Text style={[styles.dropdownItemText, { color: colors.muted }]}>
-            {activeFilter === "brand" ? "Todas as marcas" : activeFilter === "store" ? "Todas as lojas" : "Todos os promotores"}
-          </Text>
-        </TouchableOpacity>
-        {items.map((item) => (
+        <ScrollView style={styles.dropdownScroll} showsVerticalScrollIndicator={true} nestedScrollEnabled>
           <TouchableOpacity
-            key={item.id}
-            style={[
-              styles.dropdownItem,
-              { borderBottomColor: colors.border },
-              currentId === item.id && { backgroundColor: accentColor + "15" },
-            ]}
-            onPress={() => onSelect(item.id)}
+            style={[styles.dropdownItem, { borderBottomColor: colors.border }]}
+            onPress={() => { onSelect(undefined); }}
           >
-            <Text style={[styles.dropdownItemText, { color: currentId === item.id ? accentColor : colors.foreground }]}>
-              {item.label}
+            <Text style={[styles.dropdownItemText, { color: colors.muted }]}>
+              {activeFilter === "brand" ? "Todas as marcas" : activeFilter === "store" ? "Todas as lojas" : "Todos os promotores"}
             </Text>
-            {currentId === item.id && <Ionicons name="checkmark" size={16} color={accentColor} />}
           </TouchableOpacity>
-        ))}
+          {items.map((item) => (
+            <TouchableOpacity
+              key={item.id}
+              style={[
+                styles.dropdownItem,
+                { borderBottomColor: colors.border },
+                currentId === item.id && { backgroundColor: accentColor + "15" },
+              ]}
+              onPress={() => onSelect(item.id)}
+            >
+              <Text style={[styles.dropdownItemText, { color: currentId === item.id ? accentColor : colors.foreground }]}>
+                {item.label}
+              </Text>
+              {currentId === item.id && <Ionicons name="checkmark" size={16} color={accentColor} />}
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
       </View>
     );
   };
+
+  const currentStatus = previewPhoto?.status;
 
   return (
     <ScreenContainer>
@@ -244,6 +346,11 @@ export default function ManagerPhotosScreen() {
             "date",
             !!selectedDate
           )}
+          {renderFilterChip(
+            getStatusLabel(selectedStatus),
+            "status",
+            !!selectedStatus
+          )}
         </ScrollView>
       </View>
 
@@ -278,7 +385,7 @@ export default function ManagerPhotosScreen() {
           renderItem={({ item }) => (
             <TouchableOpacity
               style={[styles.photoCell, { width: PHOTO_SIZE, height: PHOTO_SIZE }]}
-              onPress={() => setPreviewPhoto(item.photoUrl)}
+              onPress={() => setPreviewPhoto(item)}
               activeOpacity={0.85}
             >
               <Image
@@ -297,23 +404,93 @@ export default function ManagerPhotosScreen() {
                   <Ionicons name="close" size={10} color="#fff" />
                 </View>
               )}
+              {(!item.status || item.status === "pending") && (
+                <View style={[styles.statusBadge, { backgroundColor: "#F59E0B" }]}>
+                  <Ionicons name="time" size={10} color="#fff" />
+                </View>
+              )}
             </TouchableOpacity>
           )}
         />
       )}
 
-      {/* Photo Preview Modal */}
+      {/* Photo Preview Modal with Approve/Reject */}
       <Modal visible={!!previewPhoto} transparent animationType="fade" onRequestClose={() => setPreviewPhoto(null)}>
-        <Pressable style={styles.previewOverlay} onPress={() => setPreviewPhoto(null)}>
-          <Image
-            source={{ uri: previewPhoto ?? "" }}
-            style={styles.previewImage}
-            contentFit="contain"
-          />
+        <View style={styles.previewOverlay}>
+          {/* Close button */}
           <TouchableOpacity style={styles.previewClose} onPress={() => setPreviewPhoto(null)}>
             <Ionicons name="close-circle" size={36} color="#fff" />
           </TouchableOpacity>
-        </Pressable>
+
+          {/* Status badge */}
+          {currentStatus && (
+            <View style={[
+              styles.previewStatusBadge,
+              { backgroundColor: currentStatus === "approved" ? "#0E9F6E" : currentStatus === "rejected" ? "#E02424" : "#F59E0B" }
+            ]}>
+              <Ionicons
+                name={currentStatus === "approved" ? "checkmark-circle" : currentStatus === "rejected" ? "close-circle" : "time"}
+                size={14}
+                color="#fff"
+              />
+              <Text style={styles.previewStatusText}>
+                {currentStatus === "approved" ? "Aprovada" : currentStatus === "rejected" ? "Rejeitada" : "Pendente"}
+              </Text>
+            </View>
+          )}
+
+          {/* Photo */}
+          <Image
+            source={{ uri: previewPhoto?.photoUrl ?? "" }}
+            style={styles.previewImage}
+            contentFit="contain"
+          />
+
+          {/* Action buttons */}
+          <View style={styles.previewActions}>
+            <TouchableOpacity
+              style={[
+                styles.actionBtn,
+                styles.rejectBtn,
+                currentStatus === "rejected" && styles.actionBtnActive,
+                approving && styles.actionBtnDisabled,
+              ]}
+              onPress={handleReject}
+              disabled={approving || currentStatus === "rejected"}
+              activeOpacity={0.8}
+            >
+              {approving ? (
+                <ActivityIndicator size="small" color="#fff" />
+              ) : (
+                <>
+                  <Ionicons name="close-circle-outline" size={22} color="#fff" />
+                  <Text style={styles.actionBtnText}>Rejeitar</Text>
+                </>
+              )}
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[
+                styles.actionBtn,
+                styles.approveBtn,
+                currentStatus === "approved" && styles.actionBtnActive,
+                approving && styles.actionBtnDisabled,
+              ]}
+              onPress={handleApprove}
+              disabled={approving || currentStatus === "approved"}
+              activeOpacity={0.8}
+            >
+              {approving ? (
+                <ActivityIndicator size="small" color="#fff" />
+              ) : (
+                <>
+                  <Ionicons name="checkmark-circle-outline" size={22} color="#fff" />
+                  <Text style={styles.actionBtnText}>Aprovar</Text>
+                </>
+              )}
+            </TouchableOpacity>
+          </View>
+        </View>
       </Modal>
     </ScreenContainer>
   );
@@ -364,7 +541,9 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     borderWidth: 1,
     overflow: "hidden",
-    maxHeight: 240,
+  },
+  dropdownScroll: {
+    maxHeight: 260,
   },
   dropdownItem: {
     flexDirection: "row",
@@ -397,6 +576,56 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  previewImage: { width: "100%", height: "80%" },
-  previewClose: { position: "absolute", top: 50, right: 16 },
+  previewImage: { width: "100%", height: "70%" },
+  previewClose: { position: "absolute", top: 50, right: 16, zIndex: 10 },
+  previewStatusBadge: {
+    position: "absolute",
+    top: 54,
+    left: 16,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+    zIndex: 10,
+  },
+  previewStatusText: { color: "#fff", fontSize: 12, fontWeight: "600" },
+  previewActions: {
+    position: "absolute",
+    bottom: 40,
+    left: 0,
+    right: 0,
+    flexDirection: "row",
+    paddingHorizontal: 24,
+    gap: 16,
+    justifyContent: "center",
+  },
+  actionBtn: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    paddingVertical: 14,
+    borderRadius: 14,
+    maxWidth: 180,
+  },
+  rejectBtn: {
+    backgroundColor: "#E02424",
+  },
+  approveBtn: {
+    backgroundColor: "#0E9F6E",
+  },
+  actionBtnActive: {
+    opacity: 0.5,
+  },
+  actionBtnDisabled: {
+    opacity: 0.6,
+  },
+  actionBtnText: {
+    color: "#fff",
+    fontSize: 16,
+    fontWeight: "700",
+  },
 });

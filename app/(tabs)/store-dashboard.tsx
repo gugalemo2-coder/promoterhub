@@ -206,7 +206,7 @@ export default function StoreDashboardScreen() {
   );
 
   const selectedPromoterName = selectedPromoterId
-    ? promoters?.find((p) => p.id === selectedPromoterId)?.name ?? "Promotor"
+    ? promoters?.find((p) => p.id === selectedPromoterId)?.name ?? (promoters?.find((p) => p.id === selectedPromoterId) as any)?.login ?? "Promotor"
     : "Todos os promotores";
 
   const stores = data ?? [];
@@ -431,7 +431,7 @@ export default function StoreDashboardScreen() {
             >
               <Ionicons name="person" size={16} color={selectedPromoterId === p.id ? colors.primary : colors.muted} />
               <Text style={[styles.promoterOptionText, { color: selectedPromoterId === p.id ? colors.primary : colors.foreground, fontWeight: selectedPromoterId === p.id ? "700" : "400" }]}>
-                {p.name ?? p.email}
+                {p.name ?? (p as any).login ?? `Promotor ${p.id}`}
               </Text>
             </Pressable>
           ))}

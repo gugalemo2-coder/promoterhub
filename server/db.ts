@@ -993,11 +993,11 @@ export async function getPromoterRanking(
   const startDate = new Date(year, month - 1, 1);
   const endDate = new Date(year, month, 0, 23, 59, 59);
 
-  // Get all promoters
+  // Get all promoters from appUsers (includes those who haven't logged in yet)
   const allPromoters = await db
-    .select({ id: users.id, name: users.name, email: users.email })
-    .from(users)
-    .innerJoin(promoterProfiles, eq(promoterProfiles.userId, users.id));
+    .select({ id: appUsers.id, name: appUsers.name, email: appUsers.login })
+    .from(appUsers)
+    .where(eq(appUsers.appRole, "promoter"));
 
   const results: PromoterRankingEntry[] = [];
 

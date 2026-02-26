@@ -240,7 +240,7 @@ export default function ReportsScreen() {
                   onPress={() => setSelectedUserId(selectedUserId === p.id ? undefined : p.id)}
                 >
                   <Text style={[styles.filterChipText, { color: selectedUserId === p.id ? "#FFFFFF" : colors.foreground }]} numberOfLines={1}>
-                    {p.name ?? `Promotor ${p.id}`}
+                    {p.name ?? (p as any).login ?? `Promotor ${p.id}`}
                   </Text>
                 </Pressable>
               ))}
