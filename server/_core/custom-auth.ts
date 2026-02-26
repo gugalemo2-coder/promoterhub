@@ -7,6 +7,7 @@ import type { Express, Request, Response } from "express";
 import bcrypt from "bcryptjs";
 import { eq } from "drizzle-orm";
 import { getDb } from "../db";
+import * as dbModule from "../db";
 import { appUsers, type AppUser } from "../../drizzle/schema";
 import { sdk } from "./sdk";
 import { ENV } from "./env";
@@ -339,9 +340,45 @@ export function registerCustomAuthRoutes(app: Express) {
       console.error("[CustomAuth] Toggle active failed:", err);
       res.status(500).json({ error: "Erro interno." });
     }
+  });  // ── DELETE /api/master/users/:id ───────────────────────────────────────────────────────────
+  app.delete("/api/master/users/:id", async (req: Request, res: Response) => {
+    try {
+      const token = getToken(req);
+      if (!token) { res.status(401).json({ error: "Não autenticado." }); return; }
+      const session = await sdk.verifySession(token);
+      if (!session) { res.status(401).json({ error: "Sessão inválida." }); return; }
+      const match = session.openId.match(/^app_user_(\d+)$/);
+      if (!match) { res.status(403).json({ error: "Acesso negado." }); return; }
+      const requesterId = parseInt(match[1]);
+      const targetId = parseInt(req.params.id);
+      if (isNaN(targetId)) { res.status(400).json({ error: "ID inválido." }); return; }
+      const db = await getDb();
+      if (!db) { res.status(503).json({ error: "Banco de dados indisponível." }); return; }
+      const requester = await db.select().from(appUsers).where(eq(appUsers.id, requesterId)).limit(1);
+      if (!requester[0] || requester[0].appRole !== "master") {
+        res.status(403).json({ error: "Apenas o Master pode excluir contas." });
+        return;
+      }
+      if (targetId === requesterId) {
+        res.status(400).json({ error: "Não é possível excluir a própria conta Master." });
+        return;
+      }
+      const target = await db.select().from(appUsers).where(eq(appUsers.id, targetId)).limit(1);
+      if (!target[0]) { res.status(404).json({ error: "Usuário não encontrado." }); return; }
+      if (target[0].appRole === "master") {
+        res.status(400).json({ error: "Não é possível excluir outra conta Master." });
+        return;
+      }
+      const userName = target[0].name ?? target[0].login;
+      await dbModule.deleteUserAccount(targetId);
+      res.json({ success: true, message: `Conta de "${userName}" excluída com sucesso.` });
+    } catch (err) {
+      console.error("[CustomAuth] Delete user failed:", err);
+      res.status(500).json({ error: "Erro interno ao excluir conta." });
+    }
   });
 
-  // ── POST /api/auth/app-upload-avatar ────────────────────────────────────────
+  // ── POST /api/auth/app-upload-avatar ──────────────────────────────────────────────
   app.post("/api/auth/app-upload-avatar", async (req: Request, res: Response) => {
     try {
       const token =

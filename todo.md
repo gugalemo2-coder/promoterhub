@@ -702,3 +702,11 @@
 - [x] Disparar push para todos os gestores/masters quando promotor fizer upload de foto
 - [x] Notificação com título, nome do promotor e marca da foto
 - [x] Salvar notificação no histórico (tabela notifications)
+
+## Fase — Exclusão e Inativação de Contas (Master)
+- [x] Backend: deleteUserAccount — apaga conta e todos os dados vinculados (fotos, arquivos, ponto, solicitações, relatórios, perfil, tokens, notificações)
+- [x] Backend: bloquear login de contas com status "inactive" no custom-auth.ts
+- [x] Backend: endpoint DELETE /api/master/users/:id com verificação de permissão Master
+- [x] Frontend: botão Excluir com confirmação na tela master-users.tsx
+- [x] Frontend: botão Ativar/Inativar separados (Ativar verde, Inativar vermelho) na tela master-users.tsx
+- [x] Frontend: modal de confirmação de exclusão com aviso de ação irreversível

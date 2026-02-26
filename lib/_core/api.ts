@@ -169,6 +169,13 @@ export async function masterResetPassword(userId: number, newPassword: string): 
   });
 }
 
+// Custom auth — delete user account and all data (master only)
+export async function masterDeleteUser(userId: number): Promise<{ success: boolean; message: string }> {
+  return apiCall<{ success: boolean; message: string }>(`/api/master/users/${userId}`, {
+    method: "DELETE",
+  });
+}
+
 // Upload avatar de perfil (base64)
 export async function appUploadAvatar(fileBase64: string, fileType: string, fileName: string): Promise<{ avatarUrl: string; user: any }> {
   return apiCall<{ avatarUrl: string; user: any }>("/api/auth/app-upload-avatar", {

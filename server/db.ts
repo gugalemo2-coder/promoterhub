@@ -1,4 +1,4 @@
-import { and, desc, eq, gte, inArray, lte, sql } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, lte, or, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import {
   brands,
@@ -573,6 +573,23 @@ export async function getManagerAndMasterUserIds(): Promise<number[]> {
     .from(appUsers)
     .where(inArray(appUsers.appRole, ["manager", "master"]));
   return result.map((r) => r.id);
+}
+
+/** Delete a user account and all associated data (cascade delete) */
+export async function deleteUserAccount(userId: number): Promise<void> {
+  const db = await getDb();
+  if (!db) return;
+  // Delete in order to respect foreign key constraints
+  await db.delete(pushTokens).where(eq(pushTokens.userId, userId));
+  await db.delete(notifications).where(eq(notifications.userId, userId));
+  await db.delete(geoAlerts).where(eq(geoAlerts.userId, userId));
+  await db.delete(materialRequests).where(eq(materialRequests.userId, userId));
+  await db.delete(photos).where(eq(photos.userId, userId));
+  await db.delete(timeEntries).where(eq(timeEntries.userId, userId));
+  await db.delete(signedReports).where(or(eq(signedReports.managerId, userId), eq(signedReports.promoterId, userId)));
+  await db.delete(appSettings).where(eq(appSettings.managerId, userId));
+  await db.delete(promoterProfiles).where(eq(promoterProfiles.userId, userId));
+  await db.delete(appUsers).where(eq(appUsers.id, userId));
 }
 
 // ─── NOTIFICATIONS ────────────────────────────────────────────────────────────

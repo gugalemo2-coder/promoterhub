@@ -376,6 +376,10 @@ export default function MasterUsersScreen() {
     visible: false,
     user: null,
   });
+  const [deleteModal, setDeleteModal] = useState<{ visible: boolean; user: AppUser | null }>({
+    visible: false,
+    user: null,
+  });
 
   // Guard: only master can access
   useEffect(() => {
@@ -462,6 +466,20 @@ export default function MasterUsersScreen() {
       Alert.alert("Erro", msg);
     }
   }, [toggleModal.user, showToast]);
+
+  const handleDeleteConfirm = useCallback(async () => {
+    const target = deleteModal.user;
+    if (!target) return;
+    setDeleteModal({ visible: false, user: null });
+    try {
+      const result = await Api.masterDeleteUser(target.id);
+      setUsers((prev) => prev.filter((u) => u.id !== target.id));
+      showToast(`✓ ${result.message}`);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Erro ao excluir conta";
+      Alert.alert("Erro", msg);
+    }
+  }, [deleteModal.user, showToast]);
 
   // ── Filtro ───────────────────────────────────────────────────────────────────
   const filtered = users.filter((u) => {
@@ -557,6 +575,14 @@ export default function MasterUsersScreen() {
                   size={16}
                   color={item.active ? "#DC2626" : "#059669"}
                 />
+              </TouchableOpacity>
+              {/* Delete account */}
+              <TouchableOpacity
+                style={[styles.actionBtn, { backgroundColor: "#FEE2E2" }]}
+                onPress={() => setDeleteModal({ visible: true, user: item })}
+                activeOpacity={0.7}
+              >
+                <Ionicons name="trash-outline" size={16} color="#DC2626" />
               </TouchableOpacity>
             </View>
           )}
@@ -675,6 +701,12 @@ export default function MasterUsersScreen() {
           </View>
           <Text style={[styles.legendText, { color: colors.muted }]}>Ativar/Desativar</Text>
         </View>
+        <View style={styles.legendItem}>
+          <View style={[styles.legendIcon, { backgroundColor: "#FEE2E2" }]}>
+            <Ionicons name="trash-outline" size={13} color="#DC2626" />
+          </View>
+          <Text style={[styles.legendText, { color: colors.muted }]}>Excluir conta</Text>
+        </View>
       </View>
 
       {/* List */}
@@ -730,6 +762,19 @@ export default function MasterUsersScreen() {
         confirmDestructive={toggleModal.user?.active ?? false}
         onConfirm={handleToggleConfirm}
         onCancel={() => setToggleModal({ visible: false, user: null })}
+      />
+      <ConfirmModal
+        visible={deleteModal.visible}
+        title="Excluir conta permanentemente"
+        message={
+          deleteModal.user
+            ? `Tem certeza que deseja excluir a conta de ${deleteModal.user.name ?? deleteModal.user.login}?\n\nTodos os dados serão apagados: fotos, registros de ponto, solicitações e relatórios. Esta ação não pode ser desfeita.`
+            : ""
+        }
+        confirmLabel="Excluir permanentemente"
+        confirmDestructive={true}
+        onConfirm={handleDeleteConfirm}
+        onCancel={() => setDeleteModal({ visible: false, user: null })}
       />
     </ScreenContainer>
   );
