@@ -816,3 +816,9 @@
 - [x] Corrigir exclusão de arquivos (bug persistente)
 - [x] Limpar registros de fotos do banco de dados antes da publicação
 - [x] Limpar registros de ponto do banco de dados antes da publicação
+
+## Fase 27 — Correção de Permissão de Arquivos
+
+- [x] Corrigir bug: promotor conseguia deletar e fazer upload de arquivos (só gestor/master deve poder)
+- [x] Adicionar verificação de appRole nas procedures stockFiles.delete e stockFiles.upload
+- [x] Adicionar função getAppUserById no db.ts para verificar role do usuário
