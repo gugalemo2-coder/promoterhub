@@ -2,6 +2,7 @@ import { z } from "zod";
 import { COOKIE_NAME } from "../shared/const.js";
 import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
+import { TRPCError } from "@trpc/server";
 import { protectedProcedure, publicProcedure, router } from "./_core/trpc";
 import * as db from "./db";
 import * as push from "./notifications";
@@ -173,10 +174,16 @@ export const appRouter = router({
     upload: protectedProcedure
       .input(z.object({ brandId: z.number(), description: z.string().optional(), fileBase64: z.string(), fileType: z.string().default("application/pdf"), fileName: z.string(), visibility: z.enum(["all_promoters", "specific_stores", "specific_users"]).default("all_promoters") }))
       .mutation(async ({ ctx, input }) => {
+        // Only managers and masters can upload files
+        const appUserId = getAppUserId(ctx.user);
+        const appUser = await db.getAppUserById(appUserId);
+        if (!appUser || appUser.appRole === "promoter") {
+          throw new TRPCError({ code: "FORBIDDEN", message: "Apenas gestores e masters podem enviar arquivos." });
+        }
         const buffer = Buffer.from(input.fileBase64, "base64");
         const fileKey = `stock-files/${input.brandId}/${Date.now()}-${input.fileName}`;
         const { url } = await storagePut(fileKey, buffer, input.fileType);
-        const id = await db.createStockFile({ brandId: input.brandId, fileUrl: url, fileName: input.fileName, fileType: input.fileType, fileSize: buffer.length, description: input.description, uploadedBy: ctx.user.id, visibility: input.visibility });
+        const id = await db.createStockFile({ brandId: input.brandId, fileUrl: url, fileName: input.fileName, fileType: input.fileType, fileSize: buffer.length, description: input.description, uploadedBy: appUserId, visibility: input.visibility });
         // Notify all promoters about the new file
         try {
           const brand = await db.getBrandById(input.brandId);
@@ -190,12 +197,19 @@ export const appRouter = router({
     list: protectedProcedure.input(z.object({ brandId: z.number().optional() })).query(({ input }) => db.getStockFiles(input.brandId)),
     delete: protectedProcedure
       .input(z.object({ id: z.number() }))
-      .mutation(async ({ input }) => {
+      .mutation(async ({ ctx, input }) => {
+        // Only managers and masters can delete files
+        const appUserId = getAppUserId(ctx.user);
+        const appUser = await db.getAppUserById(appUserId);
+        if (!appUser || appUser.appRole === "promoter") {
+          throw new TRPCError({ code: "FORBIDDEN", message: "Apenas gestores e masters podem excluir arquivos." });
+        }
         await db.deleteStockFile(input.id);
         return { success: true };
       }),
   }),
-  geoAlerts: router({
+  
+eoAlerts: router({
     list: protectedProcedure.input(z.object({ acknowledged: z.boolean().optional(), limit: z.number().default(50) })).query(({ input }) => db.getGeoAlerts(input)),
     acknowledge: protectedProcedure.input(z.object({ id: z.number(), notes: z.string().optional() })).mutation(({ ctx, input }) => db.acknowledgeGeoAlert(input.id, ctx.user.id, input.notes)),
     createAlert: protectedProcedure.input(z.object({ storeId: z.number(), alertType: z.enum(["left_radius", "suspicious_movement", "gps_spoofing_suspected", "low_hours", "no_entry"]), latitude: z.number().optional(), longitude: z.number().optional(), distanceFromStore: z.number().optional(), notes: z.string().optional() })).mutation(async ({ ctx, input }) => {

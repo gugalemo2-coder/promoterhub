@@ -1700,6 +1700,13 @@ export async function upsertAppSettings(managerId: number, data: Partial<Omit<Ap
 }
 
 // ─── STOCK FILES — DELETE ─────────────────────────────────────────────────────
+export async function getAppUserById(id: number): Promise<AppUser | undefined> {
+  const db = await getDb();
+  if (!db) return undefined;
+  const rows = await db.select().from(appUsers).where(eq(appUsers.id, id)).limit(1);
+  return rows[0];
+}
+
 export async function deleteStockFile(id: number): Promise<void> {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
