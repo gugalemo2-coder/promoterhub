@@ -221,26 +221,70 @@ function PromoterCard({
 }
 
 // ─── Main Screen ─────────────────────────────────────────────────────────────
+// ─── Period Selector Types ───────────────────────────────────────────────────
+type PeriodMode = "single" | "preset" | "custom";
+type PresetKey = "3m" | "6m" | "12m";
+
+function buildPeriodOptions(now: Date) {
+  const MONTHS_FULL = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
+  const options: Array<{ label: string; year: number; month: number }> = [];
+  for (let i = 0; i < 36; i++) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    options.push({ label: `${MONTHS_FULL[d.getMonth()]} ${d.getFullYear()}`, year: d.getFullYear(), month: d.getMonth() + 1 });
+  }
+  return options;
+}
+
 export default function PromoterRankingScreen() {
   const colors = useColors();
   const { user } = useAuth();
   const now = new Date();
   const [year, setYear] = useState(now.getFullYear());
   const [month, setMonth] = useState(now.getMonth() + 1);
+  const [periodMode, setPeriodMode] = useState<PeriodMode>("single");
+  const [preset, setPreset] = useState<PresetKey>("3m");
+  const [customStart, setCustomStart] = useState<{ year: number; month: number }>({ year: now.getFullYear(), month: now.getMonth() === 0 ? 12 : now.getMonth(), ...(now.getMonth() === 0 ? { year: now.getFullYear() - 1 } : {}) });
+  const [customEnd, setCustomEnd] = useState<{ year: number; month: number }>({ year: now.getFullYear(), month: now.getMonth() + 1 });
+  const [showPeriodPicker, setShowPeriodPicker] = useState(false);
+  const [showCustomStart, setShowCustomStart] = useState(false);
+  const [showCustomEnd, setShowCustomEnd] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [pdfHtml, setPdfHtml] = useState<string | null>(null);
 
   const MONTHS = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
   const MONTHS_FULL = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
+  const monthOptions = buildPeriodOptions(now);
+
+  // Compute startDate/endDate based on mode
+  const periodDates = (() => {
+    if (periodMode === "single") {
+      return { startDate: undefined, endDate: undefined };
+    } else if (periodMode === "preset") {
+      const months = preset === "3m" ? 3 : preset === "6m" ? 6 : 12;
+      const end = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
+      const start = new Date(now.getFullYear(), now.getMonth() - months + 1, 1);
+      return { startDate: start.toISOString(), endDate: end.toISOString() };
+    } else {
+      const start = new Date(customStart.year, customStart.month - 1, 1);
+      const end = new Date(customEnd.year, customEnd.month, 0, 23, 59, 59);
+      return { startDate: start.toISOString(), endDate: end.toISOString() };
+    }
+  })();
+
+  const periodLabel = (() => {
+    if (periodMode === "single") return `${MONTHS_FULL[month - 1]} ${year}`;
+    if (periodMode === "preset") return preset === "3m" ? "Últimos 3 meses" : preset === "6m" ? "Últimos 6 meses" : "Último ano";
+    return `${MONTHS[customStart.month - 1]}/${customStart.year} – ${MONTHS[customEnd.month - 1]}/${customEnd.year}`;
+  })();
 
   const { data: ranking, isLoading } = trpc.promoterRanking.monthly.useQuery(
-    { year, month },
+    { year, month, ...periodDates },
     { enabled: !!user }
   );
 
   const handleExportPDF = async () => {
     if (!ranking || ranking.length === 0) {
-      Alert.alert("Sem dados", "Não há promotores para exportar neste mês.");
+      Alert.alert("Sem dados", "Não há promotores para exportar neste período.");
       return;
     }
     setExporting(true);
@@ -249,11 +293,9 @@ export default function PromoterRankingScreen() {
       const avgScore = Math.round(ranking.reduce((s, r) => s + r.score, 0) / ranking.length);
       const medalEmoji = (rank: number) => rank === 1 ? "🥇" : rank === 2 ? "🥈" : rank === 3 ? "🥉" : `${rank}°`;
       const scoreColor = (s: number) => s >= 70 ? "#22C55E" : s >= 40 ? "#F59E0B" : "#EF4444";
-
       const avgDailyTeam = ranking.length > 0
         ? Math.round((ranking.reduce((s, r) => s + (r.avgDailyHours ?? 0), 0) / ranking.length) * 10) / 10
         : 0;
-
       const rows = ranking.map((p) => `
         <tr>
           <td style="text-align:center;font-size:18px">${medalEmoji(p.rank)}</td>
@@ -266,7 +308,6 @@ export default function PromoterRankingScreen() {
           <td style="text-align:center">${p.totalMaterialRequests}</td>
           <td style="text-align:center;font-weight:700;color:${scoreColor(p.score)}">${p.score}</td>
         </tr>`).join("");
-
       const html = `<!DOCTYPE html><html><head><meta charset="utf-8">
         <style>
           body { font-family: -apple-system, Arial, sans-serif; margin: 0; padding: 0; background: #f8fafc; }
@@ -288,7 +329,7 @@ export default function PromoterRankingScreen() {
         </style></head><body>
         <div class="header">
           <h1>Ranking de Promotores</h1>
-          <p>${MONTHS_FULL[month - 1]} ${year} &nbsp;·&nbsp; ${ranking.length} promotores &nbsp;·&nbsp; Score médio: ${avgScore}</p>
+          <p>${periodLabel} &nbsp;·&nbsp; ${ranking.length} promotores &nbsp;·&nbsp; Score médio: ${avgScore}</p>
         </div>
         <div class="summary">
           <div class="summary-card"><div class="val">${ranking.length}</div><div class="lbl">Promotores</div></div>
@@ -307,11 +348,10 @@ export default function PromoterRankingScreen() {
         </div>
         <div class="footer">Gerado em ${new Date().toLocaleDateString("pt-BR", { day: "2-digit", month: "long", year: "numeric" })} &nbsp;·&nbsp; Código: ${verifyCode}</div>
       </body></html>`;
-
       if (Platform.OS === "web") {
         setPdfHtml(html);
       } else {
-        const path = `${FileSystem.cacheDirectory}ranking-promotores-${MONTHS[month - 1]}-${year}.html`;
+        const path = `${FileSystem.cacheDirectory}ranking-promotores-${periodLabel.replace(/\s/g, "-")}.html`;
         await FileSystem.writeAsStringAsync(path, html, { encoding: FileSystem.EncodingType.UTF8 });
         await Sharing.shareAsync(path, { mimeType: "text/html", dialogTitle: "Exportar Ranking de Promotores" });
       }
@@ -320,15 +360,6 @@ export default function PromoterRankingScreen() {
     } finally {
       setExporting(false);
     }
-  };
-
-  const prevMonth = () => {
-    if (month === 1) { setMonth(12); setYear((y) => y - 1); }
-    else setMonth((m) => m - 1);
-  };
-  const nextMonth = () => {
-    if (month === 12) { setMonth(1); setYear((y) => y + 1); }
-    else setMonth((m) => m + 1);
   };
 
   const maxValues = {
@@ -371,18 +402,149 @@ export default function PromoterRankingScreen() {
         </Pressable>
       </View>
 
-      {/* Month picker */}
-      <View style={[styles.monthPicker, { backgroundColor: colors.surface, borderBottomColor: colors.border }]}>
-        <Pressable onPress={prevMonth} style={({ pressed }) => [styles.monthBtn, pressed && { opacity: 0.6 }]}>
-          <Ionicons name="chevron-back" size={20} color={colors.primary} />
-        </Pressable>
-        <Text style={[styles.monthLabel, { color: colors.foreground }]}>
-          {MONTHS[month - 1]} {year}
-        </Text>
-        <Pressable onPress={nextMonth} style={({ pressed }) => [styles.monthBtn, pressed && { opacity: 0.6 }]}>
-          <Ionicons name="chevron-forward" size={20} color={colors.primary} />
-        </Pressable>
+      {/* Period Picker */}
+      <View style={{ backgroundColor: colors.surface, borderBottomWidth: 0.5, borderBottomColor: colors.border }}>
+        {/* Mode tabs */}
+        <View style={{ flexDirection: "row", paddingHorizontal: 16, paddingTop: 10, gap: 8 }}>
+          {(["single", "preset", "custom"] as PeriodMode[]).map((m) => (
+            <Pressable
+              key={m}
+              onPress={() => setPeriodMode(m)}
+              style={[{
+                flex: 1, paddingVertical: 6, borderRadius: 20, alignItems: "center",
+                backgroundColor: periodMode === m ? colors.primary : colors.background,
+                borderWidth: 1, borderColor: periodMode === m ? colors.primary : colors.border,
+              }]}
+            >
+              <Text style={{ fontSize: 12, fontWeight: "600", color: periodMode === m ? "#fff" : colors.muted }}>
+                {m === "single" ? "Mês" : m === "preset" ? "Período" : "Personalizado"}
+              </Text>
+            </Pressable>
+          ))}
+        </View>
+
+        {/* Single month dropdown */}
+        {periodMode === "single" && (
+          <Pressable
+            onPress={() => setShowPeriodPicker(true)}
+            style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 16, paddingVertical: 10 }}
+          >
+            <Text style={{ fontSize: 15, fontWeight: "600", color: colors.foreground }}>{MONTHS_FULL[month - 1]} {year}</Text>
+            <Ionicons name="chevron-down" size={18} color={colors.primary} />
+          </Pressable>
+        )}
+
+        {/* Preset period */}
+        {periodMode === "preset" && (
+          <View style={{ flexDirection: "row", paddingHorizontal: 16, paddingVertical: 10, gap: 8 }}>
+            {(["3m", "6m", "12m"] as PresetKey[]).map((p) => (
+              <Pressable
+                key={p}
+                onPress={() => setPreset(p)}
+                style={[{
+                  flex: 1, paddingVertical: 7, borderRadius: 16, alignItems: "center",
+                  backgroundColor: preset === p ? colors.primary : colors.background,
+                  borderWidth: 1, borderColor: preset === p ? colors.primary : colors.border,
+                }]}
+              >
+                <Text style={{ fontSize: 13, fontWeight: "600", color: preset === p ? "#fff" : colors.foreground }}>
+                  {p === "3m" ? "3 meses" : p === "6m" ? "6 meses" : "1 ano"}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+        )}
+
+        {/* Custom period */}
+        {periodMode === "custom" && (
+          <View style={{ flexDirection: "row", alignItems: "center", paddingHorizontal: 16, paddingVertical: 10, gap: 8 }}>
+            <Pressable
+              onPress={() => setShowCustomStart(true)}
+              style={{ flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "space-between", backgroundColor: colors.background, borderWidth: 1, borderColor: colors.border, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 8 }}
+            >
+              <Text style={{ fontSize: 13, color: colors.foreground }}>{MONTHS[customStart.month - 1]}/{customStart.year}</Text>
+              <Ionicons name="chevron-down" size={14} color={colors.muted} />
+            </Pressable>
+            <Text style={{ color: colors.muted, fontSize: 13 }}>–</Text>
+            <Pressable
+              onPress={() => setShowCustomEnd(true)}
+              style={{ flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "space-between", backgroundColor: colors.background, borderWidth: 1, borderColor: colors.border, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 8 }}
+            >
+              <Text style={{ fontSize: 13, color: colors.foreground }}>{MONTHS[customEnd.month - 1]}/{customEnd.year}</Text>
+              <Ionicons name="chevron-down" size={14} color={colors.muted} />
+            </Pressable>
+          </View>
+        )}
       </View>
+
+      {/* Month picker modal (single) */}
+      <Modal visible={showPeriodPicker} transparent animationType="slide" onRequestClose={() => setShowPeriodPicker(false)}>
+        <Pressable style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.4)" }} onPress={() => setShowPeriodPicker(false)} />
+        <View style={{ backgroundColor: colors.surface, borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: "60%", position: "absolute", bottom: 0, left: 0, right: 0 }}>
+          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", padding: 16, borderBottomWidth: 0.5, borderBottomColor: colors.border }}>
+            <Text style={{ fontSize: 16, fontWeight: "700", color: colors.foreground }}>Selecionar mês</Text>
+            <Pressable onPress={() => setShowPeriodPicker(false)}><Ionicons name="close" size={22} color={colors.muted} /></Pressable>
+          </View>
+          <FlatList
+            data={monthOptions}
+            keyExtractor={(item) => `${item.year}-${item.month}`}
+            renderItem={({ item }) => (
+              <Pressable
+                onPress={() => { setYear(item.year); setMonth(item.month); setShowPeriodPicker(false); }}
+                style={{ paddingHorizontal: 20, paddingVertical: 14, borderBottomWidth: 0.5, borderBottomColor: colors.border, backgroundColor: (item.year === year && item.month === month) ? colors.primary + "18" : "transparent" }}
+              >
+                <Text style={{ fontSize: 15, color: (item.year === year && item.month === month) ? colors.primary : colors.foreground, fontWeight: (item.year === year && item.month === month) ? "700" : "400" }}>{item.label}</Text>
+              </Pressable>
+            )}
+          />
+        </View>
+      </Modal>
+
+      {/* Custom start picker */}
+      <Modal visible={showCustomStart} transparent animationType="slide" onRequestClose={() => setShowCustomStart(false)}>
+        <Pressable style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.4)" }} onPress={() => setShowCustomStart(false)} />
+        <View style={{ backgroundColor: colors.surface, borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: "60%", position: "absolute", bottom: 0, left: 0, right: 0 }}>
+          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", padding: 16, borderBottomWidth: 0.5, borderBottomColor: colors.border }}>
+            <Text style={{ fontSize: 16, fontWeight: "700", color: colors.foreground }}>Início do período</Text>
+            <Pressable onPress={() => setShowCustomStart(false)}><Ionicons name="close" size={22} color={colors.muted} /></Pressable>
+          </View>
+          <FlatList
+            data={monthOptions}
+            keyExtractor={(item) => `${item.year}-${item.month}`}
+            renderItem={({ item }) => (
+              <Pressable
+                onPress={() => { setCustomStart({ year: item.year, month: item.month }); setShowCustomStart(false); }}
+                style={{ paddingHorizontal: 20, paddingVertical: 14, borderBottomWidth: 0.5, borderBottomColor: colors.border, backgroundColor: (item.year === customStart.year && item.month === customStart.month) ? colors.primary + "18" : "transparent" }}
+              >
+                <Text style={{ fontSize: 15, color: (item.year === customStart.year && item.month === customStart.month) ? colors.primary : colors.foreground, fontWeight: (item.year === customStart.year && item.month === customStart.month) ? "700" : "400" }}>{item.label}</Text>
+              </Pressable>
+            )}
+          />
+        </View>
+      </Modal>
+
+      {/* Custom end picker */}
+      <Modal visible={showCustomEnd} transparent animationType="slide" onRequestClose={() => setShowCustomEnd(false)}>
+        <Pressable style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.4)" }} onPress={() => setShowCustomEnd(false)} />
+        <View style={{ backgroundColor: colors.surface, borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: "60%", position: "absolute", bottom: 0, left: 0, right: 0 }}>
+          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", padding: 16, borderBottomWidth: 0.5, borderBottomColor: colors.border }}>
+            <Text style={{ fontSize: 16, fontWeight: "700", color: colors.foreground }}>Fim do período</Text>
+            <Pressable onPress={() => setShowCustomEnd(false)}><Ionicons name="close" size={22} color={colors.muted} /></Pressable>
+          </View>
+          <FlatList
+            data={monthOptions}
+            keyExtractor={(item) => `${item.year}-${item.month}`}
+            renderItem={({ item }) => (
+              <Pressable
+                onPress={() => { setCustomEnd({ year: item.year, month: item.month }); setShowCustomEnd(false); }}
+                style={{ paddingHorizontal: 20, paddingVertical: 14, borderBottomWidth: 0.5, borderBottomColor: colors.border, backgroundColor: (item.year === customEnd.year && item.month === customEnd.month) ? colors.primary + "18" : "transparent" }}
+              >
+                <Text style={{ fontSize: 15, color: (item.year === customEnd.year && item.month === customEnd.month) ? colors.primary : colors.foreground, fontWeight: (item.year === customEnd.year && item.month === customEnd.month) ? "700" : "400" }}>{item.label}</Text>
+              </Pressable>
+            )}
+          />
+        </View>
+      </Modal>
 
       {isLoading ? (
         <View style={styles.loading}>
@@ -392,9 +554,9 @@ export default function PromoterRankingScreen() {
       ) : (ranking ?? []).length === 0 ? (
         <View style={styles.emptyState}>
           <Ionicons name="people-outline" size={56} color={colors.muted} />
-          <Text style={[styles.emptyTitle, { color: colors.foreground }]}>Sem dados neste mês</Text>
+          <Text style={[styles.emptyTitle, { color: colors.foreground }]}>Sem dados neste período</Text>
           <Text style={[styles.emptyText, { color: colors.muted }]}>
-            Nenhum promotor registrou atividade em {MONTHS[month - 1]} {year}.
+            Nenhum promotor registrou atividade em {periodLabel}.
           </Text>
         </View>
       ) : (

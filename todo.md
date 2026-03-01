@@ -830,3 +830,10 @@
 - [x] Chip do filtro mostra o mês/ano selecionado (ex: "Mar 2026")
 - [x] Ao limpar filtros, resetar mês e ano
 - [x] Ordenação das fotos sempre da mais recente para a mais antiga
+
+## Fase 29 — Melhorias na Tela de Fotos e Filtros
+
+- [x] Substituir setas de navegação por dropdown de mês único ou período (3/6/12 meses ou personalizado) no Ranking de Promotores
+- [x] Substituir setas de navegação por dropdown de mês único ou período (3/6/12 meses ou personalizado) nos Relatórios
+- [x] Adicionar contador de fotos por status (pendentes, aprovadas, rejeitadas) no cabeçalho da tela de fotos
+- [x] Adicionar botão de download de fotos para o dispositivo (individual e em lote)

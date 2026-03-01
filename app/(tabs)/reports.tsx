@@ -11,6 +11,7 @@ import {
   Alert,
   Dimensions,
   FlatList,
+  Modal,
   Platform,
   Pressable,
   ScrollView,
@@ -110,7 +111,20 @@ function PieChart({ data }: { data: { label: string; value: number; color: strin
   );
 }
 
-// ─── Main Screen ──────────────────────────────────────────────────────────────
+// ─── Period Selector Types ──────────────────────────────────────────────────────
+type PeriodMode = "single" | "preset" | "custom";
+type PresetKey = "3m" | "6m" | "12m";
+
+function buildMonthOptions(now: Date) {
+  const options: Array<{ label: string; year: number; month: number }> = [];
+  for (let i = 0; i < 36; i++) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    options.push({ label: `${MONTH_NAMES[d.getMonth()]} ${d.getFullYear()}`, year: d.getFullYear(), month: d.getMonth() + 1 });
+  }
+  return options;
+}
+
+// ─── Main Screen ──────────────────────────────────────────────────────────────────────────────
 export default function ReportsScreen() {
   const colors = useColors();
   const { appRole } = useRole();
@@ -118,26 +132,43 @@ export default function ReportsScreen() {
   const now = new Date();
   const [year, setYear] = useState(now.getFullYear());
   const [month, setMonth] = useState(now.getMonth() + 1);
+  const [periodMode, setPeriodMode] = useState<PeriodMode>("single");
+  const [preset, setPreset] = useState<PresetKey>("3m");
+  const [customStart, setCustomStart] = useState<{ year: number; month: number }>({ year: now.getFullYear(), month: now.getMonth() === 0 ? 12 : now.getMonth(), ...(now.getMonth() === 0 ? { year: now.getFullYear() - 1 } : {}) });
+  const [customEnd, setCustomEnd] = useState<{ year: number; month: number }>({ year: now.getFullYear(), month: now.getMonth() + 1 });
+  const [showMonthPicker, setShowMonthPicker] = useState(false);
+  const [showCustomStart, setShowCustomStart] = useState(false);
+  const [showCustomEnd, setShowCustomEnd] = useState(false);
   const [selectedUserId, setSelectedUserId] = useState<number | undefined>(undefined);
   const [exporting, setExporting] = useState(false);
+  const monthOptions = buildMonthOptions(now);
 
   if (appRole !== "manager" && appRole !== "master") {
     return <Redirect href="/(tabs)" />;
   }
 
+  // Compute startDate/endDate based on mode
+  const periodDates = (() => {
+    if (periodMode === "single") return { startDate: undefined as string | undefined, endDate: undefined as string | undefined };
+    if (periodMode === "preset") {
+      const months = preset === "3m" ? 3 : preset === "6m" ? 6 : 12;
+      const end = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
+      const start = new Date(now.getFullYear(), now.getMonth() - months + 1, 1);
+      return { startDate: start.toISOString(), endDate: end.toISOString() };
+    }
+    const start = new Date(customStart.year, customStart.month - 1, 1);
+    const end = new Date(customEnd.year, customEnd.month, 0, 23, 59, 59);
+    return { startDate: start.toISOString(), endDate: end.toISOString() };
+  })();
+
+  const periodLabel = (() => {
+    if (periodMode === "single") return `${MONTH_NAMES[month - 1]} ${year}`;
+    if (periodMode === "preset") return preset === "3m" ? "Últimos 3 meses" : preset === "6m" ? "Últimos 6 meses" : "Último ano";
+    return `${MONTHS[customStart.month - 1]}/${customStart.year} – ${MONTHS[customEnd.month - 1]}/${customEnd.year}`;
+  })();
+
   const { data: report, isLoading } = trpc.reports.monthly.useQuery({ year, month, userId: selectedUserId });
-  const { data: promoters } = trpc.reports.allPromoters.useQuery();
-
-  const prevMonth = () => {
-    if (month === 1) { setMonth(12); setYear((y) => y - 1); }
-    else setMonth((m) => m - 1);
-  };
-  const nextMonth = () => {
-    if (month === 12) { setMonth(1); setYear((y) => y + 1); }
-    else setMonth((m) => m + 1);
-  };
-
-  const handleExport = async () => {
+  const { data: promoters } = trpc.reports.allPromoters.useQuery();  const handleExport = async () => {
     if (!report) return;
     setExporting(true);
     try {
@@ -210,18 +241,149 @@ export default function ReportsScreen() {
       </View>
 
       <ScrollView contentContainerStyle={styles.scroll}>
-        {/* Month Selector */}
-        <View style={[styles.monthSelector, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-          <Pressable style={styles.monthArrow} onPress={prevMonth}>
-            <Ionicons name="chevron-back" size={22} color={colors.primary} />
-          </Pressable>
-          <Text style={[styles.monthLabel, { color: colors.foreground }]}>
-            {MONTH_NAMES[month - 1]} {year}
-          </Text>
-          <Pressable style={styles.monthArrow} onPress={nextMonth} disabled={year === now.getFullYear() && month >= now.getMonth() + 1}>
-            <Ionicons name="chevron-forward" size={22} color={year === now.getFullYear() && month >= now.getMonth() + 1 ? colors.muted : colors.primary} />
-          </Pressable>
+        {/* Period Selector */}
+        <View style={{ backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1, borderRadius: 16, marginHorizontal: 16, marginTop: 12, marginBottom: 4, overflow: "hidden" }}>
+          {/* Mode tabs */}
+          <View style={{ flexDirection: "row", padding: 8, gap: 6 }}>
+            {(["single", "preset", "custom"] as PeriodMode[]).map((m) => (
+              <Pressable
+                key={m}
+                onPress={() => setPeriodMode(m)}
+                style={[{
+                  flex: 1, paddingVertical: 6, borderRadius: 20, alignItems: "center",
+                  backgroundColor: periodMode === m ? colors.primary : colors.background,
+                  borderWidth: 1, borderColor: periodMode === m ? colors.primary : colors.border,
+                }]}
+              >
+                <Text style={{ fontSize: 12, fontWeight: "600", color: periodMode === m ? "#fff" : colors.muted }}>
+                  {m === "single" ? "Mês" : m === "preset" ? "Período" : "Personalizado"}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+
+          {/* Single month dropdown */}
+          {periodMode === "single" && (
+            <Pressable
+              onPress={() => setShowMonthPicker(true)}
+              style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 16, paddingVertical: 10, borderTopWidth: 0.5, borderTopColor: colors.border }}
+            >
+              <Text style={{ fontSize: 15, fontWeight: "600", color: colors.foreground }}>{MONTH_NAMES[month - 1]} {year}</Text>
+              <Ionicons name="chevron-down" size={18} color={colors.primary} />
+            </Pressable>
+          )}
+
+          {/* Preset period */}
+          {periodMode === "preset" && (
+            <View style={{ flexDirection: "row", paddingHorizontal: 12, paddingVertical: 10, gap: 8, borderTopWidth: 0.5, borderTopColor: colors.border }}>
+              {(["3m", "6m", "12m"] as PresetKey[]).map((p) => (
+                <Pressable
+                  key={p}
+                  onPress={() => setPreset(p)}
+                  style={[{
+                    flex: 1, paddingVertical: 7, borderRadius: 16, alignItems: "center",
+                    backgroundColor: preset === p ? colors.primary : colors.background,
+                    borderWidth: 1, borderColor: preset === p ? colors.primary : colors.border,
+                  }]}
+                >
+                  <Text style={{ fontSize: 13, fontWeight: "600", color: preset === p ? "#fff" : colors.foreground }}>
+                    {p === "3m" ? "3 meses" : p === "6m" ? "6 meses" : "1 ano"}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+          )}
+
+          {/* Custom period */}
+          {periodMode === "custom" && (
+            <View style={{ flexDirection: "row", alignItems: "center", paddingHorizontal: 12, paddingVertical: 10, gap: 8, borderTopWidth: 0.5, borderTopColor: colors.border }}>
+              <Pressable
+                onPress={() => setShowCustomStart(true)}
+                style={{ flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "space-between", backgroundColor: colors.background, borderWidth: 1, borderColor: colors.border, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 8 }}
+              >
+                <Text style={{ fontSize: 13, color: colors.foreground }}>{MONTHS[customStart.month - 1]}/{customStart.year}</Text>
+                <Ionicons name="chevron-down" size={14} color={colors.muted} />
+              </Pressable>
+              <Text style={{ color: colors.muted, fontSize: 13 }}>–</Text>
+              <Pressable
+                onPress={() => setShowCustomEnd(true)}
+                style={{ flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "space-between", backgroundColor: colors.background, borderWidth: 1, borderColor: colors.border, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 8 }}
+              >
+                <Text style={{ fontSize: 13, color: colors.foreground }}>{MONTHS[customEnd.month - 1]}/{customEnd.year}</Text>
+                <Ionicons name="chevron-down" size={14} color={colors.muted} />
+              </Pressable>
+            </View>
+          )}
         </View>
+
+        {/* Month picker modal (single) */}
+        <Modal visible={showMonthPicker} transparent animationType="slide" onRequestClose={() => setShowMonthPicker(false)}>
+          <Pressable style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.4)" }} onPress={() => setShowMonthPicker(false)} />
+          <View style={{ backgroundColor: colors.surface, borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: "60%", position: "absolute", bottom: 0, left: 0, right: 0 }}>
+            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", padding: 16, borderBottomWidth: 0.5, borderBottomColor: colors.border }}>
+              <Text style={{ fontSize: 16, fontWeight: "700", color: colors.foreground }}>Selecionar mês</Text>
+              <Pressable onPress={() => setShowMonthPicker(false)}><Ionicons name="close" size={22} color={colors.muted} /></Pressable>
+            </View>
+            <FlatList
+              data={monthOptions}
+              keyExtractor={(item) => `${item.year}-${item.month}`}
+              renderItem={({ item }) => (
+                <Pressable
+                  onPress={() => { setYear(item.year); setMonth(item.month); setShowMonthPicker(false); }}
+                  style={{ paddingHorizontal: 20, paddingVertical: 14, borderBottomWidth: 0.5, borderBottomColor: colors.border, backgroundColor: (item.year === year && item.month === month) ? colors.primary + "18" : "transparent" }}
+                >
+                  <Text style={{ fontSize: 15, color: (item.year === year && item.month === month) ? colors.primary : colors.foreground, fontWeight: (item.year === year && item.month === month) ? "700" : "400" }}>{item.label}</Text>
+                </Pressable>
+              )}
+            />
+          </View>
+        </Modal>
+
+        {/* Custom start picker */}
+        <Modal visible={showCustomStart} transparent animationType="slide" onRequestClose={() => setShowCustomStart(false)}>
+          <Pressable style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.4)" }} onPress={() => setShowCustomStart(false)} />
+          <View style={{ backgroundColor: colors.surface, borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: "60%", position: "absolute", bottom: 0, left: 0, right: 0 }}>
+            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", padding: 16, borderBottomWidth: 0.5, borderBottomColor: colors.border }}>
+              <Text style={{ fontSize: 16, fontWeight: "700", color: colors.foreground }}>Início do período</Text>
+              <Pressable onPress={() => setShowCustomStart(false)}><Ionicons name="close" size={22} color={colors.muted} /></Pressable>
+            </View>
+            <FlatList
+              data={monthOptions}
+              keyExtractor={(item) => `${item.year}-${item.month}`}
+              renderItem={({ item }) => (
+                <Pressable
+                  onPress={() => { setCustomStart({ year: item.year, month: item.month }); setShowCustomStart(false); }}
+                  style={{ paddingHorizontal: 20, paddingVertical: 14, borderBottomWidth: 0.5, borderBottomColor: colors.border, backgroundColor: (item.year === customStart.year && item.month === customStart.month) ? colors.primary + "18" : "transparent" }}
+                >
+                  <Text style={{ fontSize: 15, color: (item.year === customStart.year && item.month === customStart.month) ? colors.primary : colors.foreground, fontWeight: (item.year === customStart.year && item.month === customStart.month) ? "700" : "400" }}>{item.label}</Text>
+                </Pressable>
+              )}
+            />
+          </View>
+        </Modal>
+
+        {/* Custom end picker */}
+        <Modal visible={showCustomEnd} transparent animationType="slide" onRequestClose={() => setShowCustomEnd(false)}>
+          <Pressable style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.4)" }} onPress={() => setShowCustomEnd(false)} />
+          <View style={{ backgroundColor: colors.surface, borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: "60%", position: "absolute", bottom: 0, left: 0, right: 0 }}>
+            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", padding: 16, borderBottomWidth: 0.5, borderBottomColor: colors.border }}>
+              <Text style={{ fontSize: 16, fontWeight: "700", color: colors.foreground }}>Fim do período</Text>
+              <Pressable onPress={() => setShowCustomEnd(false)}><Ionicons name="close" size={22} color={colors.muted} /></Pressable>
+            </View>
+            <FlatList
+              data={monthOptions}
+              keyExtractor={(item) => `${item.year}-${item.month}`}
+              renderItem={({ item }) => (
+                <Pressable
+                  onPress={() => { setCustomEnd({ year: item.year, month: item.month }); setShowCustomEnd(false); }}
+                  style={{ paddingHorizontal: 20, paddingVertical: 14, borderBottomWidth: 0.5, borderBottomColor: colors.border, backgroundColor: (item.year === customEnd.year && item.month === customEnd.month) ? colors.primary + "18" : "transparent" }}
+                >
+                  <Text style={{ fontSize: 15, color: (item.year === customEnd.year && item.month === customEnd.month) ? colors.primary : colors.foreground, fontWeight: (item.year === customEnd.year && item.month === customEnd.month) ? "700" : "400" }}>{item.label}</Text>
+                </Pressable>
+              )}
+            />
+          </View>
+        </Modal>
 
         {/* Promoter Filter */}
         {promoters && promoters.length > 0 && (

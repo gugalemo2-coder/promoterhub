@@ -90,6 +90,14 @@ const config: ExpoConfig = {
   plugins: [
     "expo-router",
     [
+      "expo-media-library",
+      {
+        "photosPermission": "Permita o acesso às fotos para salvar imagens na galeria.",
+        "savePhotosPermission": "Permita salvar fotos na galeria do dispositivo.",
+        "isAccessMediaLocationEnabled": true
+      }
+    ],
+    [
       "expo-notifications",
       {
         icon: "./assets/images/icon.png",

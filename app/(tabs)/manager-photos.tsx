@@ -1,5 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import { Image } from "expo-image";
+import * as FileSystem from "expo-file-system/legacy";
+import * as MediaLibrary from "expo-media-library";
 import { useRouter } from "expo-router";
 import { useCallback, useMemo, useRef, useState } from "react";
 import {
@@ -125,6 +127,10 @@ export default function ManagerPhotosScreen() {
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [batchProcessing, setBatchProcessing] = useState(false);
 
+  // Download state
+  const [downloading, setDownloading] = useState(false);
+  const [mediaPermission, requestMediaPermission] = MediaLibrary.usePermissions();
+
   // Data
   const { data: brands } = trpc.brands.list.useQuery();
   const { data: stores } = trpc.stores.list.useQuery();
@@ -223,6 +229,53 @@ export default function ManagerPhotosScreen() {
       ]
     );
   };
+
+  // Download helper
+  const downloadPhoto = useCallback(async (url: string) => {
+    try {
+      let perm = mediaPermission;
+      if (!perm?.granted) {
+        perm = await requestMediaPermission();
+        if (!perm?.granted) {
+          Alert.alert("Permissão necessária", "Permita o acesso à galeria para salvar fotos.");
+          return false;
+        }
+      }
+      const filename = url.split("/").pop()?.split("?")[0] ?? `photo_${Date.now()}.jpg`;
+      const localUri = FileSystem.documentDirectory + filename;
+      await FileSystem.downloadAsync(url, localUri);
+      await MediaLibrary.saveToLibraryAsync(localUri);
+      return true;
+    } catch {
+      return false;
+    }
+  }, [mediaPermission, requestMediaPermission]);
+
+  const handleDownloadSingle = useCallback(async () => {
+    const photo = sortedPhotos[previewIndex];
+    if (!photo?.photoUrl) return;
+    setDownloading(true);
+    const ok = await downloadPhoto(photo.photoUrl);
+    setDownloading(false);
+    if (ok) Alert.alert("Salvo!", "Foto salva na galeria.");
+    else Alert.alert("Erro", "Não foi possível salvar a foto.");
+  }, [sortedPhotos, previewIndex, downloadPhoto]);
+
+  const handleDownloadBatch = useCallback(async () => {
+    if (selectedIds.size === 0) return;
+    setBatchProcessing(true);
+    const photosToDownload = sortedPhotos.filter((p) => selectedIds.has(p.id));
+    let successCount = 0;
+    for (const photo of photosToDownload) {
+      if (photo.photoUrl) {
+        const ok = await downloadPhoto(photo.photoUrl);
+        if (ok) successCount++;
+      }
+    }
+    setBatchProcessing(false);
+    exitSelectionMode();
+    Alert.alert("Download concluído", `${successCount} de ${photosToDownload.length} foto${photosToDownload.length !== 1 ? "s" : ""} salva${photosToDownload.length !== 1 ? "s" : ""} na galeria.`);
+  }, [selectedIds, sortedPhotos, downloadPhoto, exitSelectionMode]);
 
   const getStatusLabel = (s?: PhotoStatus) => {
     if (s === "approved") return "Aprovadas";
@@ -442,9 +495,21 @@ export default function ManagerPhotosScreen() {
         </TouchableOpacity>
         <View style={styles.headerText}>
           <Text style={[styles.headerTitle, { color: colors.foreground }]}>Fotos dos Promotores</Text>
-          <Text style={[styles.headerCount, { color: colors.muted }]}>
-            {isLoading ? "Carregando..." : `${sortedPhotos.length} foto${sortedPhotos.length !== 1 ? "s" : ""}`}
-          </Text>
+          {isLoading ? (
+            <Text style={[styles.headerCount, { color: colors.muted }]}>Carregando...</Text>
+          ) : (
+            <View style={{ flexDirection: "row", gap: 10, marginTop: 2, flexWrap: "wrap" }}>
+              <Text style={[styles.headerCount, { color: colors.warning }]}>
+                {sortedPhotos.filter((p) => p.status === "pending").length} pendente{sortedPhotos.filter((p) => p.status === "pending").length !== 1 ? "s" : ""}
+              </Text>
+              <Text style={[styles.headerCount, { color: colors.success }]}>
+                {sortedPhotos.filter((p) => p.status === "approved").length} aprovada{sortedPhotos.filter((p) => p.status === "approved").length !== 1 ? "s" : ""}
+              </Text>
+              <Text style={[styles.headerCount, { color: colors.error }]}>
+                {sortedPhotos.filter((p) => p.status === "rejected").length} rejeitada{sortedPhotos.filter((p) => p.status === "rejected").length !== 1 ? "s" : ""}
+              </Text>
+            </View>
+          )}
         </View>
         {/* Batch select toggle */}
         {!selectionMode ? (
@@ -473,6 +538,13 @@ export default function ManagerPhotosScreen() {
             {selectedIds.size === 0 ? "Toque para selecionar" : `${selectedIds.size} selecionada${selectedIds.size > 1 ? "s" : ""}`}
           </Text>
           <View style={{ flexDirection: "row", gap: 8 }}>
+            <TouchableOpacity
+              style={[styles.batchActionBtn, { backgroundColor: accentColor, opacity: selectedIds.size === 0 || batchProcessing ? 0.4 : 1 }]}
+              onPress={handleDownloadBatch}
+              disabled={selectedIds.size === 0 || batchProcessing}
+            >
+              {batchProcessing ? <ActivityIndicator size="small" color="#fff" /> : <Ionicons name="download-outline" size={18} color="#fff" />}
+            </TouchableOpacity>
             <TouchableOpacity
               style={[styles.batchActionBtn, { backgroundColor: "#E02424", opacity: selectedIds.size === 0 || batchProcessing ? 0.4 : 1 }]}
               onPress={() => handleBatchAction("rejected")}
@@ -717,6 +789,21 @@ export default function ManagerPhotosScreen() {
 
           {/* Action buttons */}
           <View style={styles.previewActions}>
+            <TouchableOpacity
+              style={[styles.actionBtn, { backgroundColor: "rgba(255,255,255,0.15)", opacity: downloading ? 0.5 : 1 }]}
+              onPress={handleDownloadSingle}
+              disabled={downloading}
+              activeOpacity={0.8}
+            >
+              {downloading ? (
+                <ActivityIndicator size="small" color="#fff" />
+              ) : (
+                <>
+                  <Ionicons name="download-outline" size={22} color="#fff" />
+                  <Text style={styles.actionBtnText}>Salvar</Text>
+                </>
+              )}
+            </TouchableOpacity>
             <TouchableOpacity
               style={[
                 styles.actionBtn,

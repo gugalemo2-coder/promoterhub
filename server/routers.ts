@@ -293,8 +293,15 @@ geoAlerts: router({
       .input(z.object({
         year: z.number().int().min(2020).max(2100),
         month: z.number().int().min(1).max(12),
+        startDate: z.string().optional(),
+        endDate: z.string().optional(),
       }))
-      .query(({ input }) => db.getPromoterRanking(input.year, input.month)),
+      .query(({ input }) => db.getPromoterRanking(
+        input.year,
+        input.month,
+        input.startDate ? new Date(input.startDate) : undefined,
+        input.endDate ? new Date(input.endDate) : undefined,
+      )),
     rankPosition: protectedProcedure
       .input(z.object({
         promoterId: z.number().int().positive(),

@@ -1080,15 +1080,17 @@ export interface PromoterRankingEntry {
 
 export async function getPromoterRanking(
   year: number,
-  month: number
+  month: number,
+  startDateOverride?: Date,
+  endDateOverride?: Date
 ): Promise<PromoterRankingEntry[]> {
   const db = await getDb();
   if (!db) return [];
 
   const { and, gte, lte, eq, count, avg, sum } = await import("drizzle-orm");
 
-  const startDate = new Date(year, month - 1, 1);
-  const endDate = new Date(year, month, 0, 23, 59, 59);
+  const startDate = startDateOverride ?? new Date(year, month - 1, 1);
+  const endDate = endDateOverride ?? new Date(year, month, 0, 23, 59, 59);
 
   // Get all promoters from appUsers (includes those who haven't logged in yet)
   const allPromoters = await db
