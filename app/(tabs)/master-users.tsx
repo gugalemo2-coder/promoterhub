@@ -279,6 +279,7 @@ function RoleModal({
             </View>
           </View>
 
+          {/* Linha 1: Gestor + Supervisor */}
           <View style={modalStyles.roleRow}>
             <TouchableOpacity
               style={[
@@ -302,18 +303,20 @@ function RoleModal({
               <Text style={[modalStyles.roleBtnText, { color: user.appRole === "supervisor" ? "#fff" : "#D97706" }]}>Supervisor</Text>
               {user.appRole === "supervisor" && <Ionicons name="checkmark-circle" size={16} color="#fff" />}
             </TouchableOpacity>
-            <TouchableOpacity
-              style={[
-                modalStyles.roleBtn,
-                { borderColor: "#059669", backgroundColor: user.appRole === "promoter" ? "#059669" : "transparent" },
-              ]}
-              onPress={() => onSelect("promoter")}
-            >
-              <Ionicons name="person-outline" size={20} color={user.appRole === "promoter" ? "#fff" : "#059669"} />
-              <Text style={[modalStyles.roleBtnText, { color: user.appRole === "promoter" ? "#fff" : "#059669" }]}>Promotor</Text>
-              {user.appRole === "promoter" && <Ionicons name="checkmark-circle" size={16} color="#fff" />}
-            </TouchableOpacity>
           </View>
+          {/* Linha 2: Promotor (largura total) */}
+          <TouchableOpacity
+            style={[
+              modalStyles.roleBtn,
+              modalStyles.roleBtnFull,
+              { borderColor: "#059669", backgroundColor: user.appRole === "promoter" ? "#059669" : "transparent" },
+            ]}
+            onPress={() => onSelect("promoter")}
+          >
+            <Ionicons name="person-outline" size={20} color={user.appRole === "promoter" ? "#fff" : "#059669"} />
+            <Text style={[modalStyles.roleBtnText, { color: user.appRole === "promoter" ? "#fff" : "#059669" }]}>Promotor</Text>
+            {user.appRole === "promoter" && <Ionicons name="checkmark-circle" size={16} color="#fff" />}
+          </TouchableOpacity>
           <TouchableOpacity
             style={[modalStyles.cancelFullBtn, { backgroundColor: colors.border }]}
             onPress={onCancel}
@@ -876,6 +879,10 @@ const modalStyles = StyleSheet.create({
   roleBtnText: {
     fontSize: 15,
     fontWeight: "700",
+  },
+  roleBtnFull: {
+    flex: 0,
+    width: "100%",
   },
   cancelFullBtn: {
     paddingVertical: 12,
