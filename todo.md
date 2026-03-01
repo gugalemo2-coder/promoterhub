@@ -869,3 +869,9 @@
 
 - [x] Reescrever master-users.tsx do zero com botão Supervisor funcional
 - [x] Garantir que o botão de upload de foto aparece na criação de material
+
+## Fase 35 — Thumbnail na Listagem de Materiais
+
+- [x] Exibir thumbnail da imagem do produto nos cards da listagem de materiais (promotores e gestores)
+- [x] Mostrar placeholder/ícone quando o material não tiver imagem
+- [x] Garantir que o thumbnail é exibido corretamente em todos os roles (promoter, manager, master)
