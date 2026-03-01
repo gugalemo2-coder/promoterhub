@@ -5,6 +5,8 @@ import { Providers } from "@/lib/providers";
 import { AuthProvider } from "@/lib/auth-context";
 import { PWARegister } from "@/components/pwa-register";
 
+export const dynamic = "force-dynamic";
+
 const inter = Inter({ subsets: ["latin"] });
 
 export const viewport: Viewport = {

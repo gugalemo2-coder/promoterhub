@@ -875,3 +875,10 @@
 - [x] Exibir thumbnail da imagem do produto nos cards da listagem de materiais (promotores e gestores)
 - [x] Mostrar placeholder/ícone quando o material não tiver imagem
 - [x] Garantir que o thumbnail é exibido corretamente em todos os roles (promoter, manager, master)
+
+## Fase 36 — Filtro por Marca e Thumbnail nos Materiais
+
+- [ ] Corrigir pnpm-lock.yaml desatualizado (quebra o deploy do Manus)
+- [ ] Adicionar chips de filtro por marca na listagem de materiais
+- [ ] Exibir thumbnail pequeno da imagem do produto nos cards da lista
+- [ ] Publicar na Vercel via GitHub push
