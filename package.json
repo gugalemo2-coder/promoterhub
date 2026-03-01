@@ -64,7 +64,6 @@
     "expo-video": "~3.0.15",
     "expo-web-browser": "~15.0.10",
     "express": "^4.22.1",
-    "http-proxy-middleware": "^3.0.5",
     "jose": "6.1.0",
     "multer": "^2.0.2",
     "mysql2": "^3.16.0",
