@@ -23,7 +23,7 @@ export default function TeamPage() {
 
   const filtered = promoters.filter((p) =>
     p.name?.toLowerCase().includes(search.toLowerCase()) ||
-    p.email?.toLowerCase().includes(search.toLowerCase())
+    p.login?.toLowerCase().includes(search.toLowerCase())
   );
 
   const getPromoterStats = (userId: number) =>
@@ -118,7 +118,7 @@ export default function TeamPage() {
                         </div>
                         <div>
                           <p className="text-sm font-medium text-gray-900">{promoter.name ?? "—"}</p>
-                          <p className="text-xs text-gray-500">{promoter.email ?? "—"}</p>
+                          <p className="text-xs text-gray-500">{promoter.login ?? "—"}</p>
                         </div>
                       </div>
                     </td>
