@@ -540,9 +540,9 @@ export default function MaterialsScreen() {
 
       {/* ── Add Material Modal (Manager) ── */}
       <Modal visible={showAddMaterialModal} transparent animationType="slide">
-        <View style={styles.modalOverlay}>
-          <ScrollView>
-            <View style={[styles.modalContent, { backgroundColor: colors.background, marginTop: 60 }]}>
+        <View style={styles.modalOverlayFull}>
+          <View style={[styles.modalSheetFull, { backgroundColor: colors.background }]}>
+          <ScrollView contentContainerStyle={{ padding: 24, gap: 8, paddingBottom: 40 }} showsVerticalScrollIndicator={false}>
               <Text style={[styles.modalTitle, { color: colors.foreground }]}>Novo Material</Text>
               <Text style={[styles.modalLabel, { color: colors.muted }]}>Marca *</Text>
               <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 12 }}>
@@ -624,8 +624,8 @@ export default function MaterialsScreen() {
                   </Text>
                 </TouchableOpacity>
               </View>
-            </View>
           </ScrollView>
+          </View>
         </View>
       </Modal>
     </ScreenContainer>
@@ -675,6 +675,8 @@ const styles = StyleSheet.create({
   emptyTitle: { fontSize: 18, fontWeight: "700" },
   emptyDesc: { fontSize: 14, textAlign: "center", lineHeight: 21 },
   modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "flex-end" },
+  modalOverlayFull: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "flex-end" },
+  modalSheetFull: { borderTopLeftRadius: 24, borderTopRightRadius: 24, maxHeight: "92%" },
   modalContent: { borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, gap: 8 },
   modalTitle: { fontSize: 20, fontWeight: "700", marginBottom: 8 },
   modalLabel: { fontSize: 13, fontWeight: "600", marginBottom: 4 },

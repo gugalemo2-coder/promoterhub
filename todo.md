@@ -853,3 +853,8 @@
 - [x] Criar endpoint de upload de imagem de material no backend (REST multipart)
 - [x] Exibir imagem do produto na listagem de materiais
 - [x] Exibir imagem do produto no detalhe/modal do material
+
+## Fase 32 — Correções de UI (Supervisor + Imagem de Material)
+
+- [x] Corrigir modal de cargo: botão Supervisor não aparece (layout espremido com 3 botões em linha)
+- [x] Corrigir campo de imagem no modal de criação de material (não aparece para gestor/master)
