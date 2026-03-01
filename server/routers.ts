@@ -117,7 +117,7 @@ export const appRouter = router({
   materials: router({
     list: protectedProcedure.input(z.object({ brandId: z.number().optional() })).query(({ input }) => db.getMaterials(input.brandId)),
     create: protectedProcedure.input(z.object({ brandId: z.number(), name: z.string().min(1).max(255), description: z.string().optional(), photoUrl: z.string().optional(), quantityAvailable: z.number().min(0).default(0), unit: z.enum(["unit", "box", "pack", "kg", "liter"]).default("unit") })).mutation(async ({ ctx, input }) => { const id = await db.createMaterial({ ...input, createdBy: ctx.user.id }); return { id }; }),
-    update: protectedProcedure.input(z.object({ id: z.number(), quantityAvailable: z.number().min(0).optional(), status: z.enum(["active", "inactive", "discontinued"]).optional(), description: z.string().optional() })).mutation(({ input }) => db.updateMaterial(input.id, input)),
+    update: protectedProcedure.input(z.object({ id: z.number(), name: z.string().min(1).max(255).optional(), quantityAvailable: z.number().min(0).optional(), status: z.enum(["active", "inactive", "discontinued"]).optional(), description: z.string().optional(), photoUrl: z.string().nullable().optional() })).mutation(({ input }) => db.updateMaterial(input.id, input)),
     uploadPhoto: protectedProcedure.input(z.object({ fileBase64: z.string(), fileType: z.string().default("image/jpeg"), fileName: z.string().default("material.jpg") })).mutation(async ({ input }) => { const buffer = Buffer.from(input.fileBase64, "base64"); const fileKey = `materials/${Date.now()}-${input.fileName}`; const { url } = await storagePut(fileKey, buffer, input.fileType); return { url }; }),
     delete: protectedProcedure
       .input(z.object({ id: z.number() }))

@@ -858,3 +858,9 @@
 
 - [x] Corrigir modal de cargo: botão Supervisor não aparece (layout espremido com 3 botões em linha)
 - [x] Corrigir campo de imagem no modal de criação de material (não aparece para gestor/master)
+
+## Fase 33 — Imagem no Modal de Edição de Materiais
+
+- [x] Adicionar campo de upload de imagem no modal de edição de materiais existentes
+- [x] Exibir imagem atual do material no modal de edição (se já tiver uma)
+- [x] Permitir substituir ou remover a imagem existente
