@@ -849,7 +849,7 @@
 - [x] Exibir badge/label "Supervisor" na listagem de usuários do Master
 ## Fase 31 — Upload de Imagem de Produto nos Materiais
 - [x] Adicionar campo de imagem ao formulário de criação de material (gestor/master)
-- [ ] Adicionar campo de imagem ao formulário de edição de material (gestor/master)
+- [x] Adicionar campo de imagem ao formulário de edição de material (gestor/master)
 - [x] Criar endpoint de upload de imagem de material no backend (REST multipart)
 - [x] Exibir imagem do produto na listagem de materiais
 - [x] Exibir imagem do produto no detalhe/modal do material
@@ -864,3 +864,8 @@
 - [x] Adicionar campo de upload de imagem no modal de edição de materiais existentes
 - [x] Exibir imagem atual do material no modal de edição (se já tiver uma)
 - [x] Permitir substituir ou remover a imagem existente
+
+## Fase 34 — Reescrita Supervisor + Upload de Foto na Criação de Material
+
+- [x] Reescrever master-users.tsx do zero com botão Supervisor funcional
+- [x] Garantir que o botão de upload de foto aparece na criação de material

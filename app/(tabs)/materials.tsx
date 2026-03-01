@@ -8,8 +8,11 @@ import * as ImagePicker from "expo-image-picker";
 import { useState } from "react";
 import {
   Alert,
+  Dimensions,
   FlatList,
+  KeyboardAvoidingView,
   Modal,
+  Platform,
   ScrollView,
   StyleSheet,
   Text,
@@ -18,50 +21,161 @@ import {
   View,
 } from "react-native";
 
+const { height: SCREEN_HEIGHT } = Dimensions.get("window");
+
 type RequestPriority = "low" | "medium" | "high";
 
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+const priorityColor = (p: string) => {
+  if (p === "high") return "#EF4444";
+  if (p === "medium") return "#F59E0B";
+  return "#6B7280";
+};
+
+const statusColor = (s: string) => {
+  if (s === "approved" || s === "delivered") return "#0E9F6E";
+  if (s === "rejected" || s === "cancelled") return "#E02424";
+  return "#D97706";
+};
+
+const statusLabel = (s: string) => {
+  const map: Record<string, string> = {
+    pending: "Pendente",
+    approved: "Aprovado",
+    rejected: "Recusado",
+    delivered: "Entregue",
+    cancelled: "Cancelado",
+  };
+  return map[s] ?? s;
+};
+
+// ─── Componente de seleção de foto ────────────────────────────────────────────
+function PhotoPicker({
+  uri,
+  onPick,
+  onRemove,
+  label = "Imagem do produto (opcional)",
+}: {
+  uri: string | null;
+  onPick: () => void;
+  onRemove: () => void;
+  label?: string;
+}) {
+  const colors = useColors();
+  return (
+    <View style={{ gap: 6 }}>
+      <Text style={[pickerStyles.label, { color: colors.muted }]}>{label}</Text>
+      <TouchableOpacity
+        style={[pickerStyles.container, { borderColor: colors.primary, backgroundColor: colors.surface }]}
+        onPress={onPick}
+        activeOpacity={0.8}
+      >
+        {uri ? (
+          <Image source={{ uri }} style={pickerStyles.preview} contentFit="cover" />
+        ) : (
+          <View style={pickerStyles.placeholder}>
+            <View style={[pickerStyles.iconCircle, { backgroundColor: colors.primary + "15" }]}>
+              <Ionicons name="camera" size={32} color={colors.primary} />
+            </View>
+            <Text style={[pickerStyles.placeholderText, { color: colors.foreground }]}>
+              Toque para selecionar foto
+            </Text>
+            <Text style={[pickerStyles.placeholderSub, { color: colors.muted }]}>
+              Galeria · JPG ou PNG
+            </Text>
+          </View>
+        )}
+      </TouchableOpacity>
+      {uri && (
+        <TouchableOpacity style={pickerStyles.removeBtn} onPress={onRemove} activeOpacity={0.7}>
+          <Ionicons name="close-circle" size={16} color="#EF4444" />
+          <Text style={pickerStyles.removeText}>Remover foto</Text>
+        </TouchableOpacity>
+      )}
+    </View>
+  );
+}
+
+const pickerStyles = StyleSheet.create({
+  label: { fontSize: 13, fontWeight: "600" },
+  container: {
+    borderWidth: 2,
+    borderRadius: 14,
+    borderStyle: "dashed",
+    overflow: "hidden",
+    minHeight: 140,
+  },
+  preview: { width: "100%", height: 180 },
+  placeholder: {
+    minHeight: 140,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    paddingVertical: 20,
+  },
+  iconCircle: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  placeholderText: { fontSize: 15, fontWeight: "600" },
+  placeholderSub: { fontSize: 12 },
+  removeBtn: { flexDirection: "row", alignItems: "center", gap: 6 },
+  removeText: { fontSize: 13, fontWeight: "600", color: "#EF4444" },
+});
+
+// ─── Tela principal ───────────────────────────────────────────────────────────
 export default function MaterialsScreen() {
   const colors = useColors();
   const { appRole } = useRole();
   const isManager = appRole === "manager" || appRole === "master";
 
+  // ── Tab ──────────────────────────────────────────────────────────────────────
   const [activeTab, setActiveTab] = useState<"catalog" | "requests">("catalog");
+
+  // ── Modal: solicitar material ─────────────────────────────────────────────
   const [showRequestModal, setShowRequestModal] = useState(false);
   const [selectedMaterialId, setSelectedMaterialId] = useState<number | null>(null);
   const [quantity, setQuantity] = useState("1");
   const [priority, setPriority] = useState<RequestPriority>("medium");
   const [notes, setNotes] = useState("");
-  const [showAddMaterialModal, setShowAddMaterialModal] = useState(false);
-  const [newMaterialName, setNewMaterialName] = useState("");
-  const [newMaterialDesc, setNewMaterialDesc] = useState("");
-  const [newMaterialQty, setNewMaterialQty] = useState("0");
-  const [newMaterialBrandId, setNewMaterialBrandId] = useState<number | null>(null);
-  const [newMaterialPhotoUri, setNewMaterialPhotoUri] = useState<string | null>(null);
-  const [newMaterialPhotoBase64, setNewMaterialPhotoBase64] = useState<string | null>(null);
-  const [photoUploading, setPhotoUploading] = useState(false);
-  // Edit material modal states
-  const [showEditMaterialModal, setShowEditMaterialModal] = useState(false);
-  const [editMaterialId, setEditMaterialId] = useState<number | null>(null);
-  const [editMaterialName, setEditMaterialName] = useState("");
-  const [editMaterialDesc, setEditMaterialDesc] = useState("");
-  const [editMaterialQty, setEditMaterialQty] = useState("0");
-  const [editMaterialPhotoUri, setEditMaterialPhotoUri] = useState<string | null>(null);
-  const [editMaterialPhotoBase64, setEditMaterialPhotoBase64] = useState<string | null>(null);
-  const [editMaterialCurrentPhotoUrl, setEditMaterialCurrentPhotoUrl] = useState<string | null>(null);
-  const [editPhotoUploading, setEditPhotoUploading] = useState(false);
 
-  // Reject modal state (replaces Alert.prompt which doesn't work on web)
+  // ── Modal: criar material ─────────────────────────────────────────────────
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [addName, setAddName] = useState("");
+  const [addDesc, setAddDesc] = useState("");
+  const [addQty, setAddQty] = useState("0");
+  const [addBrandId, setAddBrandId] = useState<number | null>(null);
+  const [addPhotoUri, setAddPhotoUri] = useState<string | null>(null);
+  const [addPhotoBase64, setAddPhotoBase64] = useState<string | null>(null);
+  const [addUploading, setAddUploading] = useState(false);
+
+  // ── Modal: editar material ────────────────────────────────────────────────
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editId, setEditId] = useState<number | null>(null);
+  const [editName, setEditName] = useState("");
+  const [editDesc, setEditDesc] = useState("");
+  const [editQty, setEditQty] = useState("0");
+  const [editPhotoUri, setEditPhotoUri] = useState<string | null>(null);
+  const [editPhotoBase64, setEditPhotoBase64] = useState<string | null>(null);
+  const [editCurrentPhotoUrl, setEditCurrentPhotoUrl] = useState<string | null>(null);
+  const [editUploading, setEditUploading] = useState(false);
+
+  // ── Modal: recusar solicitação ────────────────────────────────────────────
   const [showRejectModal, setShowRejectModal] = useState(false);
   const [rejectTargetId, setRejectTargetId] = useState<number | null>(null);
   const [rejectReason, setRejectReason] = useState("");
   const [rejectLoading, setRejectLoading] = useState(false);
 
-  // Delete confirm modal state
+  // ── Modal: excluir material ───────────────────────────────────────────────
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deleteTargetId, setDeleteTargetId] = useState<number | null>(null);
   const [deleteTargetName, setDeleteTargetName] = useState("");
   const [deleteLoading, setDeleteLoading] = useState(false);
 
+  // ── Queries ───────────────────────────────────────────────────────────────
   const { data: materials, refetch: refetchMaterials } = trpc.materials.list.useQuery({});
   const { data: brands } = trpc.brands.list.useQuery();
   const { data: stores } = trpc.stores.list.useQuery();
@@ -75,10 +189,11 @@ export default function MaterialsScreen() {
   const createMaterialMutation = trpc.materials.create.useMutation();
   const deleteMaterialMutation = trpc.materials.delete.useMutation();
   const updateMaterialMutation = trpc.materials.update.useMutation();
-  const uploadMaterialPhotoMutation = trpc.materials.uploadPhoto.useMutation();
+  const uploadPhotoMutation = trpc.materials.uploadPhoto.useMutation();
 
   const displayRequests = isManager ? allRequests : myRequests;
 
+  // ── Handlers: solicitar ───────────────────────────────────────────────────
   const handleRequestMaterial = (materialId: number) => {
     setSelectedMaterialId(materialId);
     setQuantity("1");
@@ -113,6 +228,7 @@ export default function MaterialsScreen() {
     }
   };
 
+  // ── Handlers: aprovar / recusar / entregar ────────────────────────────────
   const handleApprove = async (id: number) => {
     try {
       await approveMutation.mutateAsync({ id });
@@ -122,7 +238,6 @@ export default function MaterialsScreen() {
     }
   };
 
-  // Opens the custom reject modal (replaces Alert.prompt)
   const handleReject = (id: number) => {
     setRejectTargetId(id);
     setRejectReason("");
@@ -159,7 +274,8 @@ export default function MaterialsScreen() {
     }
   };
 
-  const handlePickMaterialPhoto = async () => {
+  // ── Handlers: foto ────────────────────────────────────────────────────────
+  const pickPhoto = async (): Promise<{ uri: string; base64: string } | null> => {
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
       allowsEditing: true,
@@ -168,114 +284,124 @@ export default function MaterialsScreen() {
       base64: true,
     });
     if (!result.canceled && result.assets[0]) {
-      setNewMaterialPhotoUri(result.assets[0].uri);
-      setNewMaterialPhotoBase64(result.assets[0].base64 ?? null);
+      return { uri: result.assets[0].uri, base64: result.assets[0].base64 ?? "" };
+    }
+    return null;
+  };
+
+  const handlePickAddPhoto = async () => {
+    const photo = await pickPhoto();
+    if (photo) {
+      setAddPhotoUri(photo.uri);
+      setAddPhotoBase64(photo.base64);
     }
   };
 
+  const handlePickEditPhoto = async () => {
+    const photo = await pickPhoto();
+    if (photo) {
+      setEditPhotoUri(photo.uri);
+      setEditPhotoBase64(photo.base64);
+    }
+  };
+
+  // ── Handlers: criar material ──────────────────────────────────────────────
+  const resetAddForm = () => {
+    setAddName("");
+    setAddDesc("");
+    setAddQty("0");
+    setAddBrandId(null);
+    setAddPhotoUri(null);
+    setAddPhotoBase64(null);
+    setAddUploading(false);
+  };
+
   const handleAddMaterial = async () => {
-    if (!newMaterialName.trim()) {
+    if (!addName.trim()) {
       Alert.alert("Nome obrigatório", "Informe o nome do material.");
       return;
     }
-    if (!newMaterialBrandId) {
+    if (!addBrandId) {
       Alert.alert("Marca obrigatória", "Selecione uma marca.");
       return;
     }
     try {
       let photoUrl: string | undefined;
-      if (newMaterialPhotoBase64) {
-        setPhotoUploading(true);
-        const uploadResult = await uploadMaterialPhotoMutation.mutateAsync({
-          fileBase64: newMaterialPhotoBase64,
+      if (addPhotoBase64) {
+        setAddUploading(true);
+        const uploadResult = await uploadPhotoMutation.mutateAsync({
+          fileBase64: addPhotoBase64,
           fileType: "image/jpeg",
-          fileName: `${newMaterialName.trim().replace(/\s+/g, "-").toLowerCase()}.jpg`,
+          fileName: `${addName.trim().replace(/\s+/g, "-").toLowerCase()}.jpg`,
         });
         photoUrl = uploadResult.url;
-        setPhotoUploading(false);
       }
+      setAddUploading(false);
       await createMaterialMutation.mutateAsync({
-        brandId: newMaterialBrandId,
-        name: newMaterialName.trim(),
-        description: newMaterialDesc.trim() || undefined,
-        quantityAvailable: parseInt(newMaterialQty) || 0,
+        brandId: addBrandId,
+        name: addName.trim(),
+        description: addDesc.trim() || undefined,
+        quantityAvailable: parseInt(addQty) || 0,
         photoUrl,
       });
-      setShowAddMaterialModal(false);
-      setNewMaterialName("");
-      setNewMaterialDesc("");
-      setNewMaterialQty("0");
-      setNewMaterialBrandId(null);
-      setNewMaterialPhotoUri(null);
-      setNewMaterialPhotoBase64(null);
-      setPhotoUploading(false);
+      setShowAddModal(false);
+      resetAddForm();
       refetchMaterials();
       Alert.alert("Material criado!", "Material adicionado ao catálogo.");
     } catch {
-      setPhotoUploading(false);
+      setAddUploading(false);
       Alert.alert("Erro", "Não foi possível criar o material.");
     }
   };
 
-  const handleOpenEditMaterial = (item: { id: number; name: string; description?: string | null; quantityAvailable: number; photoUrl?: string | null }) => {
-    setEditMaterialId(item.id);
-    setEditMaterialName(item.name);
-    setEditMaterialDesc(item.description ?? "");
-    setEditMaterialQty(String(item.quantityAvailable));
-    setEditMaterialPhotoUri(null);
-    setEditMaterialPhotoBase64(null);
-    setEditMaterialCurrentPhotoUrl(item.photoUrl ?? null);
-    setShowEditMaterialModal(true);
+  // ── Handlers: editar material ─────────────────────────────────────────────
+  const handleOpenEdit = (item: { id: number; name: string; description?: string | null; quantityAvailable: number; photoUrl?: string | null }) => {
+    setEditId(item.id);
+    setEditName(item.name);
+    setEditDesc(item.description ?? "");
+    setEditQty(String(item.quantityAvailable));
+    setEditPhotoUri(null);
+    setEditPhotoBase64(null);
+    setEditCurrentPhotoUrl(item.photoUrl ?? null);
+    setShowEditModal(true);
   };
-  const handlePickEditMaterialPhoto = async () => {
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: true,
-      aspect: [1, 1],
-      quality: 0.7,
-      base64: true,
-    });
-    if (!result.canceled && result.assets[0]) {
-      setEditMaterialPhotoUri(result.assets[0].uri);
-      setEditMaterialPhotoBase64(result.assets[0].base64 ?? null);
-    }
-  };
-  const handleSaveEditMaterial = async () => {
-    if (!editMaterialId) return;
-    if (!editMaterialName.trim()) {
+
+  const handleSaveEdit = async () => {
+    if (!editId) return;
+    if (!editName.trim()) {
       Alert.alert("Nome obrigatório", "Informe o nome do material.");
       return;
     }
     try {
-      let photoUrl: string | null | undefined = undefined;
-      if (editMaterialPhotoBase64) {
-        setEditPhotoUploading(true);
-        const uploadResult = await uploadMaterialPhotoMutation.mutateAsync({
-          fileBase64: editMaterialPhotoBase64,
+      let photoUrl: string | undefined;
+      if (editPhotoBase64) {
+        setEditUploading(true);
+        const uploadResult = await uploadPhotoMutation.mutateAsync({
+          fileBase64: editPhotoBase64,
           fileType: "image/jpeg",
-          fileName: `${editMaterialName.trim().replace(/\s+/g, "-").toLowerCase()}.jpg`,
+          fileName: `${editName.trim().replace(/\s+/g, "-").toLowerCase()}.jpg`,
         });
         photoUrl = uploadResult.url;
-        setEditPhotoUploading(false);
       }
+      setEditUploading(false);
       await updateMaterialMutation.mutateAsync({
-        id: editMaterialId,
-        name: editMaterialName.trim(),
-        description: editMaterialDesc.trim() || undefined,
-        quantityAvailable: parseInt(editMaterialQty) || 0,
+        id: editId,
+        name: editName.trim(),
+        description: editDesc.trim() || undefined,
+        quantityAvailable: parseInt(editQty) || 0,
         ...(photoUrl !== undefined ? { photoUrl } : {}),
       });
-      setShowEditMaterialModal(false);
-      setEditMaterialId(null);
-      setEditPhotoUploading(false);
+      setShowEditModal(false);
+      setEditId(null);
       refetchMaterials();
       Alert.alert("Material atualizado!", "As informações foram salvas.");
     } catch {
-      setEditPhotoUploading(false);
+      setEditUploading(false);
       Alert.alert("Erro", "Não foi possível atualizar o material.");
     }
   };
-  // Opens the custom delete confirm modal
+
+  // ── Handlers: excluir material ────────────────────────────────────────────
   const handleDeleteMaterial = (id: number, name: string) => {
     setDeleteTargetId(id);
     setDeleteTargetName(name);
@@ -298,40 +424,20 @@ export default function MaterialsScreen() {
     }
   };
 
-  const priorityColor = (p: string) => {
-    if (p === "high") return "#EF4444";
-    if (p === "medium") return "#F59E0B";
-    return "#6B7280";
-  };
-
-  const statusColor = (s: string) => {
-    if (s === "approved" || s === "delivered") return "#0E9F6E";
-    if (s === "rejected" || s === "cancelled") return "#E02424";
-    return "#D97706";
-  };
-
-  const statusLabel = (s: string) => {
-    const map: Record<string, string> = { pending: "Pendente", approved: "Aprovado", rejected: "Recusado", delivered: "Entregue", cancelled: "Cancelado" };
-    return map[s] ?? s;
-  };
-
+  // ── Render ────────────────────────────────────────────────────────────────
   return (
     <ScreenContainer>
-      {/* Header */}
+      {/* Cabeçalho */}
       <View style={[styles.header, { backgroundColor: colors.primary }]}>
         <Text style={styles.headerTitle}>Materiais</Text>
         {isManager && (
-          <TouchableOpacity
-            style={styles.addBtn}
-            onPress={() => setShowAddMaterialModal(true)}
-            activeOpacity={0.7}
-          >
+          <TouchableOpacity style={styles.addBtn} onPress={() => setShowAddModal(true)} activeOpacity={0.7}>
             <Ionicons name="add" size={22} color="#FFFFFF" />
           </TouchableOpacity>
         )}
       </View>
 
-      {/* Tabs */}
+      {/* Abas */}
       <View style={[styles.tabs, { borderBottomColor: colors.border }]}>
         {(["catalog", "requests"] as const).map((tab) => (
           <TouchableOpacity
@@ -347,6 +453,7 @@ export default function MaterialsScreen() {
         ))}
       </View>
 
+      {/* Catálogo */}
       {activeTab === "catalog" ? (
         <FlatList
           data={materials}
@@ -403,14 +510,14 @@ export default function MaterialsScreen() {
                     {isManager && (
                       <View style={{ flexDirection: "row", gap: 8 }}>
                         <TouchableOpacity
-                          style={[styles.deleteMatBtn, { borderColor: colors.border, backgroundColor: colors.surface }]}
-                          onPress={() => handleOpenEditMaterial(item)}
+                          style={[styles.iconBtn, { borderColor: colors.border, backgroundColor: colors.surface }]}
+                          onPress={() => handleOpenEdit(item)}
                           activeOpacity={0.7}
                         >
                           <Ionicons name="create-outline" size={16} color={colors.primary} />
                         </TouchableOpacity>
                         <TouchableOpacity
-                          style={styles.deleteMatBtn}
+                          style={[styles.iconBtn, { backgroundColor: "#FFF5F5", borderColor: "#FEE2E2" }]}
                           onPress={() => handleDeleteMaterial(item.id, item.name)}
                           activeOpacity={0.7}
                         >
@@ -425,6 +532,7 @@ export default function MaterialsScreen() {
           }}
         />
       ) : (
+        /* Solicitações */
         <FlatList
           data={displayRequests}
           keyExtractor={(item) => item.id.toString()}
@@ -493,12 +601,14 @@ export default function MaterialsScreen() {
         />
       )}
 
-      {/* ── Request Modal ── */}
+      {/* ════════════════════════════════════════════════════════════════════
+          MODAL: Solicitar Material
+      ════════════════════════════════════════════════════════════════════ */}
       <Modal visible={showRequestModal} transparent animationType="slide">
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, { backgroundColor: colors.background }]}>
+        <View style={styles.overlay}>
+          <View style={[styles.sheet, { backgroundColor: colors.background }]}>
             <Text style={[styles.modalTitle, { color: colors.foreground }]}>Solicitar Material</Text>
-            <Text style={[styles.modalLabel, { color: colors.muted }]}>Quantidade</Text>
+            <Text style={[styles.label, { color: colors.muted }]}>Quantidade</Text>
             <TextInput
               style={[styles.input, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.foreground }]}
               value={quantity}
@@ -506,12 +616,16 @@ export default function MaterialsScreen() {
               keyboardType="numeric"
               returnKeyType="done"
             />
-            <Text style={[styles.modalLabel, { color: colors.muted }]}>Prioridade</Text>
+            <Text style={[styles.label, { color: colors.muted }]}>Prioridade</Text>
             <View style={styles.priorityRow}>
               {(["low", "medium", "high"] as RequestPriority[]).map((p) => (
                 <TouchableOpacity
                   key={p}
-                  style={[styles.priorityOption, priority === p && { backgroundColor: priorityColor(p) + "20", borderColor: priorityColor(p) }, { borderColor: colors.border }]}
+                  style={[
+                    styles.priorityOption,
+                    { borderColor: priority === p ? priorityColor(p) : colors.border },
+                    priority === p && { backgroundColor: priorityColor(p) + "20" },
+                  ]}
                   onPress={() => setPriority(p)}
                   activeOpacity={0.7}
                 >
@@ -521,7 +635,7 @@ export default function MaterialsScreen() {
                 </TouchableOpacity>
               ))}
             </View>
-            <Text style={[styles.modalLabel, { color: colors.muted }]}>Observações (opcional)</Text>
+            <Text style={[styles.label, { color: colors.muted }]}>Observações (opcional)</Text>
             <TextInput
               style={[styles.input, styles.textArea, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.foreground }]}
               value={notes}
@@ -543,12 +657,14 @@ export default function MaterialsScreen() {
         </View>
       </Modal>
 
-      {/* ── Reject Modal (replaces Alert.prompt) ── */}
+      {/* ════════════════════════════════════════════════════════════════════
+          MODAL: Recusar Solicitação
+      ════════════════════════════════════════════════════════════════════ */}
       <Modal visible={showRejectModal} transparent animationType="fade">
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, { backgroundColor: colors.background, borderTopLeftRadius: 20, borderTopRightRadius: 20 }]}>
+        <View style={styles.overlay}>
+          <View style={[styles.sheet, { backgroundColor: colors.background }]}>
             <Text style={[styles.modalTitle, { color: colors.foreground }]}>Recusar Solicitação</Text>
-            <Text style={[styles.modalLabel, { color: colors.muted }]}>Motivo da recusa *</Text>
+            <Text style={[styles.label, { color: colors.muted }]}>Motivo da recusa *</Text>
             <TextInput
               style={[styles.input, styles.textArea, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.foreground }]}
               value={rejectReason}
@@ -582,15 +698,17 @@ export default function MaterialsScreen() {
         </View>
       </Modal>
 
-      {/* ── Delete Confirm Modal ── */}
+      {/* ════════════════════════════════════════════════════════════════════
+          MODAL: Excluir Material
+      ════════════════════════════════════════════════════════════════════ */}
       <Modal visible={showDeleteModal} transparent animationType="fade">
-        <View style={styles.modalOverlay}>
-          <View style={[styles.deleteModalContent, { backgroundColor: colors.background }]}>
+        <View style={styles.overlay}>
+          <View style={[styles.deleteBox, { backgroundColor: colors.background }]}>
             <View style={styles.deleteIconWrap}>
               <Ionicons name="trash-outline" size={32} color="#EF4444" />
             </View>
-            <Text style={[styles.deleteModalTitle, { color: colors.foreground }]}>Excluir material?</Text>
-            <Text style={[styles.deleteModalDesc, { color: colors.muted }]}>
+            <Text style={[styles.deleteTitle, { color: colors.foreground }]}>Excluir material?</Text>
+            <Text style={[styles.deleteDesc, { color: colors.muted }]}>
               "{deleteTargetName}" será removido do catálogo e os promotores não poderão mais visualizá-lo.
             </Text>
             <View style={styles.modalActions}>
@@ -616,190 +734,214 @@ export default function MaterialsScreen() {
         </View>
       </Modal>
 
-      {/* ── Add Material Modal (Manager) ── */}
-      <Modal visible={showAddMaterialModal} transparent animationType="slide">
-        <View style={styles.modalOverlayFull}>
-          <View style={[styles.modalSheetFull, { backgroundColor: colors.background }]}>
-          <ScrollView contentContainerStyle={{ padding: 24, gap: 8, paddingBottom: 40 }} showsVerticalScrollIndicator={false}>
-              <Text style={[styles.modalTitle, { color: colors.foreground }]}>Novo Material</Text>
-              <Text style={[styles.modalLabel, { color: colors.muted }]}>Marca *</Text>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 12 }}>
+      {/* ════════════════════════════════════════════════════════════════════
+          MODAL: Criar Material (com upload de foto)
+      ════════════════════════════════════════════════════════════════════ */}
+      <Modal visible={showAddModal} transparent animationType="slide" onRequestClose={() => setShowAddModal(false)}>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          style={styles.fullOverlay}
+        >
+          <View style={[styles.fullSheet, { backgroundColor: colors.background, maxHeight: SCREEN_HEIGHT * 0.93 }]}>
+            {/* Barra de título */}
+            <View style={[styles.sheetHeader, { borderBottomColor: colors.border }]}>
+              <Text style={[styles.sheetTitle, { color: colors.foreground }]}>Novo Material</Text>
+              <TouchableOpacity onPress={() => setShowAddModal(false)} style={styles.closeBtn} activeOpacity={0.7}>
+                <Ionicons name="close" size={24} color={colors.muted} />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView
+              contentContainerStyle={styles.sheetBody}
+              showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
+            >
+              {/* Foto do produto — PRIMEIRO CAMPO */}
+              <PhotoPicker
+                uri={addPhotoUri}
+                onPick={handlePickAddPhoto}
+                onRemove={() => { setAddPhotoUri(null); setAddPhotoBase64(null); }}
+              />
+
+              {/* Marca */}
+              <Text style={[styles.label, { color: colors.muted }]}>Marca *</Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 4 }}>
                 {brands?.map((b) => (
                   <TouchableOpacity
                     key={b.id}
-                    style={[styles.brandOption, newMaterialBrandId === b.id && { backgroundColor: (b.colorHex ?? "#3B82F6") + "20", borderColor: b.colorHex ?? "#3B82F6" }, { borderColor: colors.border }]}
-                    onPress={() => setNewMaterialBrandId(b.id)}
+                    style={[
+                      styles.brandOption,
+                      { borderColor: addBrandId === b.id ? (b.colorHex ?? "#3B82F6") : colors.border },
+                      addBrandId === b.id && { backgroundColor: (b.colorHex ?? "#3B82F6") + "20" },
+                    ]}
+                    onPress={() => setAddBrandId(b.id)}
                     activeOpacity={0.7}
                   >
-                    <Text style={[styles.brandOptionText, { color: newMaterialBrandId === b.id ? (b.colorHex ?? "#3B82F6") : colors.muted }]}>{b.name}</Text>
+                    <Text style={[styles.brandOptionText, { color: addBrandId === b.id ? (b.colorHex ?? "#3B82F6") : colors.muted }]}>
+                      {b.name}
+                    </Text>
                   </TouchableOpacity>
                 ))}
               </ScrollView>
-              <Text style={[styles.modalLabel, { color: colors.muted }]}>Nome *</Text>
+
+              {/* Nome */}
+              <Text style={[styles.label, { color: colors.muted }]}>Nome *</Text>
               <TextInput
                 style={[styles.input, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.foreground }]}
-                value={newMaterialName}
-                onChangeText={setNewMaterialName}
+                value={addName}
+                onChangeText={setAddName}
                 placeholder="Nome do material"
                 placeholderTextColor={colors.muted}
                 returnKeyType="next"
               />
-              <Text style={[styles.modalLabel, { color: colors.muted }]}>Descrição</Text>
+
+              {/* Descrição */}
+              <Text style={[styles.label, { color: colors.muted }]}>Descrição</Text>
               <TextInput
                 style={[styles.input, styles.textArea, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.foreground }]}
-                value={newMaterialDesc}
-                onChangeText={setNewMaterialDesc}
+                value={addDesc}
+                onChangeText={setAddDesc}
                 multiline
                 numberOfLines={3}
                 placeholder="Descrição do material..."
                 placeholderTextColor={colors.muted}
               />
-              <Text style={[styles.modalLabel, { color: colors.muted }]}>Imagem do produto (opcional)</Text>
-              <TouchableOpacity
-                style={[styles.photoPickerBtn, { borderColor: colors.border, backgroundColor: colors.surface }]}
-                onPress={handlePickMaterialPhoto}
-                activeOpacity={0.7}
-              >
-                {newMaterialPhotoUri ? (
-                  <Image source={{ uri: newMaterialPhotoUri }} style={styles.photoPreview} contentFit="cover" />
-                ) : (
-                  <View style={styles.photoPickerPlaceholder}>
-                    <Ionicons name="camera-outline" size={28} color={colors.muted} />
-                    <Text style={[styles.photoPickerText, { color: colors.muted }]}>Toque para selecionar foto</Text>
-                  </View>
-                )}
-              </TouchableOpacity>
-              {newMaterialPhotoUri && (
-                <TouchableOpacity
-                  style={styles.removePhotoBtn}
-                  onPress={() => { setNewMaterialPhotoUri(null); setNewMaterialPhotoBase64(null); }}
-                  activeOpacity={0.7}
-                >
-                  <Ionicons name="close-circle" size={16} color="#EF4444" />
-                  <Text style={[styles.removePhotoText, { color: "#EF4444" }]}>Remover foto</Text>
-                </TouchableOpacity>
-              )}
-              <Text style={[styles.modalLabel, { color: colors.muted }]}>Quantidade disponível</Text>
+
+              {/* Quantidade */}
+              <Text style={[styles.label, { color: colors.muted }]}>Quantidade disponível</Text>
               <TextInput
                 style={[styles.input, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.foreground }]}
-                value={newMaterialQty}
-                onChangeText={setNewMaterialQty}
+                value={addQty}
+                onChangeText={setAddQty}
                 keyboardType="numeric"
                 returnKeyType="done"
               />
-              <View style={styles.modalActions}>
-                <TouchableOpacity style={[styles.modalBtn, { backgroundColor: colors.border }]} onPress={() => setShowAddMaterialModal(false)} activeOpacity={0.8}>
+
+              {/* Botões */}
+              <View style={[styles.modalActions, { marginTop: 8 }]}>
+                <TouchableOpacity
+                  style={[styles.modalBtn, { backgroundColor: colors.border }]}
+                  onPress={() => setShowAddModal(false)}
+                  activeOpacity={0.8}
+                >
                   <Text style={[styles.modalBtnText, { color: colors.foreground }]}>Cancelar</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
-                  style={[styles.modalBtn, { backgroundColor: colors.primary, opacity: (photoUploading || createMaterialMutation.isPending) ? 0.6 : 1 }]}
+                  style={[styles.modalBtn, { backgroundColor: colors.primary, opacity: (addUploading || createMaterialMutation.isPending) ? 0.6 : 1 }]}
                   onPress={handleAddMaterial}
                   activeOpacity={0.8}
-                  disabled={photoUploading || createMaterialMutation.isPending}
+                  disabled={addUploading || createMaterialMutation.isPending}
                 >
                   <Text style={[styles.modalBtnText, { color: "#FFFFFF" }]}>
-                    {photoUploading ? "Enviando foto..." : createMaterialMutation.isPending ? "Criando..." : "Criar"}
-                  </Text>
-                </TouchableOpacity>
-              </View>
-          </ScrollView>
-          </View>
-        </View>
-      </Modal>
-
-      {/* ── Edit Material Modal (Manager) ── */}
-      <Modal visible={showEditMaterialModal} transparent animationType="slide">
-        <View style={styles.modalOverlayFull}>
-          <View style={[styles.modalSheetFull, { backgroundColor: colors.background }]}>
-            <ScrollView contentContainerStyle={{ padding: 24, gap: 8, paddingBottom: 40 }} showsVerticalScrollIndicator={false}>
-              <Text style={[styles.modalTitle, { color: colors.foreground }]}>Editar Material</Text>
-
-              {/* Photo picker */}
-              <Text style={[styles.modalLabel, { color: colors.muted }]}>Imagem do produto</Text>
-              <TouchableOpacity
-                style={[styles.photoPickerBtn, { borderColor: colors.border, backgroundColor: colors.surface }]}
-                onPress={handlePickEditMaterialPhoto}
-                activeOpacity={0.8}
-              >
-                {editMaterialPhotoUri ? (
-                  <Image source={{ uri: editMaterialPhotoUri }} style={{ width: "100%", height: 160 }} contentFit="cover" />
-                ) : editMaterialCurrentPhotoUrl ? (
-                  <View style={{ position: "relative" }}>
-                    <Image source={{ uri: editMaterialCurrentPhotoUrl }} style={{ width: "100%", height: 160 }} contentFit="cover" />
-                    <View style={{ position: "absolute", bottom: 8, right: 8, backgroundColor: "rgba(0,0,0,0.55)", borderRadius: 8, paddingHorizontal: 10, paddingVertical: 4 }}>
-                      <Text style={{ color: "#fff", fontSize: 12, fontWeight: "600" }}>Trocar foto</Text>
-                    </View>
-                  </View>
-                ) : (
-                  <View style={{ alignItems: "center", justifyContent: "center", paddingVertical: 32, gap: 8 }}>
-                    <Ionicons name="camera-outline" size={32} color={colors.muted} />
-                    <Text style={{ color: colors.muted, fontSize: 14 }}>Toque para adicionar foto</Text>
-                  </View>
-                )}
-              </TouchableOpacity>
-
-              <Text style={[styles.modalLabel, { color: colors.muted }]}>Nome *</Text>
-              <TextInput
-                style={[styles.input, { borderColor: colors.border, color: colors.foreground, backgroundColor: colors.surface }]}
-                value={editMaterialName}
-                onChangeText={setEditMaterialName}
-                placeholder="Nome do material"
-                placeholderTextColor={colors.muted}
-                returnKeyType="done"
-              />
-
-              <Text style={[styles.modalLabel, { color: colors.muted }]}>Descrição</Text>
-              <TextInput
-                style={[styles.input, styles.textArea, { borderColor: colors.border, color: colors.foreground, backgroundColor: colors.surface }]}
-                value={editMaterialDesc}
-                onChangeText={setEditMaterialDesc}
-                placeholder="Descrição opcional"
-                placeholderTextColor={colors.muted}
-                multiline
-                numberOfLines={3}
-                returnKeyType="done"
-              />
-
-              <Text style={[styles.modalLabel, { color: colors.muted }]}>Quantidade disponível</Text>
-              <TextInput
-                style={[styles.input, { borderColor: colors.border, color: colors.foreground, backgroundColor: colors.surface }]}
-                value={editMaterialQty}
-                onChangeText={setEditMaterialQty}
-                placeholder="0"
-                placeholderTextColor={colors.muted}
-                keyboardType="numeric"
-                returnKeyType="done"
-              />
-
-              <View style={{ flexDirection: "row", gap: 12, marginTop: 8 }}>
-                <TouchableOpacity
-                  style={[styles.modalBtn, { flex: 1, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border }]}
-                  onPress={() => setShowEditMaterialModal(false)}
-                  activeOpacity={0.8}
-                >
-                  <Text style={[styles.modalBtnText, { color: colors.foreground }]}>Cancelar</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[styles.modalBtn, { flex: 1, backgroundColor: colors.primary, opacity: (editPhotoUploading || updateMaterialMutation.isPending) ? 0.6 : 1 }]}
-                  onPress={handleSaveEditMaterial}
-                  activeOpacity={0.8}
-                  disabled={editPhotoUploading || updateMaterialMutation.isPending}
-                >
-                  <Text style={styles.modalBtnText}>
-                    {editPhotoUploading ? "Enviando foto..." : updateMaterialMutation.isPending ? "Salvando..." : "Salvar"}
+                    {addUploading ? "Enviando foto..." : createMaterialMutation.isPending ? "Criando..." : "Criar"}
                   </Text>
                 </TouchableOpacity>
               </View>
             </ScrollView>
           </View>
-        </View>
+        </KeyboardAvoidingView>
+      </Modal>
+
+      {/* ════════════════════════════════════════════════════════════════════
+          MODAL: Editar Material (com upload de foto)
+      ════════════════════════════════════════════════════════════════════ */}
+      <Modal visible={showEditModal} transparent animationType="slide" onRequestClose={() => setShowEditModal(false)}>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          style={styles.fullOverlay}
+        >
+          <View style={[styles.fullSheet, { backgroundColor: colors.background, maxHeight: SCREEN_HEIGHT * 0.93 }]}>
+            <View style={[styles.sheetHeader, { borderBottomColor: colors.border }]}>
+              <Text style={[styles.sheetTitle, { color: colors.foreground }]}>Editar Material</Text>
+              <TouchableOpacity onPress={() => setShowEditModal(false)} style={styles.closeBtn} activeOpacity={0.7}>
+                <Ionicons name="close" size={24} color={colors.muted} />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView
+              contentContainerStyle={styles.sheetBody}
+              showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
+            >
+              {/* Foto — mostra a atual se existir, ou picker vazio */}
+              <PhotoPicker
+                uri={editPhotoUri ?? editCurrentPhotoUrl}
+                onPick={handlePickEditPhoto}
+                onRemove={() => { setEditPhotoUri(null); setEditPhotoBase64(null); setEditCurrentPhotoUrl(null); }}
+                label="Imagem do produto"
+              />
+
+              {/* Nome */}
+              <Text style={[styles.label, { color: colors.muted }]}>Nome *</Text>
+              <TextInput
+                style={[styles.input, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.foreground }]}
+                value={editName}
+                onChangeText={setEditName}
+                placeholder="Nome do material"
+                placeholderTextColor={colors.muted}
+                returnKeyType="next"
+              />
+
+              {/* Descrição */}
+              <Text style={[styles.label, { color: colors.muted }]}>Descrição</Text>
+              <TextInput
+                style={[styles.input, styles.textArea, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.foreground }]}
+                value={editDesc}
+                onChangeText={setEditDesc}
+                multiline
+                numberOfLines={3}
+                placeholder="Descrição opcional"
+                placeholderTextColor={colors.muted}
+              />
+
+              {/* Quantidade */}
+              <Text style={[styles.label, { color: colors.muted }]}>Quantidade disponível</Text>
+              <TextInput
+                style={[styles.input, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.foreground }]}
+                value={editQty}
+                onChangeText={setEditQty}
+                keyboardType="numeric"
+                returnKeyType="done"
+              />
+
+              {/* Botões */}
+              <View style={[styles.modalActions, { marginTop: 8 }]}>
+                <TouchableOpacity
+                  style={[styles.modalBtn, { backgroundColor: colors.border }]}
+                  onPress={() => setShowEditModal(false)}
+                  activeOpacity={0.8}
+                >
+                  <Text style={[styles.modalBtnText, { color: colors.foreground }]}>Cancelar</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.modalBtn, { backgroundColor: colors.primary, opacity: (editUploading || updateMaterialMutation.isPending) ? 0.6 : 1 }]}
+                  onPress={handleSaveEdit}
+                  activeOpacity={0.8}
+                  disabled={editUploading || updateMaterialMutation.isPending}
+                >
+                  <Text style={[styles.modalBtnText, { color: "#FFFFFF" }]}>
+                    {editUploading ? "Enviando foto..." : updateMaterialMutation.isPending ? "Salvando..." : "Salvar"}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </ScrollView>
+          </View>
+        </KeyboardAvoidingView>
       </Modal>
     </ScreenContainer>
   );
 }
 
+// ─── Estilos ──────────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
-  header: { paddingTop: 16, paddingBottom: 16, paddingHorizontal: 20, flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  header: {
+    paddingTop: 16,
+    paddingBottom: 16,
+    paddingHorizontal: 20,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
   headerTitle: { fontSize: 20, fontWeight: "700", color: "#FFFFFF" },
   addBtn: { padding: 8 },
   tabs: { flexDirection: "row", borderBottomWidth: 1 },
@@ -820,7 +962,7 @@ const styles = StyleSheet.create({
   stockText: { fontSize: 13, fontWeight: "600" },
   requestBtn: { paddingHorizontal: 14, paddingVertical: 6, borderRadius: 10 },
   requestBtnText: { fontSize: 13, fontWeight: "700", color: "#FFFFFF" },
-  deleteMatBtn: { padding: 6, borderRadius: 8, backgroundColor: "#FFF5F5" },
+  iconBtn: { padding: 6, borderRadius: 8, borderWidth: 1 },
   requestCard: { borderRadius: 16, padding: 16, borderWidth: 1, gap: 8 },
   requestHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
   requestMaterial: { flex: 1, fontSize: 15, fontWeight: "700" },
@@ -840,32 +982,39 @@ const styles = StyleSheet.create({
   emptyState: { flex: 1, alignItems: "center", justifyContent: "center", gap: 12, padding: 40, paddingTop: 80 },
   emptyTitle: { fontSize: 18, fontWeight: "700" },
   emptyDesc: { fontSize: 14, textAlign: "center", lineHeight: 21 },
-  modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "flex-end" },
-  modalOverlayFull: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "flex-end" },
-  modalSheetFull: { borderTopLeftRadius: 24, borderTopRightRadius: 24, maxHeight: "92%" },
-  modalContent: { borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, gap: 8 },
-  modalTitle: { fontSize: 20, fontWeight: "700", marginBottom: 8 },
-  modalLabel: { fontSize: 13, fontWeight: "600", marginBottom: 4 },
+  // Modais simples (bottom sheet)
+  overlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "flex-end" },
+  sheet: { borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, gap: 8 },
+  // Modais full (com scroll e foto)
+  fullOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "flex-end" },
+  fullSheet: { borderTopLeftRadius: 24, borderTopRightRadius: 24 },
+  sheetHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+  },
+  sheetTitle: { fontSize: 18, fontWeight: "700" },
+  closeBtn: { padding: 4 },
+  sheetBody: { padding: 20, gap: 12, paddingBottom: 48 },
+  // Formulário
+  label: { fontSize: 13, fontWeight: "600" },
   input: { borderWidth: 1, borderRadius: 12, padding: 14, fontSize: 16 },
   textArea: { height: 90, textAlignVertical: "top" },
-  priorityRow: { flexDirection: "row", gap: 10, marginBottom: 8 },
+  priorityRow: { flexDirection: "row", gap: 10 },
   priorityOption: { flex: 1, paddingVertical: 10, borderRadius: 10, borderWidth: 1.5, alignItems: "center" },
   priorityOptionText: { fontSize: 14, fontWeight: "600" },
-  modalActions: { flexDirection: "row", gap: 12, marginTop: 8 },
+  modalActions: { flexDirection: "row", gap: 12 },
   modalBtn: { flex: 1, paddingVertical: 14, borderRadius: 14, alignItems: "center" },
-  modalBtnText: { fontSize: 16, fontWeight: "700" },
+  modalBtnText: { fontSize: 16, fontWeight: "700", color: "#FFFFFF" },
+  modalTitle: { fontSize: 20, fontWeight: "700", marginBottom: 8 },
   brandOption: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 10, borderWidth: 1.5, marginRight: 8 },
   brandOptionText: { fontSize: 14, fontWeight: "600" },
-  // Photo picker
-  photoPickerBtn: { borderWidth: 1.5, borderRadius: 12, borderStyle: "dashed", overflow: "hidden", marginBottom: 8 },
-  photoPreview: { width: "100%", height: 160 },
-  photoPickerPlaceholder: { height: 120, alignItems: "center", justifyContent: "center", gap: 8 },
-  photoPickerText: { fontSize: 13, fontWeight: "500" },
-  removePhotoBtn: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 8 },
-  removePhotoText: { fontSize: 13, fontWeight: "600" },
-  // Delete confirm modal
-  deleteModalContent: { margin: 24, borderRadius: 20, padding: 24, gap: 12, alignItems: "center" },
-  deleteIconWrap: { width: 64, height: 64, borderRadius: 32, backgroundColor: "#FEE2E2", alignItems: "center", justifyContent: "center", marginBottom: 4 },
-  deleteModalTitle: { fontSize: 18, fontWeight: "700", textAlign: "center" },
-  deleteModalDesc: { fontSize: 14, textAlign: "center", lineHeight: 20 },
+  // Excluir
+  deleteBox: { margin: 24, borderRadius: 20, padding: 24, gap: 12, alignItems: "center" },
+  deleteIconWrap: { width: 64, height: 64, borderRadius: 32, backgroundColor: "#FEE2E2", alignItems: "center", justifyContent: "center" },
+  deleteTitle: { fontSize: 18, fontWeight: "700", textAlign: "center" },
+  deleteDesc: { fontSize: 14, textAlign: "center", lineHeight: 20 },
 });
