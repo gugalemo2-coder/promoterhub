@@ -1,0 +1,62 @@
+{
+  "query": "\nSELECT id, name FROM brands ORDER BY id;\n",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 3MUjan8YnY9PgZH.4cd173914575 --database cSF363ubWEjutwgRMZGZ84 --execute \nSELECT id, name FROM brands ORDER BY id;\n",
+  "rows": [
+    {
+      "id": "1",
+      "name": "Sinhá"
+    },
+    {
+      "id": "2",
+      "name": "LeitBom"
+    },
+    {
+      "id": "3",
+      "name": "Paraná"
+    },
+    {
+      "id": "4",
+      "name": "Emana"
+    },
+    {
+      "id": "5",
+      "name": "UltraPlas"
+    },
+    {
+      "id": "30001",
+      "name": "Marca Teste API"
+    },
+    {
+      "id": "30002",
+      "name": "Marca Teste API"
+    },
+    {
+      "id": "30003",
+      "name": "Marca Teste"
+    },
+    {
+      "id": "30004",
+      "name": "Marca Teste API"
+    },
+    {
+      "id": "30005",
+      "name": "Marca Teste v2"
+    },
+    {
+      "id": "30006",
+      "name": "Marca Teste v2"
+    },
+    {
+      "id": "30007",
+      "name": "Marca Teste v2"
+    },
+    {
+      "id": "30008",
+      "name": "Marca Teste v2"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tname\n1\tSinhá\n2\tLeitBom\n3\tParaná\n4\tEmana\n5\tUltraPlas\n30001\tMarca Teste API\n30002\tMarca Teste API\n30003\tMarca Teste\n30004\tMarca Teste API\n30005\tMarca Teste v2\n30006\tMarca Teste v2\n30007\tMarca Teste v2\n30008\tMarca Teste v2\n",
+  "stderr": "",
+  "execution_time_ms": 56
+}

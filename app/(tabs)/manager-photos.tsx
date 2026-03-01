@@ -31,7 +31,7 @@ import { trpc } from "@/lib/trpc";
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
 const PHOTO_SIZE = (SCREEN_WIDTH - 48 - 8) / 3;
 
-type FilterType = "brand" | "store" | "promoter" | "date" | "status";
+type FilterType = "brand" | "store" | "promoter" | "month" | "status";
 type PhotoStatus = "pending" | "approved" | "rejected";
 
 type PhotoItem = {
@@ -108,7 +108,8 @@ export default function ManagerPhotosScreen() {
   const [selectedBrandId, setSelectedBrandId] = useState<number | undefined>();
   const [selectedStoreId, setSelectedStoreId] = useState<number | undefined>();
   const [selectedUserId, setSelectedUserId] = useState<number | undefined>();
-  const [selectedDate, setSelectedDate] = useState<string | undefined>();
+  const [selectedMonth, setSelectedMonth] = useState<number | undefined>();
+  const [selectedYear, setSelectedYear] = useState<number | undefined>();
   const [selectedStatus, setSelectedStatus] = useState<PhotoStatus | undefined>();
   const [activeFilter, setActiveFilter] = useState<FilterType | null>(null);
 
@@ -129,8 +130,12 @@ export default function ManagerPhotosScreen() {
   const { data: stores } = trpc.stores.list.useQuery();
   const { data: promoters } = trpc.storePerformance.promoters.useQuery();
 
-  const startDate = selectedDate ? `${selectedDate}T00:00:00.000Z` : undefined;
-  const endDate = selectedDate ? `${selectedDate}T23:59:59.999Z` : undefined;
+  const startDate = (selectedMonth !== undefined && selectedYear !== undefined)
+    ? new Date(selectedYear, selectedMonth, 1).toISOString()
+    : undefined;
+  const endDate = (selectedMonth !== undefined && selectedYear !== undefined)
+    ? new Date(selectedYear, selectedMonth + 1, 0, 23, 59, 59, 999).toISOString()
+    : undefined;
 
   const { data: photos, isLoading, refetch } = trpc.photos.listAllWithDetails.useQuery({
     brandId: selectedBrandId,
@@ -139,24 +144,21 @@ export default function ManagerPhotosScreen() {
     startDate,
     endDate,
     status: selectedStatus,
-    limit: 100,
+    limit: 200,
   });
 
   const updateStatusMutation = trpc.photos.updateStatus.useMutation();
   const updateStatusBatchMutation = trpc.photos.updateStatusBatch.useMutation();
 
-  // Sort: if date filter active → chronological; otherwise newest first
+  // Sort: newest first always
   const sortedPhotos = useMemo((): PhotoItem[] => {
     const arr: PhotoItem[] = (photos ?? []).map((p) => ({
       ...p,
       photoUrl: p.photoUrl ?? "",
       photoTimestamp: p.photoTimestamp ?? null,
     }));
-    if (selectedDate) {
-      return arr.sort((a, b) => new Date(a.photoTimestamp ?? 0).getTime() - new Date(b.photoTimestamp ?? 0).getTime());
-    }
-    return arr;
-  }, [photos, selectedDate]);
+    return arr.sort((a, b) => new Date(b.photoTimestamp ?? 0).getTime() - new Date(a.photoTimestamp ?? 0).getTime());
+  }, [photos]);
 
   const openPhoto = useCallback((index: number) => {
     setPreviewIndex(index);
@@ -173,11 +175,12 @@ export default function ManagerPhotosScreen() {
     setSelectedBrandId(undefined);
     setSelectedStoreId(undefined);
     setSelectedUserId(undefined);
-    setSelectedDate(undefined);
+    setSelectedMonth(undefined);
+    setSelectedYear(undefined);
     setSelectedStatus(undefined);
   }, []);
 
-  const hasFilters = selectedBrandId || selectedStoreId || selectedUserId || selectedDate || selectedStatus;
+  const hasFilters = selectedBrandId || selectedStoreId || selectedUserId || selectedMonth !== undefined || selectedStatus;
 
   const toggleSelection = useCallback((id: number) => {
     setSelectedIds((prev) => {
@@ -329,41 +332,46 @@ export default function ManagerPhotosScreen() {
       );
     }
 
-    if (activeFilter === "date") {
-      const today = new Date();
-      const dates = Array.from({ length: 30 }, (_, i) => {
-        const d = new Date(today);
-        d.setDate(today.getDate() - i);
-        return d.toISOString().split("T")[0];
-      });
+    if (activeFilter === "month") {
+      const MONTHS = [
+        "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
+        "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro",
+      ];
+      const now = new Date();
+      const currentYear = now.getFullYear();
+      const years = [currentYear, currentYear - 1, currentYear - 2];
       return (
-        <View style={[styles.dropdown, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+        <View style={[styles.dropdown, { backgroundColor: colors.surface, borderColor: colors.border, maxHeight: 340 }]}>
           <ScrollView style={styles.dropdownScroll} showsVerticalScrollIndicator nestedScrollEnabled>
             <TouchableOpacity
               style={[styles.dropdownItem, { borderBottomColor: colors.border }]}
-              onPress={() => { setSelectedDate(undefined); setActiveFilter(null); }}
+              onPress={() => { setSelectedMonth(undefined); setSelectedYear(undefined); setActiveFilter(null); }}
             >
-              <Text style={[styles.dropdownItemText, { color: colors.muted }]}>Todas as datas</Text>
+              <Text style={[styles.dropdownItemText, { color: colors.muted }]}>Todos os meses</Text>
             </TouchableOpacity>
-            {dates.map((d) => {
-              const label = formatDate(d + "T00:00:00").split(" ")[0];
-              return (
-                <TouchableOpacity
-                  key={d}
-                  style={[
-                    styles.dropdownItem,
-                    { borderBottomColor: colors.border },
-                    selectedDate === d && { backgroundColor: accentColor + "15" },
-                  ]}
-                  onPress={() => { setSelectedDate(d); setActiveFilter(null); }}
-                >
-                  <Text style={[styles.dropdownItemText, { color: selectedDate === d ? accentColor : colors.foreground }]}>
-                    {label}
-                  </Text>
-                  {selectedDate === d && <Ionicons name="checkmark" size={16} color={accentColor} />}
-                </TouchableOpacity>
-              );
-            })}
+            {years.map((year) =>
+              MONTHS.map((monthName, monthIndex) => {
+                const isSelected = selectedMonth === monthIndex && selectedYear === year;
+                // Only show months up to current month for current year
+                if (year === currentYear && monthIndex > now.getMonth()) return null;
+                return (
+                  <TouchableOpacity
+                    key={`${year}-${monthIndex}`}
+                    style={[
+                      styles.dropdownItem,
+                      { borderBottomColor: colors.border },
+                      isSelected && { backgroundColor: accentColor + "15" },
+                    ]}
+                    onPress={() => { setSelectedMonth(monthIndex); setSelectedYear(year); setActiveFilter(null); }}
+                  >
+                    <Text style={[styles.dropdownItemText, { color: isSelected ? accentColor : colors.foreground }]}>
+                      {monthName} {year}
+                    </Text>
+                    {isSelected && <Ionicons name="checkmark" size={16} color={accentColor} />}
+                  </TouchableOpacity>
+                );
+              })
+            )}
           </ScrollView>
         </View>
       );
@@ -491,9 +499,11 @@ export default function ManagerPhotosScreen() {
             {renderFilterChip(getStoreName(selectedStoreId), "store", !!selectedStoreId)}
             {renderFilterChip(getPromoterName(selectedUserId), "promoter", !!selectedUserId)}
             {renderFilterChip(
-              selectedDate ? formatDate(selectedDate + "T00:00:00").split(" ")[0] : "Data",
-              "date",
-              !!selectedDate
+              selectedMonth !== undefined && selectedYear !== undefined
+                ? ["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"][selectedMonth] + " " + selectedYear
+                : "Mês/Ano",
+              "month",
+              selectedMonth !== undefined
             )}
             {renderFilterChip(getStatusLabel(selectedStatus), "status", !!selectedStatus)}
           </ScrollView>

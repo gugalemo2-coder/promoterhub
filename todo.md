@@ -822,3 +822,11 @@
 - [x] Corrigir bug: promotor conseguia deletar e fazer upload de arquivos (só gestor/master deve poder)
 - [x] Adicionar verificação de appRole nas procedures stockFiles.delete e stockFiles.upload
 - [x] Adicionar função getAppUserById no db.ts para verificar role do usuário
+
+## Fase 28 — Filtro de Mês/Ano nas Fotos
+
+- [x] Substituir filtro de data (últimos 30 dias) por seletor de mês + ano na tela de fotos do gestor/master
+- [x] Exibir meses dos últimos 3 anos no dropdown (do mais recente ao mais antigo)
+- [x] Chip do filtro mostra o mês/ano selecionado (ex: "Mar 2026")
+- [x] Ao limpar filtros, resetar mês e ano
+- [x] Ordenação das fotos sempre da mais recente para a mais antiga
