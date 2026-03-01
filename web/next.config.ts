@@ -1,7 +1,12 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  output: "standalone",
+  // Workaround for Next.js 16 bug with /_global-error prerender
+  // See: https://github.com/vercel/next.js/issues/84994
+  experimental: {
+    // Disable static generation for error pages to avoid useContext null error
+    staticGenerationRetryCount: 0,
+  },
   async headers() {
     return [
       {

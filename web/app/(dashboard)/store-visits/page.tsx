@@ -1,7 +1,6 @@
 "use client";
 
 import { trpc } from "@/lib/trpc";
-import { skipToken } from "@tanstack/react-query";
 import { PageHeader } from "@/components/page-header";
 import { MapPin, RefreshCw, ChevronLeft, ChevronRight, AlertTriangle, Camera, Package, Clock } from "lucide-react";
 import { useState } from "react";
@@ -30,9 +29,8 @@ export default function StoreVisitsPage() {
 
   const { data: stores } = trpc.stores.list.useQuery();
   const { data: visits, isLoading, refetch } = trpc.storeVisits.history.useQuery(
-    selectedStoreId !== undefined
-      ? { storeId: selectedStoreId, year, month }
-      : skipToken
+    { storeId: selectedStoreId ?? 0, year, month },
+    { enabled: selectedStoreId !== undefined }
   );
 
   const changeMonth = (delta: number) => {
