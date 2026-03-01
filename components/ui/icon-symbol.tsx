@@ -37,6 +37,7 @@ const MAPPING = {
   "arrow.up.circle.fill": "upload",
   "arrow.down.circle.fill": "download",
   "photo.fill": "photo",
+  "photo.on.rectangle.angled": "photo-library",
   "tag.fill": "label",
   "star.fill": "star",
   "exclamationmark.triangle.fill": "warning",

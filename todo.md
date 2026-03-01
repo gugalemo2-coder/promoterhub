@@ -837,3 +837,19 @@
 - [x] Substituir setas de navegação por dropdown de mês único ou período (3/6/12 meses ou personalizado) nos Relatórios
 - [x] Adicionar contador de fotos por status (pendentes, aprovadas, rejeitadas) no cabeçalho da tela de fotos
 - [x] Adicionar botão de download de fotos para o dispositivo (individual e em lote)
+
+## Fase 30 — Novo Tipo de Conta: Supervisor
+
+- [x] Adicionar role 'supervisor' no schema do banco de dados (app_users.appRole)
+- [x] Atualizar autenticação para reconhecer e retornar o role 'supervisor'
+- [x] Atualizar a API REST de patch de role para aceitar 'supervisor'
+- [x] Criar navegação exclusiva para o Supervisor (tab única: Fotos)
+- [x] Criar tela de fotos do Supervisor (visualizar, filtrar, baixar — sem aprovar/recusar)
+- [x] Atualizar a tela de usuários do Master para exibir e promover para 'Supervisor'
+- [x] Exibir badge/label "Supervisor" na listagem de usuários do Master
+## Fase 31 — Upload de Imagem de Produto nos Materiais
+- [x] Adicionar campo de imagem ao formulário de criação de material (gestor/master)
+- [ ] Adicionar campo de imagem ao formulário de edição de material (gestor/master)
+- [x] Criar endpoint de upload de imagem de material no backend (REST multipart)
+- [x] Exibir imagem do produto na listagem de materiais
+- [x] Exibir imagem do produto no detalhe/modal do material

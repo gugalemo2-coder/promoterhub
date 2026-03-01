@@ -1,0 +1,2 @@
+ALTER TABLE `app_users` MODIFY COLUMN `appRole` enum('promoter','manager','master','supervisor') NOT NULL DEFAULT 'promoter';--> statement-breakpoint
+ALTER TABLE `promoter_profiles` MODIFY COLUMN `appRole` enum('promoter','manager','supervisor') NOT NULL DEFAULT 'promoter';

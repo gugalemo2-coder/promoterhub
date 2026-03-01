@@ -147,7 +147,7 @@ export async function masterListUsers(): Promise<{ users: any[] }> {
 }
 
 // Custom auth — update user role (master only)
-export async function masterUpdateRole(userId: number, appRole: "promoter" | "manager"): Promise<{ user: any }> {
+export async function masterUpdateRole(userId: number, appRole: "promoter" | "manager" | "supervisor"): Promise<{ user: any }> {
   return apiCall<{ user: any }>(`/api/master/users/${userId}/role`, {
     method: "PATCH",
     body: JSON.stringify({ appRole }),

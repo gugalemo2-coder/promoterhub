@@ -40,7 +40,7 @@ export const promoterProfiles = mysqlTable("promoter_profiles", {
   userId: int("userId").notNull(),
   phone: varchar("phone", { length: 20 }),
   cpf: varchar("cpf", { length: 11 }),
-  appRole: mysqlEnum("appRole", ["promoter", "manager"]).default("promoter").notNull(),
+  appRole: mysqlEnum("appRole", ["promoter", "manager", "supervisor"]).default("promoter").notNull(),
   storeId: int("storeId"),
   status: mysqlEnum("status", ["active", "inactive", "suspended"]).default("active").notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
@@ -321,7 +321,7 @@ export const appUsers = mysqlTable("app_users", {
   /** bcrypt hash of the password */
   passwordHash: varchar("passwordHash", { length: 255 }).notNull(),
   /** App role: promoter (default), manager, master */
-  appRole: mysqlEnum("appRole", ["promoter", "manager", "master"]).default("promoter").notNull(),
+  appRole: mysqlEnum("appRole", ["promoter", "manager", "master", "supervisor"]).default("promoter").notNull(),
   /** URL da foto de perfil (armazenada no S3) */
   avatarUrl: varchar("avatarUrl", { length: 500 }),
   /** Whether the account is active */

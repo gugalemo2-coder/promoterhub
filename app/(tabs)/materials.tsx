@@ -4,6 +4,7 @@ import { useRole } from "@/lib/role-context";
 import { trpc } from "@/lib/trpc";
 import { Ionicons } from "@expo/vector-icons";
 import { Image } from "expo-image";
+import * as ImagePicker from "expo-image-picker";
 import { useState } from "react";
 import {
   Alert,
@@ -35,6 +36,9 @@ export default function MaterialsScreen() {
   const [newMaterialDesc, setNewMaterialDesc] = useState("");
   const [newMaterialQty, setNewMaterialQty] = useState("0");
   const [newMaterialBrandId, setNewMaterialBrandId] = useState<number | null>(null);
+  const [newMaterialPhotoUri, setNewMaterialPhotoUri] = useState<string | null>(null);
+  const [newMaterialPhotoBase64, setNewMaterialPhotoBase64] = useState<string | null>(null);
+  const [photoUploading, setPhotoUploading] = useState(false);
 
   // Reject modal state (replaces Alert.prompt which doesn't work on web)
   const [showRejectModal, setShowRejectModal] = useState(false);
@@ -60,6 +64,7 @@ export default function MaterialsScreen() {
   const deliverMutation = trpc.materialRequests.deliver.useMutation();
   const createMaterialMutation = trpc.materials.create.useMutation();
   const deleteMaterialMutation = trpc.materials.delete.useMutation();
+  const uploadMaterialPhotoMutation = trpc.materials.uploadPhoto.useMutation();
 
   const displayRequests = isManager ? allRequests : myRequests;
 
@@ -143,6 +148,20 @@ export default function MaterialsScreen() {
     }
   };
 
+  const handlePickMaterialPhoto = async () => {
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.7,
+      base64: true,
+    });
+    if (!result.canceled && result.assets[0]) {
+      setNewMaterialPhotoUri(result.assets[0].uri);
+      setNewMaterialPhotoBase64(result.assets[0].base64 ?? null);
+    }
+  };
+
   const handleAddMaterial = async () => {
     if (!newMaterialName.trim()) {
       Alert.alert("Nome obrigatório", "Informe o nome do material.");
@@ -153,20 +172,36 @@ export default function MaterialsScreen() {
       return;
     }
     try {
+      let photoUrl: string | undefined;
+      if (newMaterialPhotoBase64) {
+        setPhotoUploading(true);
+        const uploadResult = await uploadMaterialPhotoMutation.mutateAsync({
+          fileBase64: newMaterialPhotoBase64,
+          fileType: "image/jpeg",
+          fileName: `${newMaterialName.trim().replace(/\s+/g, "-").toLowerCase()}.jpg`,
+        });
+        photoUrl = uploadResult.url;
+        setPhotoUploading(false);
+      }
       await createMaterialMutation.mutateAsync({
         brandId: newMaterialBrandId,
         name: newMaterialName.trim(),
         description: newMaterialDesc.trim() || undefined,
         quantityAvailable: parseInt(newMaterialQty) || 0,
+        photoUrl,
       });
       setShowAddMaterialModal(false);
       setNewMaterialName("");
       setNewMaterialDesc("");
       setNewMaterialQty("0");
       setNewMaterialBrandId(null);
+      setNewMaterialPhotoUri(null);
+      setNewMaterialPhotoBase64(null);
+      setPhotoUploading(false);
       refetchMaterials();
       Alert.alert("Material criado!", "Material adicionado ao catálogo.");
     } catch {
+      setPhotoUploading(false);
       Alert.alert("Erro", "Não foi possível criar o material.");
     }
   };
@@ -541,6 +576,31 @@ export default function MaterialsScreen() {
                 placeholder="Descrição do material..."
                 placeholderTextColor={colors.muted}
               />
+              <Text style={[styles.modalLabel, { color: colors.muted }]}>Imagem do produto (opcional)</Text>
+              <TouchableOpacity
+                style={[styles.photoPickerBtn, { borderColor: colors.border, backgroundColor: colors.surface }]}
+                onPress={handlePickMaterialPhoto}
+                activeOpacity={0.7}
+              >
+                {newMaterialPhotoUri ? (
+                  <Image source={{ uri: newMaterialPhotoUri }} style={styles.photoPreview} contentFit="cover" />
+                ) : (
+                  <View style={styles.photoPickerPlaceholder}>
+                    <Ionicons name="camera-outline" size={28} color={colors.muted} />
+                    <Text style={[styles.photoPickerText, { color: colors.muted }]}>Toque para selecionar foto</Text>
+                  </View>
+                )}
+              </TouchableOpacity>
+              {newMaterialPhotoUri && (
+                <TouchableOpacity
+                  style={styles.removePhotoBtn}
+                  onPress={() => { setNewMaterialPhotoUri(null); setNewMaterialPhotoBase64(null); }}
+                  activeOpacity={0.7}
+                >
+                  <Ionicons name="close-circle" size={16} color="#EF4444" />
+                  <Text style={[styles.removePhotoText, { color: "#EF4444" }]}>Remover foto</Text>
+                </TouchableOpacity>
+              )}
               <Text style={[styles.modalLabel, { color: colors.muted }]}>Quantidade disponível</Text>
               <TextInput
                 style={[styles.input, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.foreground }]}
@@ -553,8 +613,15 @@ export default function MaterialsScreen() {
                 <TouchableOpacity style={[styles.modalBtn, { backgroundColor: colors.border }]} onPress={() => setShowAddMaterialModal(false)} activeOpacity={0.8}>
                   <Text style={[styles.modalBtnText, { color: colors.foreground }]}>Cancelar</Text>
                 </TouchableOpacity>
-                <TouchableOpacity style={[styles.modalBtn, { backgroundColor: colors.primary }]} onPress={handleAddMaterial} activeOpacity={0.8}>
-                  <Text style={[styles.modalBtnText, { color: "#FFFFFF" }]}>Criar</Text>
+                <TouchableOpacity
+                  style={[styles.modalBtn, { backgroundColor: colors.primary, opacity: (photoUploading || createMaterialMutation.isPending) ? 0.6 : 1 }]}
+                  onPress={handleAddMaterial}
+                  activeOpacity={0.8}
+                  disabled={photoUploading || createMaterialMutation.isPending}
+                >
+                  <Text style={[styles.modalBtnText, { color: "#FFFFFF" }]}>
+                    {photoUploading ? "Enviando foto..." : createMaterialMutation.isPending ? "Criando..." : "Criar"}
+                  </Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -621,6 +688,13 @@ const styles = StyleSheet.create({
   modalBtnText: { fontSize: 16, fontWeight: "700" },
   brandOption: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 10, borderWidth: 1.5, marginRight: 8 },
   brandOptionText: { fontSize: 14, fontWeight: "600" },
+  // Photo picker
+  photoPickerBtn: { borderWidth: 1.5, borderRadius: 12, borderStyle: "dashed", overflow: "hidden", marginBottom: 8 },
+  photoPreview: { width: "100%", height: 160 },
+  photoPickerPlaceholder: { height: 120, alignItems: "center", justifyContent: "center", gap: 8 },
+  photoPickerText: { fontSize: 13, fontWeight: "500" },
+  removePhotoBtn: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 8 },
+  removePhotoText: { fontSize: 13, fontWeight: "600" },
   // Delete confirm modal
   deleteModalContent: { margin: 24, borderRadius: 20, padding: 24, gap: 12, alignItems: "center" },
   deleteIconWrap: { width: 64, height: 64, borderRadius: 32, backgroundColor: "#FEE2E2", alignItems: "center", justifyContent: "center", marginBottom: 4 },

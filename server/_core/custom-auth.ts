@@ -262,8 +262,8 @@ export function registerCustomAuthRoutes(app: Express) {
       const targetId = parseInt(req.params.id);
       const { appRole } = req.body as { appRole?: string };
 
-      if (!appRole || !["promoter", "manager"].includes(appRole)) {
-        res.status(400).json({ error: "Role deve ser 'promoter' ou 'manager'." });
+      if (!appRole || !["promoter", "manager", "supervisor"].includes(appRole)) {
+        res.status(400).json({ error: "Role deve ser 'promoter', 'manager' ou 'supervisor'." });
         return;
       }
 
@@ -284,7 +284,7 @@ export function registerCustomAuthRoutes(app: Express) {
 
       await db
         .update(appUsers)
-        .set({ appRole: appRole as "promoter" | "manager" })
+        .set({ appRole: appRole as "promoter" | "manager" | "supervisor" })
         .where(eq(appUsers.id, targetId));
 
       const updated = await db.select().from(appUsers).where(eq(appUsers.id, targetId)).limit(1);

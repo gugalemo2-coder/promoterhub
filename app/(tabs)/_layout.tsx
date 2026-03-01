@@ -37,8 +37,9 @@ export default function TabLayout() {
   const isManager = appRole === "manager" || appRole === "master";
   const isMaster = appRole === "master";
   const isPromoter = appRole === "promoter";
+  const isSupervisor = appRole === "supervisor";
 
-  const activeTint = isMaster ? "#7C3AED" : colors.primary;
+  const activeTint = isMaster ? "#7C3AED" : isSupervisor ? "#D97706" : colors.primary;
 
   return (
     <Tabs
@@ -60,9 +61,9 @@ export default function TabLayout() {
       <Tabs.Screen
         name="index"
         options={{
-          title: isPromoter ? "Início" : "Painel",
+          title: isPromoter ? "Início" : isSupervisor ? "Fotos" : "Painel",
           tabBarIcon: ({ color }) => (
-            <IconSymbol size={26} name="house.fill" color={color} />
+            <IconSymbol size={26} name={isSupervisor ? "camera.fill" : "house.fill"} color={color} />
           ),
         }}
       />
@@ -79,6 +80,18 @@ export default function TabLayout() {
         }}
       />
 
+      {/* ─── SUPERVISOR: Fotos (somente leitura) ────────────────────────── */}
+      <Tabs.Screen
+        name="supervisor-photos"
+        options={{
+          title: "Fotos",
+          tabBarIcon: ({ color }) => (
+            <IconSymbol size={26} name="photo.on.rectangle.angled" color={color} />
+          ),
+          href: isSupervisor ? undefined : null,
+        }}
+      />
+
       {/* ─── PROMOTER: Fotos ────────────────────────────────────────────── */}
       <Tabs.Screen
         name="photos"
@@ -91,7 +104,7 @@ export default function TabLayout() {
         }}
       />
 
-      {/* ─── SHARED TABS (promoter + manager) ───────────────────────────── */}
+      {/* ─── SHARED TABS (promoter + manager, NOT supervisor) ───────────── */}
       <Tabs.Screen
         name="materials"
         options={{
@@ -99,6 +112,7 @@ export default function TabLayout() {
           tabBarIcon: ({ color }) => (
             <IconSymbol size={26} name="cube.box.fill" color={color} />
           ),
+          href: isSupervisor ? null : undefined,
         }}
       />
       <Tabs.Screen
@@ -108,6 +122,7 @@ export default function TabLayout() {
           tabBarIcon: ({ color }) => (
             <IconSymbol size={26} name="doc.fill" color={color} />
           ),
+          href: isSupervisor ? null : undefined,
         }}
       />
 

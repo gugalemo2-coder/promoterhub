@@ -28,7 +28,7 @@ type AppUser = {
   id: number;
   name: string;
   login: string;
-  appRole: "promoter" | "manager" | "master";
+  appRole: "promoter" | "manager" | "master" | "supervisor";
   active: boolean;
   createdAt: string;
 };
@@ -36,12 +36,14 @@ type AppUser = {
 const ROLE_LABELS: Record<string, string> = {
   master: "Master",
   manager: "Gestor",
+  supervisor: "Supervisor",
   promoter: "Promotor",
 };
 
 const ROLE_COLORS: Record<string, string> = {
   master: "#7C3AED",
   manager: "#1A56DB",
+  supervisor: "#D97706",
   promoter: "#059669",
 };
 
@@ -251,7 +253,7 @@ function RoleModal({
 }: {
   visible: boolean;
   user: AppUser | null;
-  onSelect: (role: "promoter" | "manager") => void;
+  onSelect: (role: "promoter" | "manager" | "supervisor") => void;
   onCancel: () => void;
 }) {
   const colors = useColors();
@@ -285,22 +287,20 @@ function RoleModal({
               ]}
               onPress={() => onSelect("manager")}
             >
-              <Ionicons
-                name="briefcase-outline"
-                size={20}
-                color={user.appRole === "manager" ? "#fff" : "#1A56DB"}
-              />
-              <Text
-                style={[
-                  modalStyles.roleBtnText,
-                  { color: user.appRole === "manager" ? "#fff" : "#1A56DB" },
-                ]}
-              >
-                Gestor
-              </Text>
-              {user.appRole === "manager" && (
-                <Ionicons name="checkmark-circle" size={16} color="#fff" />
-              )}
+              <Ionicons name="briefcase-outline" size={20} color={user.appRole === "manager" ? "#fff" : "#1A56DB"} />
+              <Text style={[modalStyles.roleBtnText, { color: user.appRole === "manager" ? "#fff" : "#1A56DB" }]}>Gestor</Text>
+              {user.appRole === "manager" && <Ionicons name="checkmark-circle" size={16} color="#fff" />}
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[
+                modalStyles.roleBtn,
+                { borderColor: "#D97706", backgroundColor: user.appRole === "supervisor" ? "#D97706" : "transparent" },
+              ]}
+              onPress={() => onSelect("supervisor")}
+            >
+              <Ionicons name="eye-outline" size={20} color={user.appRole === "supervisor" ? "#fff" : "#D97706"} />
+              <Text style={[modalStyles.roleBtnText, { color: user.appRole === "supervisor" ? "#fff" : "#D97706" }]}>Supervisor</Text>
+              {user.appRole === "supervisor" && <Ionicons name="checkmark-circle" size={16} color="#fff" />}
             </TouchableOpacity>
             <TouchableOpacity
               style={[
@@ -309,22 +309,9 @@ function RoleModal({
               ]}
               onPress={() => onSelect("promoter")}
             >
-              <Ionicons
-                name="person-outline"
-                size={20}
-                color={user.appRole === "promoter" ? "#fff" : "#059669"}
-              />
-              <Text
-                style={[
-                  modalStyles.roleBtnText,
-                  { color: user.appRole === "promoter" ? "#fff" : "#059669" },
-                ]}
-              >
-                Promotor
-              </Text>
-              {user.appRole === "promoter" && (
-                <Ionicons name="checkmark-circle" size={16} color="#fff" />
-              )}
+              <Ionicons name="person-outline" size={20} color={user.appRole === "promoter" ? "#fff" : "#059669"} />
+              <Text style={[modalStyles.roleBtnText, { color: user.appRole === "promoter" ? "#fff" : "#059669" }]}>Promotor</Text>
+              {user.appRole === "promoter" && <Ionicons name="checkmark-circle" size={16} color="#fff" />}
             </TouchableOpacity>
           </View>
           <TouchableOpacity
@@ -349,7 +336,7 @@ export default function MasterUsersScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [search, setSearch] = useState("");
-  const [filterRole, setFilterRole] = useState<"all" | "promoter" | "manager" | "master">("all");
+  const [filterRole, setFilterRole] = useState<"all" | "promoter" | "manager" | "master" | "supervisor">("all");
 
   // Toast state
   const [toast, setToast] = useState({ visible: false, message: "" });
@@ -411,7 +398,7 @@ export default function MasterUsersScreen() {
   }, [fetchUsers]);
 
   // ── Handlers ────────────────────────────────────────────────────────────────
-  const handleRoleSelect = useCallback(async (newRole: "promoter" | "manager") => {
+  const handleRoleSelect = useCallback(async (newRole: "promoter" | "manager" | "supervisor") => {
     const target = roleModal.user;
     if (!target) return;
 
@@ -596,6 +583,7 @@ export default function MasterUsersScreen() {
     total: users.length,
     masters: users.filter((u) => u.appRole === "master").length,
     managers: users.filter((u) => u.appRole === "manager").length,
+    supervisors: users.filter((u) => u.appRole === "supervisor").length,
     promoters: users.filter((u) => u.appRole === "promoter").length,
     inactive: users.filter((u) => !u.active).length,
   };
@@ -627,6 +615,7 @@ export default function MasterUsersScreen() {
           {[
             { label: "Total", value: stats.total, color: "#fff" },
             { label: "Gestores", value: stats.managers, color: "#93C5FD" },
+            { label: "Superv.", value: stats.supervisors, color: "#FDE68A" },
             { label: "Promotores", value: stats.promoters, color: "#6EE7B7" },
             { label: "Inativos", value: stats.inactive, color: "#FCA5A5" },
           ].map((s) => (
@@ -658,26 +647,25 @@ export default function MasterUsersScreen() {
 
         {/* Role filter chips */}
         <View style={styles.filterChips}>
-          {(["all", "manager", "promoter"] as const).map((role) => (
-            <Pressable
-              key={role}
-              style={[
-                styles.chip,
-                filterRole === role && { backgroundColor: "#1A56DB" },
-                filterRole !== role && { backgroundColor: colors.border },
-              ]}
-              onPress={() => setFilterRole(role)}
-            >
-              <Text
-                style={[
-                  styles.chipText,
-                  filterRole === role ? { color: "#fff" } : { color: colors.muted },
-                ]}
-              >
-                {role === "all" ? "Todos" : role === "manager" ? "Gestores" : "Promotores"}
-              </Text>
-            </Pressable>
-          ))}
+          {(["all", "manager", "supervisor", "promoter"] as const).map((role) => {
+              const chipActive = filterRole === role;
+              const chipColor = role === "manager" ? "#1A56DB" : role === "supervisor" ? "#D97706" : role === "promoter" ? "#059669" : "#4B5563";
+              const chipLabel = role === "all" ? "Todos" : role === "manager" ? "Gestores" : role === "supervisor" ? "Supervisores" : "Promotores";
+              return (
+                <Pressable
+                  key={role}
+                  style={[
+                    styles.chip,
+                    chipActive ? { backgroundColor: chipColor } : { backgroundColor: colors.border },
+                  ]}
+                  onPress={() => setFilterRole(role)}
+                >
+                  <Text style={[styles.chipText, chipActive ? { color: "#fff" } : { color: colors.muted }]}>
+                    {chipLabel}
+                  </Text>
+                </Pressable>
+              );
+            })}
         </View>
       </View>
 

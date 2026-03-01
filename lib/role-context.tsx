@@ -4,7 +4,7 @@ import * as Api from "@/lib/_core/api";
 import * as Auth from "@/lib/_core/auth";
 import { Platform } from "react-native";
 
-export type AppRole = "promoter" | "manager" | "master" | null;
+export type AppRole = "promoter" | "manager" | "master" | "supervisor" | null;
 
 const ROLE_KEY = "promoterhub_app_role";
 // Key to store whether the user is using custom auth (login/password)
@@ -50,14 +50,14 @@ export function RoleProvider({ children }: { children: React.ReactNode }) {
         }
         // No token or server call failed: fall back to cached role
         const stored = await AsyncStorage.getItem(ROLE_KEY);
-        if (stored === "promoter" || stored === "manager" || stored === "master") {
+        if (stored === "promoter" || stored === "manager" || stored === "master" || stored === "supervisor") {
           setAppRoleState(stored);
         }
       } catch {
         // On error, fall back to cached role
         try {
           const stored = await AsyncStorage.getItem(ROLE_KEY);
-          if (stored === "promoter" || stored === "manager" || stored === "master") {
+          if (stored === "promoter" || stored === "manager" || stored === "master" || stored === "supervisor") {
             setAppRoleState(stored);
           }
         } catch {}

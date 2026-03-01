@@ -5,7 +5,7 @@ import { useRole } from "@/lib/role-context";
 import { trpc } from "@/lib/trpc";
 import { Ionicons } from "@expo/vector-icons";
 import { Image } from "expo-image";
-import { useRouter } from "expo-router";
+import { Redirect, useRouter } from "expo-router";
 import { useMemo, useState } from "react";
 import {
   Alert,
@@ -31,7 +31,8 @@ export default function HomeScreen() {
 
   const isManager = appRole === "manager" || appRole === "master";
   const isMaster = appRole === "master";
-  const accentColor = isMaster ? "#7C3AED" : colors.primary;
+  const isSupervisor = appRole === "supervisor";
+  const accentColor = isMaster ? "#7C3AED" : isSupervisor ? "#D97706" : colors.primary;
 
   const isReady = !!user;
   const now = new Date();
@@ -111,10 +112,15 @@ export default function HomeScreen() {
       ]);
     }
   };
+  // ──────────────────────────────────────────────────────────────────────────────────────
+  // SUPERVISOR: redirect para a tela de fotos
+  // ──────────────────────────────────────────────────────────────────────────────────────
+  if (isSupervisor) {
+    return <Redirect href="/(tabs)/supervisor-photos" />;
+  }
 
-  // ─────────────────────────────────────────────────────────────────────────
-  // MANAGER / MASTER DASHBOARD
-  // ─────────────────────────────────────────────────────────────────────────
+  // ──────────────────────────────────────────────────────────────────────────────────────
+  // MANAGER / MASTER DASHBOARD──────────────────────────────────────────────────────────────────────
   if (isManager) {
     return (
       <ScreenContainer>
