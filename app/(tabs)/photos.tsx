@@ -306,6 +306,7 @@ export default function PhotosScreen() {
   const [filterStatus, setFilterStatus] = useState<"pending" | "approved" | "rejected" | null>(null);
   const [uploading, setUploading] = useState(false);
   const [uploadModalVisible, setUploadModalVisible] = useState(false);
+  const [modalKey, setModalKey] = useState(0);
 
   const { data: brands } = trpc.brands.list.useQuery();
   // Promoters see only their assigned stores; managers see all
@@ -371,6 +372,7 @@ export default function PhotosScreen() {
 
     setUploading(false);
     setUploadModalVisible(false);
+    setModalKey((k) => k + 1);
 
     if (!isOnline) {
       Alert.alert("📥 Salvo offline", `${successCount} foto(s) salva(s) localmente. Serão enviadas quando você reconectar.`);
@@ -572,6 +574,7 @@ export default function PhotosScreen() {
 
       {/* Upload Modal */}
       <UploadModal
+        key={modalKey}
         visible={uploadModalVisible}
         brands={brands ?? []}
         stores={stores as any[]}
