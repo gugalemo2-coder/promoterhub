@@ -467,11 +467,13 @@ export default function MaterialsScreen() {
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
-          contentContainerStyle={{ paddingHorizontal: 16, paddingVertical: 10, gap: 8 }}
+          style={{ flexGrow: 0 }}
+          contentContainerStyle={{ paddingHorizontal: 16, paddingVertical: 10, gap: 8, alignItems: "center" }}
         >
           <TouchableOpacity
             style={[{
               paddingHorizontal: 14, paddingVertical: 6, borderRadius: 20, borderWidth: 1.5,
+              alignSelf: "center",
               borderColor: !filterBrandId ? colors.primary : colors.border,
               backgroundColor: !filterBrandId ? colors.primary + "20" : colors.surface,
             }]}
@@ -485,6 +487,7 @@ export default function MaterialsScreen() {
               key={b.id}
               style={[{
                 paddingHorizontal: 14, paddingVertical: 6, borderRadius: 20, borderWidth: 1.5,
+                alignSelf: "center",
                 borderColor: filterBrandId === b.id ? colors.primary : colors.border,
                 backgroundColor: filterBrandId === b.id ? colors.primary + "20" : colors.surface,
               }]}

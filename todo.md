@@ -935,4 +935,8 @@
 
 ## Fase 41 — Correção de Bug: Botão de Ponto não atualiza após saída
 
-- [ ] Fix: Após registrar saída (com app reaberto), botão continua mostrando "Registrar Saída" em vez de voltar para "Registrar Entrada"
+- [x] Fix: Após registrar saída (com app reaberto), botão continua mostrando "Registrar Saída" em vez de voltar para "Registrar Entrada"
+
+## Fase 42 — Correção de Estilo: Filtros de Marca em Materiais
+
+- [ ] Fix: Botões de filtro de marca na tela Materiais estão com altura exagerada — corrigir para chips compactos como nos outros filtros do app
