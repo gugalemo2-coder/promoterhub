@@ -354,6 +354,19 @@ export default function ClockScreen() {
 
       if (Platform.OS !== "web") await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 
+      // Update local state immediately so the button switches without waiting for server refetch
+      if (entryType === "entry") {
+        setLocalHasOpenEntry(true);
+        setLocalOpenStoreId(storeId);
+        AsyncStorage.setItem(OPEN_ENTRY_KEY, "true");
+        AsyncStorage.setItem(OPEN_ENTRY_STORE_KEY, String(storeId));
+      } else {
+        setLocalHasOpenEntry(false);
+        setLocalOpenStoreId(null);
+        AsyncStorage.setItem(OPEN_ENTRY_KEY, "false");
+        AsyncStorage.removeItem(OPEN_ENTRY_STORE_KEY);
+      }
+
       // Invalidate all time entry queries so the button state updates immediately
       await utils.timeEntries.lastOpenEntry.invalidate();
       await utils.timeEntries.dailySummary.invalidate();

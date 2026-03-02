@@ -931,4 +931,8 @@
 
 ## Fase 40 — Correção de Bug: Registro de Saída
 
-- [ ] Fix: Promotor não consegue registrar saída após a correção de persistência de ponto (bug reportado pelo Pabllo)
+- [x] Fix: Promotor não consegue registrar saída após a correção de persistência de ponto (bug reportado pelo Pabllo)
+
+## Fase 41 — Correção de Bug: Botão de Ponto não atualiza após saída
+
+- [ ] Fix: Após registrar saída (com app reaberto), botão continua mostrando "Registrar Saída" em vez de voltar para "Registrar Entrada"
