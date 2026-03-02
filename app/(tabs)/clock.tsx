@@ -6,7 +6,9 @@ import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import * as ImagePicker from "expo-image-picker";
 import { Image } from "expo-image";
-import { useState } from "react";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useState, useEffect } from "react";
+
 import {
   ActivityIndicator,
   Alert,
@@ -19,6 +21,8 @@ import {
   Text,
   View,
 } from "react-native";
+
+const OPEN_ENTRY_KEY = "@promoterhub:open_entry";
 
 type Store = { id: number; name: string; address?: string | null; city?: string | null };
 
@@ -295,7 +299,25 @@ export default function ClockScreen() {
 
   const createEntryMutation = trpc.timeEntries.create.useMutation();
 
-  const hasOpenEntry = !!lastEntry;
+  // Persist open entry state locally so it survives app restarts
+  const [localHasOpenEntry, setLocalHasOpenEntry] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    AsyncStorage.getItem(OPEN_ENTRY_KEY).then((val) => {
+      if (val !== null) setLocalHasOpenEntry(val === "true");
+    });
+  }, []);
+
+  useEffect(() => {
+    if (lastEntry !== undefined) {
+      const isOpen = !!lastEntry;
+      setLocalHasOpenEntry(isOpen);
+      AsyncStorage.setItem(OPEN_ENTRY_KEY, String(isOpen));
+    }
+  }, [lastEntry]);
+
+  // Use server data when available, fall back to local cache
+  const hasOpenEntry = lastEntry !== undefined ? !!lastEntry : (localHasOpenEntry ?? false);
   const displayEntries = isManager ? allEntries : myEntries;
 
   const openModal = (type: "entry" | "exit") => {

@@ -103,7 +103,8 @@ function ZoomableImage({ uri }: { uri: string }) {
 export default function SupervisorPhotosScreen() {
   const colors = useColors();
   const router = useRouter();
-  const { logout } = useAuth();
+  const { logout, user } = useAuth();
+  const firstName = user?.name?.split(" ")[0] ?? "Supervisor";
 
   // Filters
   const [selectedBrandId, setSelectedBrandId] = useState<number | undefined>();
@@ -426,6 +427,21 @@ export default function SupervisorPhotosScreen() {
 
   return (
     <ScreenContainer containerClassName="flex-1">
+      {/* Welcome Banner */}
+      <View style={styles.welcomeBanner}>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.welcomeGreeting}>Olá, {firstName}!</Text>
+          <Text style={styles.welcomeRole}>Painel do Supervisor</Text>
+        </View>
+        <TouchableOpacity
+          style={styles.welcomeLogoutBtn}
+          onPress={logout}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+        >
+          <Ionicons name="log-out-outline" size={20} color="rgba(255,255,255,0.9)" />
+          <Text style={styles.welcomeLogoutText}>Sair</Text>
+        </TouchableOpacity>
+      </View>
       {/* Header */}
       <View style={[styles.header, { borderBottomColor: colors.border, backgroundColor: colors.background }]}>
         <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
@@ -751,6 +767,37 @@ export default function SupervisorPhotosScreen() {
 }
 
 const styles = StyleSheet.create({
+  welcomeBanner: {
+    backgroundColor: SUPERVISOR_COLOR,
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 20,
+    paddingVertical: 14,
+  },
+  welcomeGreeting: {
+    color: "#fff",
+    fontSize: 18,
+    fontWeight: "700",
+  },
+  welcomeRole: {
+    color: "rgba(255,255,255,0.8)",
+    fontSize: 13,
+    marginTop: 1,
+  },
+  welcomeLogoutBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: "rgba(0,0,0,0.15)",
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 20,
+  },
+  welcomeLogoutText: {
+    color: "rgba(255,255,255,0.9)",
+    fontSize: 13,
+    fontWeight: "600",
+  },
   header: {
     flexDirection: "row",
     alignItems: "center",

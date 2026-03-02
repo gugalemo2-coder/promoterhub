@@ -644,10 +644,10 @@
 - [x] Adicionar card "Fotos Recusadas" (vermelho) ao lado de "Fotos Aprovadas" (verde) na tela de perfil do promotor
 
 ## Fase 46 — Diagnóstico Definitivo dos Botões de Usuários (Master)
-- [ ] Testar endpoint de redefinição de senha via API com token master válido
-- [ ] Testar endpoint de alteração de tipo de conta via API com token master válido
-- [ ] Testar endpoint de excluir/desativar conta via API com token master válido
-- [ ] Corrigir os problemas encontrados
+- [x] Testar endpoint de redefinição de senha via API com token master válido
+- [x] Testar endpoint de alteração de tipo de conta via API com token master válido
+- [x] Testar endpoint de excluir/desativar conta via API com token master válido
+- [x] Corrigir os problemas encontrados
 
 ## Fase 46 — Diagnóstico Definitivo dos Botões de Usuários (Master)
 - [x] Testado: backend funciona corretamente (todos os 3 endpoints retornam 200)
@@ -657,8 +657,8 @@
 - [x] TypeScript: zero erros após as mudanças
 
 ## Fase 47 — Diagnóstico Final dos Botões de Usuários (Master)
-- [ ] Abrir app no browser e capturar erros do console ao clicar nos botões
-- [ ] Identificar e corrigir a causa raiz definitiva
+- [x] Abrir app no browser e capturar erros do console ao clicar nos botões
+- [x] Identificar e corrigir a causa raiz definitiva
 
 ## Fase — Correções na Tela de Usuários Master
 - [x] Adicionar mensagem de sucesso (toast/banner) após alterar cargo, redefinir senha e ativar/desativar conta
@@ -878,18 +878,46 @@
 
 ## Fase 36 — Filtro por Marca e Thumbnail nos Materiais
 
-- [ ] Corrigir pnpm-lock.yaml desatualizado (quebra o deploy do Manus)
-- [ ] Adicionar chips de filtro por marca na listagem de materiais
-- [ ] Exibir thumbnail pequeno da imagem do produto nos cards da lista
-- [ ] Publicar na Vercel via GitHub push
+- [x] Corrigir pnpm-lock.yaml desatualizado (quebra o deploy do Manus)
+- [x] Adicionar chips de filtro por marca na listagem de materiais
+- [x] Exibir thumbnail pequeno da imagem do produto nos cards da lista
+- [x] Publicar na Vercel via GitHub push
 
 ## Correções e Melhorias (Mar 2026)
-- [ ] Bug: corrigir campo newRole → appRole no handleChangeRole do portal web (master-users)
-- [ ] Bug: adicionar opção Supervisor no modal de troca de cargo do portal web
-- [ ] Feature: exportação de relatório mensal em PDF no portal web
-- [ ] Feature: filtro por marca no catálogo de materiais do portal web
+- [x] Bug: corrigir campo newRole → appRole no handleChangeRole do portal web (master-users)
+- [x] Bug: adicionar opção Supervisor no modal de troca de cargo do portal web
+- [x] Feature: exportação de relatório mensal em PDF no portal web
+- [x] Feature: filtro por marca no catálogo de materiais do portal web
 
 ## Correções (Mar 2026)
-- [ ] Corrigir bug de nomear supervisor (campo enviado errado ou rota não atualiza o banco)
-- [ ] Exibir toast de confirmação ao mudar cargo de usuário
-- [ ] Exibir cargo correto (Supervisor) na lista de usuários após a mudança
+- [x] Corrigir bug de nomear supervisor (campo enviado errado ou rota não atualiza o banco)
+- [x] Exibir toast de confirmação ao mudar cargo de usuário
+- [x] Exibir cargo correto (Supervisor) na lista de usuários após a mudança
+
+## Fase 37 — Correções Críticas (Mar 2026)
+- [x] Corrigir banner de boas-vindas + botão de logout na tela do Supervisor (app)
+- [x] Corrigir limpeza completa do modal de envio de fotos após cada envio (fotos, marca, loja zeradas)
+- [x] Corrigir download de fotos pelo supervisor/gestor (salvar imagens enviadas pelos promotores)
+- [x] Corrigir backend Railway: endpoint de role não aceita 'supervisor' (versão desatualizada)
+- [x] Implementar filtro por marca na listagem de materiais (app)
+- [x] Implementar exportação de relatório mensal em PDF no portal web
+
+## Fase 37 — Correções Críticas (Mar 2026)
+- [x] Corrigir banner de boas-vindas + botão de logout na tela do Supervisor (app)
+- [x] Corrigir limpeza completa do modal de envio de fotos após cada envio (fotos, marca, loja zeradas)
+- [x] Corrigir download de fotos pelo supervisor/gestor (salvar imagens enviadas pelos promotores)
+- [x] Corrigir backend Railway: endpoint de role não aceita 'supervisor' (versão desatualizada)
+- [x] Implementar filtro por marca na listagem de materiais (app)
+- [x] Implementar exportação de relatório mensal em PDF no portal web
+
+## Fase 38 — Novas Correções e Funcionalidades (Mar 2026)
+- [x] Corrigir banner de boas-vindas + botão de logout na tela do Supervisor (app)
+- [x] Corrigir limpeza completa do modal de envio de fotos (fotos, marca, loja zeradas ao reabrir)
+- [x] Corrigir download de fotos para supervisor, gestor e master
+- [x] Persistir estado de entrada ativa no ponto após fechar o app (botão saída deve aparecer ao reabrir)
+- [x] Seleção de loja na solicitação de material pelo promotor (apenas lojas cadastradas para ele)
+- [x] Exibir promotor e loja na visualização de solicitações do gestor/master
+- [x] Filtro por promotor na tela de Lojas (exibe apenas lojas cadastradas para o promotor selecionado)
+- [x] Corrigir backend Railway: endpoint de role não aceita 'supervisor'
+- [x] Implementar filtro por marca na listagem de materiais (app)
+- [x] Implementar exportação de relatório mensal em PDF no portal web

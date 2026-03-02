@@ -135,9 +135,13 @@ export default function MaterialsScreen() {
   // ── Tab ──────────────────────────────────────────────────────────────────────
   const [activeTab, setActiveTab] = useState<"catalog" | "requests">("catalog");
 
+  // ── Brand filter ─────────────────────────────────────────────────────────────
+  const [filterBrandId, setFilterBrandId] = useState<number | null>(null);
+
   // ── Modal: solicitar material ─────────────────────────────────────────────
   const [showRequestModal, setShowRequestModal] = useState(false);
   const [selectedMaterialId, setSelectedMaterialId] = useState<number | null>(null);
+  const [selectedStoreId, setSelectedStoreId] = useState<number | null>(null);
   const [quantity, setQuantity] = useState("1");
   const [priority, setPriority] = useState<RequestPriority>("medium");
   const [notes, setNotes] = useState("");
@@ -178,9 +182,12 @@ export default function MaterialsScreen() {
   // ── Queries ───────────────────────────────────────────────────────────────
   const { data: materials, refetch: refetchMaterials } = trpc.materials.list.useQuery({});
   const { data: brands } = trpc.brands.list.useQuery();
-  const { data: stores } = trpc.stores.list.useQuery();
+  const { data: allStores } = trpc.stores.list.useQuery(undefined, { enabled: isManager });
+  const { data: promoterStores } = trpc.stores.listForPromoter.useQuery(undefined, { enabled: !isManager });
+  const stores = isManager ? allStores : promoterStores;
   const { data: myRequests, refetch: refetchMyRequests } = trpc.materialRequests.list.useQuery({}, { enabled: !isManager });
   const { data: allRequests, refetch: refetchAllRequests } = trpc.materialRequests.listAll.useQuery({}, { enabled: isManager });
+  const { data: allUsers } = trpc.storePerformance.promoters.useQuery(undefined, { enabled: isManager });
 
   const createRequestMutation = trpc.materialRequests.create.useMutation();
   const approveMutation = trpc.materialRequests.approve.useMutation();
@@ -196,6 +203,7 @@ export default function MaterialsScreen() {
   // ── Handlers: solicitar ───────────────────────────────────────────────────
   const handleRequestMaterial = (materialId: number) => {
     setSelectedMaterialId(materialId);
+    setSelectedStoreId(null);
     setQuantity("1");
     setPriority("medium");
     setNotes("");
@@ -203,8 +211,9 @@ export default function MaterialsScreen() {
   };
 
   const handleSubmitRequest = async () => {
-    if (!selectedMaterialId || !stores || stores.length === 0) {
-      Alert.alert("Erro", "Nenhuma loja disponível.");
+    if (!selectedMaterialId) return;
+    if (!selectedStoreId) {
+      Alert.alert("Selecione a loja", "Informe para qual loja é a solicitação.");
       return;
     }
     const qty = parseInt(quantity);
@@ -215,7 +224,7 @@ export default function MaterialsScreen() {
     try {
       await createRequestMutation.mutateAsync({
         materialId: selectedMaterialId,
-        storeId: stores[0].id,
+        storeId: selectedStoreId,
         quantityRequested: qty,
         priority,
         notes: notes.trim() || undefined,
@@ -453,10 +462,45 @@ export default function MaterialsScreen() {
         ))}
       </View>
 
+      {/* Brand filter chips */}
+      {activeTab === "catalog" && brands && brands.length > 0 && (
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={{ paddingHorizontal: 16, paddingVertical: 10, gap: 8 }}
+        >
+          <TouchableOpacity
+            style={[{
+              paddingHorizontal: 14, paddingVertical: 6, borderRadius: 20, borderWidth: 1.5,
+              borderColor: !filterBrandId ? colors.primary : colors.border,
+              backgroundColor: !filterBrandId ? colors.primary + "20" : colors.surface,
+            }]}
+            onPress={() => setFilterBrandId(null)}
+            activeOpacity={0.7}
+          >
+            <Text style={{ fontSize: 13, fontWeight: "600", color: !filterBrandId ? colors.primary : colors.muted }}>Todas</Text>
+          </TouchableOpacity>
+          {brands.map((b) => (
+            <TouchableOpacity
+              key={b.id}
+              style={[{
+                paddingHorizontal: 14, paddingVertical: 6, borderRadius: 20, borderWidth: 1.5,
+                borderColor: filterBrandId === b.id ? colors.primary : colors.border,
+                backgroundColor: filterBrandId === b.id ? colors.primary + "20" : colors.surface,
+              }]}
+              onPress={() => setFilterBrandId(filterBrandId === b.id ? null : b.id)}
+              activeOpacity={0.7}
+            >
+              <Text style={{ fontSize: 13, fontWeight: "600", color: filterBrandId === b.id ? colors.primary : colors.muted }}>{b.name}</Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+      )}
+
       {/* Catálogo */}
       {activeTab === "catalog" ? (
         <FlatList
-          data={materials}
+          data={filterBrandId ? (materials ?? []).filter((m) => m.brandId === filterBrandId) : materials}
           keyExtractor={(item) => item.id.toString()}
           contentContainerStyle={styles.list}
           ListEmptyComponent={
@@ -564,6 +608,23 @@ export default function MaterialsScreen() {
                     {new Date(item.createdAt).toLocaleDateString("pt-BR")}
                   </Text>
                 </View>
+                {/* Promoter and store info for manager */}
+                {isManager && ((item as any).promoterName || (item as any).storeName) && (
+                  <View style={{ flexDirection: "row", gap: 12, marginTop: 4, flexWrap: "wrap" }}>
+                    {(item as any).promoterName && (
+                      <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+                        <Ionicons name="person-outline" size={13} color={colors.muted} />
+                        <Text style={{ fontSize: 12, color: colors.muted }}>{(item as any).promoterName}</Text>
+                      </View>
+                    )}
+                    {(item as any).storeName && (
+                      <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+                        <Ionicons name="storefront-outline" size={13} color={colors.muted} />
+                        <Text style={{ fontSize: 12, color: colors.muted }}>{(item as any).storeName}</Text>
+                      </View>
+                    )}
+                  </View>
+                )}
                 {item.notes && <Text style={[styles.requestNotes, { color: colors.muted }]}>{item.notes}</Text>}
                 {isManager && item.status === "pending" && (
                   <View style={styles.requestActions}>
@@ -608,6 +669,30 @@ export default function MaterialsScreen() {
         <View style={styles.overlay}>
           <View style={[styles.sheet, { backgroundColor: colors.background }]}>
             <Text style={[styles.modalTitle, { color: colors.foreground }]}>Solicitar Material</Text>
+
+            {/* Store selector */}
+            <Text style={[styles.label, { color: colors.muted }]}>Loja *</Text>
+            <ScrollView style={{ maxHeight: 140, marginBottom: 12 }} showsVerticalScrollIndicator={false}>
+              {(stores ?? []).length === 0 ? (
+                <Text style={{ color: colors.muted, fontSize: 13, padding: 8 }}>Nenhuma loja cadastrada para você.</Text>
+              ) : (
+                (stores ?? []).map((s) => (
+                  <TouchableOpacity
+                    key={s.id}
+                    style={[
+                      styles.storeOption,
+                      { borderColor: selectedStoreId === s.id ? colors.primary : colors.border, backgroundColor: selectedStoreId === s.id ? colors.primary + "15" : colors.surface },
+                    ]}
+                    onPress={() => setSelectedStoreId(s.id)}
+                    activeOpacity={0.7}
+                  >
+                    <Ionicons name="storefront-outline" size={16} color={selectedStoreId === s.id ? colors.primary : colors.muted} />
+                    <Text style={{ fontSize: 14, fontWeight: "600", color: selectedStoreId === s.id ? colors.primary : colors.foreground }}>{s.name}</Text>
+                  </TouchableOpacity>
+                ))
+              )}
+            </ScrollView>
+
             <Text style={[styles.label, { color: colors.muted }]}>Quantidade</Text>
             <TextInput
               style={[styles.input, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.foreground }]}
@@ -970,6 +1055,7 @@ const styles = StyleSheet.create({
   materialFooter: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
   stockInfo: { flexDirection: "row", alignItems: "center", gap: 4 },
   stockText: { fontSize: 13, fontWeight: "600" },
+  storeOption: { flexDirection: "row", alignItems: "center", gap: 8, padding: 10, borderRadius: 10, borderWidth: 1.5, marginBottom: 6 },
   requestBtn: { paddingHorizontal: 14, paddingVertical: 6, borderRadius: 10 },
   requestBtnText: { fontSize: 13, fontWeight: "700", color: "#FFFFFF" },
   iconBtn: { padding: 6, borderRadius: 8, borderWidth: 1 },

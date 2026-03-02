@@ -5,8 +5,10 @@ import { trpc } from "@/lib/trpc";
 import { useOfflineQueue } from "@/hooks/use-offline-queue";
 import { Ionicons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
+import * as FileSystem from "expo-file-system/legacy";
+import * as MediaLibrary from "expo-media-library";
 import { Image } from "expo-image";
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -307,6 +309,8 @@ export default function PhotosScreen() {
   const [uploading, setUploading] = useState(false);
   const [uploadModalVisible, setUploadModalVisible] = useState(false);
   const [modalKey, setModalKey] = useState(0);
+  const [downloadingId, setDownloadingId] = useState<number | null>(null);
+  const [mediaPermission, requestMediaPermission] = MediaLibrary.usePermissions();
 
   const { data: brands } = trpc.brands.list.useQuery();
   // Promoters see only their assigned stores; managers see all
@@ -385,6 +389,29 @@ export default function PhotosScreen() {
     isManager ? refetchPhotos() : refetchMyPhotos();
   };
 
+  const downloadPhoto = useCallback(async (url: string, photoId: number) => {
+    setDownloadingId(photoId);
+    try {
+      let perm = mediaPermission;
+      if (!perm?.granted) {
+        perm = await requestMediaPermission();
+        if (!perm?.granted) {
+          Alert.alert("Permissão necessária", "Permita o acesso à galeria para salvar fotos.");
+          return;
+        }
+      }
+      const filename = url.split("/").pop()?.split("?")[0] ?? `photo_${Date.now()}.jpg`;
+      const localUri = FileSystem.documentDirectory + filename;
+      await FileSystem.downloadAsync(url, localUri);
+      await MediaLibrary.saveToLibraryAsync(localUri);
+      Alert.alert("Salvo!", "Foto salva na galeria.");
+    } catch {
+      Alert.alert("Erro", "Não foi possível salvar a foto.");
+    } finally {
+      setDownloadingId(null);
+    }
+  }, [mediaPermission, requestMediaPermission]);
+
   const handleUpdateStatus = async (photoId: number, status: "approved" | "rejected") => {
     try {
       await updateStatusMutation.mutateAsync({ id: photoId, status });
@@ -414,7 +441,7 @@ export default function PhotosScreen() {
         {!isManager && (
           <Pressable
             style={({ pressed }) => [styles.headerBtn, { backgroundColor: "rgba(255,255,255,0.2)" }, pressed && { opacity: 0.7 }]}
-            onPress={() => setUploadModalVisible(true)}
+            onPress={() => { setModalKey((k) => k + 1); setUploadModalVisible(true); }}
             disabled={uploading}
           >
             {uploading ? (
@@ -522,10 +549,10 @@ export default function PhotosScreen() {
           {!isManager && (
             <Pressable
               style={[styles.emptyBtn, { backgroundColor: colors.primary }]}
-              onPress={() => setUploadModalVisible(true)}
-            >
-              <Ionicons name="camera-outline" size={18} color="#FFFFFF" />
-              <Text style={styles.emptyBtnText}>Enviar Fotos</Text>
+            onPress={() => { setModalKey((k) => k + 1); setUploadModalVisible(true); }}
+          >
+            <Ionicons name="camera-outline" size={18} color="#FFFFFF" />
+            <Text style={styles.emptyBtnText}>Enviar Fotos</Text>
             </Pressable>
           )}
         </View>
@@ -565,6 +592,17 @@ export default function PhotosScreen() {
                       <Ionicons name="close" size={16} color="#E02424" />
                     </Pressable>
                   </View>
+                )}
+                {isManager && (
+                  <Pressable
+                    style={[styles.photoActionBtn, { backgroundColor: colors.primary + "15" }]}
+                    onPress={() => downloadPhoto(item.photoUrl, item.id)}
+                    disabled={downloadingId === item.id}
+                  >
+                    {downloadingId === item.id
+                      ? <ActivityIndicator size="small" color={colors.primary} />
+                      : <Ionicons name="download-outline" size={16} color={colors.primary} />}
+                  </Pressable>
                 )}
               </View>
             </View>

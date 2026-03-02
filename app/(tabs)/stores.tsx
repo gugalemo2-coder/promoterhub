@@ -46,6 +46,7 @@ export default function StoresScreen() {
   const [editingId, setEditingId] = useState<number | null>(null);
   const [form, setForm] = useState<StoreForm>(INITIAL_FORM);
   const [saving, setSaving] = useState(false);
+  const [filterPromoterId, setFilterPromoterId] = useState<number | null>(null);
 
   const { data: stores, refetch, isLoading } = trpc.stores.list.useQuery();
   const { data: promoterUsers } = trpc.stores.listPromoterUsers.useQuery();
@@ -122,13 +123,17 @@ export default function StoresScreen() {
     return user?.name ?? null;
   };
 
+  const filteredStores = filterPromoterId
+    ? (stores ?? []).filter((s) => (s as any).promoterId === filterPromoterId)
+    : (stores ?? []);
+
   return (
     <ScreenContainer>
       {/* Header */}
       <View style={[styles.header, { backgroundColor: colors.primary }]}>
         <View>
           <Text style={styles.headerTitle}>Lojas / PDVs</Text>
-          <Text style={styles.headerSub}>{stores?.length ?? 0} loja(s) cadastrada(s)</Text>
+          <Text style={styles.headerSub}>{filteredStores.length} loja(s) cadastrada(s)</Text>
         </View>
         <Pressable
           style={({ pressed }) => [styles.addBtn, pressed && { opacity: 0.8 }]}
@@ -139,6 +144,41 @@ export default function StoresScreen() {
         </Pressable>
       </View>
 
+      {/* Promoter filter chips */}
+      {promoterUsers && (promoterUsers as any[]).length > 0 && (
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={{ paddingHorizontal: 16, paddingVertical: 10, gap: 8 }}
+        >
+          <Pressable
+            style={({ pressed }) => [{
+              paddingHorizontal: 14, paddingVertical: 6, borderRadius: 20, borderWidth: 1.5,
+              borderColor: !filterPromoterId ? colors.primary : colors.border,
+              backgroundColor: !filterPromoterId ? colors.primary + "20" : colors.surface,
+              opacity: pressed ? 0.7 : 1,
+            }]}
+            onPress={() => setFilterPromoterId(null)}
+          >
+            <Text style={{ fontSize: 13, fontWeight: "600", color: !filterPromoterId ? colors.primary : colors.muted }}>Todos</Text>
+          </Pressable>
+          {(promoterUsers as any[]).map((u) => (
+            <Pressable
+              key={u.id}
+              style={({ pressed }) => [{
+                paddingHorizontal: 14, paddingVertical: 6, borderRadius: 20, borderWidth: 1.5,
+                borderColor: filterPromoterId === u.id ? colors.primary : colors.border,
+                backgroundColor: filterPromoterId === u.id ? colors.primary + "20" : colors.surface,
+                opacity: pressed ? 0.7 : 1,
+              }]}
+              onPress={() => setFilterPromoterId(filterPromoterId === u.id ? null : u.id)}
+            >
+              <Text style={{ fontSize: 13, fontWeight: "600", color: filterPromoterId === u.id ? colors.primary : colors.muted }}>{u.name ?? u.login}</Text>
+            </Pressable>
+          ))}
+        </ScrollView>
+      )}
+
       {/* Store List */}
       {isLoading ? (
         <View style={styles.loading}>
@@ -146,7 +186,7 @@ export default function StoresScreen() {
         </View>
       ) : (
         <FlatList
-          data={stores}
+          data={filteredStores}
           keyExtractor={(item) => item.id.toString()}
           contentContainerStyle={styles.list}
           ListEmptyComponent={
