@@ -35,6 +35,8 @@ export function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle:
   const { user, logout } = useAuth();
   const pendingQuery = trpc.photos.countPending.useQuery(undefined, { refetchInterval: 30000 });
   const pendingPhotos = (pendingQuery.data as number) ?? 0;
+  const pendingMaterialsQuery = trpc.materialRequests.countPending.useQuery(undefined, { refetchInterval: 30000 });
+  const pendingMaterials = (pendingMaterialsQuery.data as number) ?? 0;
   const isMaster = user?.appRole === "master";
   const isSupervisor = user?.appRole === "supervisor";
 
@@ -60,7 +62,7 @@ export function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle:
           items: [
             { href: "/clock", icon: Clock, label: "Controle de Ponto" },
             { href: "/photos", icon: Camera, label: "Fotos", badge: pendingPhotos > 0 ? pendingPhotos : undefined },
-            { href: "/materials", icon: Package, label: "Materiais" },
+            { href: "/materials", icon: Package, label: "Materiais", badge: pendingMaterials > 0 ? pendingMaterials : undefined },
           ],
         },
         {
@@ -92,7 +94,7 @@ export function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle:
           items: [
             { href: "/clock", icon: Clock, label: "Controle de Ponto" },
             { href: "/photos", icon: Camera, label: "Fotos", badge: pendingPhotos > 0 ? pendingPhotos : undefined },
-            { href: "/materials", icon: Package, label: "Materiais" },
+            { href: "/materials", icon: Package, label: "Materiais", badge: pendingMaterials > 0 ? pendingMaterials : undefined },
           ],
         },
         {

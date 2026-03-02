@@ -213,6 +213,8 @@ export default function MaterialsPage() {
   const materials = trpc.materials.list.useQuery({});
   const myRequests = trpc.materialRequests.list.useQuery({}, { enabled: !isManager });
   const allRequests = trpc.materialRequests.listAll.useQuery({ status: statusFilter, limit: 100 }, { enabled: isManager });
+  // Para o catálogo: buscar todas as solicitações do promotor para mostrar histórico por material
+  const allMyRequests = trpc.materialRequests.list.useQuery({ limit: 200 }, { enabled: !isManager });
   const stores = trpc.stores.list.useQuery(undefined, { enabled: !isManager });
 
   // Mutations
@@ -256,6 +258,23 @@ export default function MaterialsPage() {
 
   const catalogData = materials.data ?? [];
   const requestsData = isManager ? (allRequests.data ?? []) : (myRequests.data ?? []);
+
+  // Mapa: materialId → lista de solicitações do promotor (para histórico nos cards)
+  const myRequestsByMaterial = (allMyRequests.data ?? []).reduce((acc: Record<number, any[]>, r: any) => {
+    if (!acc[r.materialId]) acc[r.materialId] = [];
+    acc[r.materialId].push(r);
+    return acc;
+  }, {});
+
+  // Para o gestor: mapa materialId → contagem de solicitações por status
+  const requestStatsByMaterial = (allRequests.data ?? []).reduce((acc: Record<number, { total: number; pending: number; approved: number; delivered: number }>, r: any) => {
+    if (!acc[r.materialId]) acc[r.materialId] = { total: 0, pending: 0, approved: 0, delivered: 0 };
+    acc[r.materialId].total++;
+    if (r.status === "pending") acc[r.materialId].pending++;
+    else if (r.status === "approved") acc[r.materialId].approved++;
+    else if (r.status === "delivered") acc[r.materialId].delivered++;
+    return acc;
+  }, {});
 
   const statusTabs = [
     { key: undefined, label: "Todas" },
@@ -462,6 +481,29 @@ export default function MaterialsPage() {
                           </div>
                         )}
                       </div>
+
+                      {/* Histórico de solicitações do promotor para este material */}
+                      {(() => {
+                        const reqs = myRequestsByMaterial[item.id] ?? [];
+                        if (reqs.length === 0) return null;
+                        const last = reqs[0];
+                        const ss = statusStyle(last.status ?? "pending");
+                        return (
+                          <div style={{ marginTop: 10, paddingTop: 10, borderTop: "1px solid #f3f4f6" }}>
+                            <p style={{ fontSize: 10, fontWeight: 700, color: "#9ca3af", textTransform: "uppercase", letterSpacing: "0.05em", margin: "0 0 6px" }}>
+                              Histórico ({reqs.length} solicitaç{reqs.length === 1 ? "ão" : "ões"})
+                            </p>
+                            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                              <span style={{ fontSize: 11, color: "#6b7280" }}>
+                                Última: {formatDate(last.createdAt)}
+                              </span>
+                              <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 7px", borderRadius: 20, background: ss.bg, color: ss.color }}>
+                                {statusLabel(last.status ?? "pending")}
+                              </span>
+                            </div>
+                          </div>
+                        );
+                      })()}
                     </div>
                   </div>
                 );

@@ -375,7 +375,7 @@ export async function createMaterialRequest(data: InsertMaterialRequest): Promis
   return result[0].insertId;
 }
 
-export async function getMaterialRequests(filters: { userId?: number; status?: "pending" | "approved" | "rejected" | "delivered" | "cancelled"; brandId?: number; limit?: number; offset?: number; }): Promise<(MaterialRequest & { materialName?: string | null; brandId?: number | null; brandName?: string | null })[]> {
+export async function getMaterialRequests(filters: { userId?: number; status?: "pending" | "approved" | "rejected" | "delivered" | "cancelled"; brandId?: number; limit?: number; offset?: number; }): Promise<(MaterialRequest & { materialName?: string | null; brandId?: number | null; brandName?: string | null; promoterName?: string | null })[]> {
   const db = await getDb();
   if (!db) return [];
   const conditions = [];
@@ -403,14 +403,23 @@ export async function getMaterialRequests(filters: { userId?: number; status?: "
       materialName: materials.name,
       brandId: materials.brandId,
       brandName: brands.name,
+      promoterName: appUsers.name,
     })
     .from(materialRequests)
     .leftJoin(materials, eq(materialRequests.materialId, materials.id))
     .leftJoin(brands, eq(materials.brandId, brands.id))
+    .leftJoin(appUsers, eq(materialRequests.userId, appUsers.id))
     .where(conditions.length > 0 ? and(...conditions) : undefined)
     .orderBy(desc(materialRequests.requestedAt))
     .limit(filters.limit ?? 50)
     .offset(filters.offset ?? 0);
+}
+
+export async function countPendingMaterialRequests(): Promise<number> {
+  const db = await getDb();
+  if (!db) return 0;
+  const result = await db.select({ count: sql<number>`count(*)` }).from(materialRequests).where(eq(materialRequests.status, "pending"));
+  return Number(result[0]?.count ?? 0);
 }
 
 export async function getMaterialRequestById(id: number): Promise<MaterialRequest | undefined> {

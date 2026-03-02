@@ -169,6 +169,7 @@ export const appRouter = router({
       await db.updateMaterialRequest(input.id, { status: "delivered", deliveredBy: ctx.user.id, deliveredAt: new Date(), notes: input.notes });
       return { success: true };
     }),
+    countPending: protectedProcedure.query(() => db.countPendingMaterialRequests()),
   }),
   stockFiles: router({
     upload: protectedProcedure
