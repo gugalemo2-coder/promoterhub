@@ -67,9 +67,6 @@ async function startServer() {
   app.get("/api/health", (_req, res) => {
     res.json({ ok: true, timestamp: Date.now() });
   });
-  app.get("/api/debug-headers", (req, res) => {
-    res.json({ hostname: req.hostname, headers: req.headers });
-  });
 
   app.use(
     "/api/trpc",
