@@ -921,3 +921,4 @@
 - [x] Corrigir backend Railway: endpoint de role não aceita 'supervisor'
 - [x] Implementar filtro por marca na listagem de materiais (app)
 - [x] Implementar exportação de relatório mensal em PDF no portal web
+# Fase 38 deploy trigger - Mon Mar  2 12:53:42 EST 2026
