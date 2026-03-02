@@ -2,6 +2,7 @@ import "dotenv/config";
 import express from "express";
 import { createServer } from "http";
 import net from "net";
+import path from "path";
 import { createExpressMiddleware } from "@trpc/server/adapters/express";
 import { registerOAuthRoutes } from "./oauth";
 import { registerCustomAuthRoutes, seedMasterAccount } from "./custom-auth";
@@ -74,6 +75,24 @@ async function startServer() {
       createContext,
     }),
   );
+
+  // In production, serve the Next.js app via Express
+  if (process.env.NODE_ENV === "production") {
+    try {
+      const { default: next } = await import("next");
+      const webDir = path.resolve(process.cwd(), "web");
+      const nextApp = next({ dev: false, dir: webDir });
+      const nextHandler = nextApp.getRequestHandler();
+      await nextApp.prepare();
+      // All non-API routes go to Next.js
+      app.all("*", (req: express.Request, res: express.Response) => {
+        return nextHandler(req, res);
+      });
+      console.log("[next] Next.js app ready");
+    } catch (e) {
+      console.error("[next] Failed to start Next.js:", e);
+    }
+  }
 
   const preferredPort = parseInt(process.env.PORT || "3000");
   const port = await findAvailablePort(preferredPort);

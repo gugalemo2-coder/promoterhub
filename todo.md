@@ -888,3 +888,8 @@
 - [ ] Bug: adicionar opção Supervisor no modal de troca de cargo do portal web
 - [ ] Feature: exportação de relatório mensal em PDF no portal web
 - [ ] Feature: filtro por marca no catálogo de materiais do portal web
+
+## Correções (Mar 2026)
+- [ ] Corrigir bug de nomear supervisor (campo enviado errado ou rota não atualiza o banco)
+- [ ] Exibir toast de confirmação ao mudar cargo de usuário
+- [ ] Exibir cargo correto (Supervisor) na lista de usuários após a mudança
