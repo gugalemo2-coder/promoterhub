@@ -16,7 +16,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     }
     if (!loading && isAuthenticated && user) {
       const role = (user as any).appRole;
-      if (role !== "manager" && role !== "master") {
+      if (role !== "manager" && role !== "master" && role !== "supervisor") {
         router.replace("/login");
       }
     }

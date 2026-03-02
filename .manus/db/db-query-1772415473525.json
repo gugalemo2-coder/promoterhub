@@ -1,0 +1,94 @@
+{
+  "query": "SELECT id, name, login, appRole FROM app_users;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 3MUjan8YnY9PgZH.4cd173914575 --database cSF363ubWEjutwgRMZGZ84 --execute SELECT id, name, login, appRole FROM app_users;",
+  "rows": [
+    {
+      "id": "1",
+      "name": "Gustavo Lemes",
+      "login": "gustavolemes",
+      "appRole": "master"
+    },
+    {
+      "id": "30001",
+      "name": "Lenicia Lemes",
+      "login": "lenicialemes",
+      "appRole": "manager"
+    },
+    {
+      "id": "60001",
+      "name": "Antonio José",
+      "login": "antoniojose",
+      "appRole": "promoter"
+    },
+    {
+      "id": "120001",
+      "name": "Cicera",
+      "login": "cicera",
+      "appRole": "manager"
+    },
+    {
+      "id": "150001",
+      "name": "Antonio Magno",
+      "login": "antoniomagno",
+      "appRole": "promoter"
+    },
+    {
+      "id": "150002",
+      "name": "Bruno",
+      "login": "bruno",
+      "appRole": "promoter"
+    },
+    {
+      "id": "150003",
+      "name": "Cleiton",
+      "login": "cleiton",
+      "appRole": "promoter"
+    },
+    {
+      "id": "150004",
+      "name": "Evaldo",
+      "login": "evaldo",
+      "appRole": "promoter"
+    },
+    {
+      "id": "150005",
+      "name": "Fernando",
+      "login": "fernando",
+      "appRole": "promoter"
+    },
+    {
+      "id": "150006",
+      "name": "Gilney",
+      "login": "gilney",
+      "appRole": "promoter"
+    },
+    {
+      "id": "150007",
+      "name": "Jailson",
+      "login": "jailson",
+      "appRole": "promoter"
+    },
+    {
+      "id": "150008",
+      "name": "Jossean",
+      "login": "jossean",
+      "appRole": "promoter"
+    },
+    {
+      "id": "150009",
+      "name": "Lennylson",
+      "login": "lennylson",
+      "appRole": "promoter"
+    },
+    {
+      "id": "150010",
+      "name": "Pabllo Henryque",
+      "login": "pabllohenryque",
+      "appRole": "promoter"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tname\tlogin\tappRole\n1\tGustavo Lemes\tgustavolemes\tmaster\n30001\tLenicia Lemes\tlenicialemes\tmanager\n60001\tAntonio José\tantoniojose\tpromoter\n120001\tCicera\tcicera\tmanager\n150001\tAntonio Magno\tantoniomagno\tpromoter\n150002\tBruno\tbruno\tpromoter\n150003\tCleiton\tcleiton\tpromoter\n150004\tEvaldo\tevaldo\tpromoter\n150005\tFernando\tfernando\tpromoter\n150006\tGilney\tgilney\tpromoter\n150007\tJailson\tjailson\tpromoter\n150008\tJossean\tjossean\tpromoter\n150009\tLennylson\tlennylson\tpromoter\n150010\tPabllo Henryque\tpabllohenryque\tpromoter\n",
+  "stderr": "",
+  "execution_time_ms": 69
+}

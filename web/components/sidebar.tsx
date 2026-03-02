@@ -20,7 +20,14 @@ function getInitials(name: string | null | undefined): string {
 function getRoleLabel(role: string | null | undefined): string {
   if (role === "master") return "Master";
   if (role === "manager") return "Gestor";
+  if (role === "supervisor") return "Supervisor";
   return "Usuário";
+}
+
+function getRoleBadgeColor(role: string | null | undefined): string {
+  if (role === "master") return "#7c3aed";
+  if (role === "supervisor") return "#0891b2";
+  return "#1d4ed8";
 }
 
 export function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle: () => void }) {
@@ -29,49 +36,83 @@ export function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle:
   const pendingQuery = trpc.photos.countPending.useQuery(undefined, { refetchInterval: 30000 });
   const pendingPhotos = (pendingQuery.data as number) ?? 0;
   const isMaster = user?.appRole === "master";
+  const isSupervisor = user?.appRole === "supervisor";
 
-  const navGroups: NavGroup[] = [
-    {
-      label: "Visão Geral",
-      items: [
-        { href: "/dashboard", icon: LayoutDashboard, label: "Dashboard" },
-        { href: "/team", icon: Users, label: "Equipe" },
-        { href: "/ranking", icon: Trophy, label: "Ranking" },
-      ],
-    },
-    {
-      label: "PDVs & Visitas",
-      items: [
-        { href: "/stores", icon: MapPin, label: "PDVs" },
-        { href: "/store-dashboard", icon: BarChart2, label: "Dashboard PDVs" },
-        { href: "/store-visits", icon: Navigation, label: "Visitas por PDV" },
-      ],
-    },
-    {
-      label: "Promotores",
-      items: [
-        { href: "/clock", icon: Clock, label: "Controle de Ponto" },
-        { href: "/photos", icon: Camera, label: "Fotos", badge: pendingPhotos > 0 ? pendingPhotos : undefined },
-        { href: "/materials", icon: Package, label: "Materiais" },
-      ],
-    },
-    {
-      label: "Conteúdo",
-      items: [
-        { href: "/brands", icon: Tag, label: "Marcas" },
-        { href: "/files", icon: FolderOpen, label: "Arquivos" },
-      ],
-    },
-    {
-      label: "Gestão",
-      items: [
-        { href: "/notifications", icon: Bell, label: "Notificações" },
-        { href: "/reports", icon: BarChart3, label: "Relatórios" },
-        ...(isMaster ? [{ href: "/master-users", icon: UserCog, label: "Usuários" }] : []),
-        { href: "/settings", icon: Settings, label: "Configurações" },
-      ],
-    },
-  ];
+  // Nav groups filtered by role
+  const navGroups: NavGroup[] = isSupervisor
+    ? [
+        {
+          label: "Visão Geral",
+          items: [
+            { href: "/dashboard", icon: LayoutDashboard, label: "Dashboard" },
+            { href: "/team", icon: Users, label: "Equipe" },
+            { href: "/ranking", icon: Trophy, label: "Ranking" },
+          ],
+        },
+        {
+          label: "PDVs & Visitas",
+          items: [
+            { href: "/stores", icon: MapPin, label: "PDVs" },
+            { href: "/store-visits", icon: Navigation, label: "Visitas por PDV" },
+          ],
+        },
+        {
+          label: "Promotores",
+          items: [
+            { href: "/clock", icon: Clock, label: "Controle de Ponto" },
+            { href: "/photos", icon: Camera, label: "Fotos", badge: pendingPhotos > 0 ? pendingPhotos : undefined },
+            { href: "/materials", icon: Package, label: "Materiais" },
+          ],
+        },
+        {
+          label: "Relatórios",
+          items: [
+            { href: "/reports", icon: BarChart3, label: "Relatórios" },
+          ],
+        },
+      ]
+    : [
+        {
+          label: "Visão Geral",
+          items: [
+            { href: "/dashboard", icon: LayoutDashboard, label: "Dashboard" },
+            { href: "/team", icon: Users, label: "Equipe" },
+            { href: "/ranking", icon: Trophy, label: "Ranking" },
+          ],
+        },
+        {
+          label: "PDVs & Visitas",
+          items: [
+            { href: "/stores", icon: MapPin, label: "PDVs" },
+            { href: "/store-dashboard", icon: BarChart2, label: "Dashboard PDVs" },
+            { href: "/store-visits", icon: Navigation, label: "Visitas por PDV" },
+          ],
+        },
+        {
+          label: "Promotores",
+          items: [
+            { href: "/clock", icon: Clock, label: "Controle de Ponto" },
+            { href: "/photos", icon: Camera, label: "Fotos", badge: pendingPhotos > 0 ? pendingPhotos : undefined },
+            { href: "/materials", icon: Package, label: "Materiais" },
+          ],
+        },
+        {
+          label: "Conteúdo",
+          items: [
+            { href: "/brands", icon: Tag, label: "Marcas" },
+            { href: "/files", icon: FolderOpen, label: "Arquivos" },
+          ],
+        },
+        {
+          label: "Gestão",
+          items: [
+            { href: "/notifications", icon: Bell, label: "Notificações" },
+            { href: "/reports", icon: BarChart3, label: "Relatórios" },
+            ...(isMaster ? [{ href: "/master-users", icon: UserCog, label: "Usuários" }] : []),
+            { href: "/settings", icon: Settings, label: "Configurações" },
+          ],
+        },
+      ];
 
   const W = collapsed ? 68 : 260;
 
@@ -110,6 +151,51 @@ export function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle:
           {collapsed ? <ChevronRight size={14} /> : <ChevronLeft size={14} />}
         </button>
       </div>
+
+      {/* Welcome banner — shown only when expanded */}
+      {!collapsed && (
+        <div style={{
+          margin: "10px 10px 0",
+          background: `linear-gradient(135deg, ${getRoleBadgeColor(user?.appRole)}22, ${getRoleBadgeColor(user?.appRole)}11)`,
+          border: `1px solid ${getRoleBadgeColor(user?.appRole)}33`,
+          borderRadius: 10, padding: "10px 12px",
+          display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8,
+        }}>
+          <div style={{ overflow: "hidden" }}>
+            <div style={{ fontSize: 10, color: "#94a3b8", marginBottom: 2 }}>
+              Bem-vindo(a),
+            </div>
+            <div style={{ fontSize: 13, fontWeight: 700, color: "white", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+              {user?.name ?? "Usuário"}
+            </div>
+            <div style={{
+              display: "inline-flex", alignItems: "center", marginTop: 4,
+              background: getRoleBadgeColor(user?.appRole),
+              borderRadius: 20, padding: "1px 8px",
+            }}>
+              <span style={{ fontSize: 10, fontWeight: 700, color: "white", letterSpacing: "0.04em" }}>
+                {getRoleLabel(user?.appRole)}
+              </span>
+            </div>
+          </div>
+          <button
+            onClick={logout}
+            title="Sair"
+            style={{
+              background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.1)",
+              borderRadius: 8, padding: "6px 8px", cursor: "pointer",
+              color: "#94a3b8", display: "flex", alignItems: "center", gap: 5,
+              flexShrink: 0, fontSize: 11, fontWeight: 500,
+              transition: "background 0.15s",
+            }}
+            onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(239,68,68,0.2)")}
+            onMouseLeave={(e) => (e.currentTarget.style.background = "rgba(255,255,255,0.08)")}
+          >
+            <LogOut size={13} />
+            Sair
+          </button>
+        </div>
+      )}
 
       {/* Nav */}
       <nav style={{ flex: 1, overflowY: "auto", overflowX: "hidden", padding: "10px 8px" }}>
@@ -164,36 +250,20 @@ export function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle:
         ))}
       </nav>
 
-      {/* Footer */}
-      <div style={{ borderTop: "1px solid rgba(255,255,255,0.06)", padding: "10px 8px" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 10px", borderRadius: 8, overflow: "hidden" }}>
-          <div style={{
-            width: 32, height: 32, minWidth: 32, borderRadius: "50%", background: "#1d4ed8",
-            display: "flex", alignItems: "center", justifyContent: "center",
-            fontSize: 12, fontWeight: 700, color: "white", overflow: "hidden",
-          }}>
-            {user?.avatarUrl
-              // eslint-disable-next-line @next/next/no-img-element
-              ? <img src={user.avatarUrl} alt="" style={{ width: 32, height: 32, objectFit: "cover" }} />
-              : getInitials(user?.name)}
+      {/* Footer — shown when collapsed (logout icon only) */}
+      {collapsed && (
+        <div style={{ borderTop: "1px solid rgba(255,255,255,0.06)", padding: "10px 8px" }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", padding: "8px 0" }}>
+            <button onClick={logout} title="Sair" style={{
+              background: "transparent", border: "none", color: "#64748b",
+              cursor: "pointer", padding: 4, borderRadius: 6,
+              display: "flex", alignItems: "center", justifyContent: "center",
+            }}>
+              <LogOut size={15} />
+            </button>
           </div>
-          {!collapsed && (
-            <div style={{ flex: 1, overflow: "hidden" }}>
-              <div style={{ fontSize: 12, fontWeight: 600, color: "white", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                {user?.name ?? "Usuário"}
-              </div>
-              <div style={{ fontSize: 10, color: "#94a3b8" }}>{getRoleLabel(user?.appRole)}</div>
-            </div>
-          )}
-          <button onClick={logout} title="Sair" style={{
-            background: "transparent", border: "none", color: "#64748b",
-            cursor: "pointer", padding: 4, borderRadius: 6,
-            display: "flex", alignItems: "center", justifyContent: "center",
-          }}>
-            <LogOut size={15} />
-          </button>
         </div>
-      </div>
+      )}
     </aside>
   );
 }

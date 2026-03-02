@@ -1,0 +1,43 @@
+{
+  "query": "SELECT * FROM users LIMIT 3;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 3MUjan8YnY9PgZH.4cd173914575 --database cSF363ubWEjutwgRMZGZ84 --execute SELECT * FROM users LIMIT 3;",
+  "rows": [
+    {
+      "id": "1",
+      "openId": "demo_manager_001",
+      "name": "Gestor Demo",
+      "email": "gestor@demo.com",
+      "loginMethod": "demo",
+      "role": "user",
+      "createdAt": "2026-02-24 18:47:09",
+      "updatedAt": "2026-02-25 00:40:58",
+      "lastSignedIn": "2026-02-25 00:40:59"
+    },
+    {
+      "id": "1974",
+      "openId": "demo_promoter_001",
+      "name": "Promotor Demo",
+      "email": "promotor@demo.com",
+      "loginMethod": "demo",
+      "role": "user",
+      "createdAt": "2026-02-24 18:56:27",
+      "updatedAt": "2026-02-25 11:54:31",
+      "lastSignedIn": "2026-02-25 11:54:32"
+    },
+    {
+      "id": "180002",
+      "openId": "app_user_1",
+      "name": "Gustavo Lemes",
+      "email": "NULL",
+      "loginMethod": "custom",
+      "role": "user",
+      "createdAt": "2026-02-25 00:01:21",
+      "updatedAt": "2026-03-02 01:36:50",
+      "lastSignedIn": "2026-03-02 01:36:50"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\topenId\tname\temail\tloginMethod\trole\tcreatedAt\tupdatedAt\tlastSignedIn\n1\tdemo_manager_001\tGestor Demo\tgestor@demo.com\tdemo\tuser\t2026-02-24 18:47:09\t2026-02-25 00:40:58\t2026-02-25 00:40:59\n1974\tdemo_promoter_001\tPromotor Demo\tpromotor@demo.com\tdemo\tuser\t2026-02-24 18:56:27\t2026-02-25 11:54:31\t2026-02-25 11:54:32\n180002\tapp_user_1\tGustavo Lemes\tNULL\tcustom\tuser\t2026-02-25 00:01:21\t2026-03-02 01:36:50\t2026-03-02 01:36:50\n",
+  "stderr": "",
+  "execution_time_ms": 60
+}
