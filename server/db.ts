@@ -375,7 +375,7 @@ export async function createMaterialRequest(data: InsertMaterialRequest): Promis
   return result[0].insertId;
 }
 
-export async function getMaterialRequests(filters: { userId?: number; status?: "pending" | "approved" | "rejected" | "delivered" | "cancelled"; brandId?: number; limit?: number; offset?: number; }): Promise<(MaterialRequest & { materialName?: string | null; brandId?: number | null; brandName?: string | null; promoterName?: string | null })[]> {
+export async function getMaterialRequests(filters: { userId?: number; status?: "pending" | "approved" | "rejected" | "delivered" | "cancelled"; brandId?: number; limit?: number; offset?: number; }): Promise<(MaterialRequest & { materialName?: string | null; brandId?: number | null; brandName?: string | null; promoterName?: string | null; storeName?: string | null })[]> {
   const db = await getDb();
   if (!db) return [];
   const conditions = [];
@@ -404,11 +404,13 @@ export async function getMaterialRequests(filters: { userId?: number; status?: "
       brandId: materials.brandId,
       brandName: brands.name,
       promoterName: appUsers.name,
+      storeName: stores.name,
     })
     .from(materialRequests)
     .leftJoin(materials, eq(materialRequests.materialId, materials.id))
     .leftJoin(brands, eq(materials.brandId, brands.id))
     .leftJoin(appUsers, eq(materialRequests.userId, appUsers.id))
+    .leftJoin(stores, eq(materialRequests.storeId, stores.id))
     .where(conditions.length > 0 ? and(...conditions) : undefined)
     .orderBy(desc(materialRequests.requestedAt))
     .limit(filters.limit ?? 50)
