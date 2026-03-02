@@ -9,11 +9,15 @@ import { useState } from "react";
 
 export default function MaterialsPage() {
   const [status, setStatus] = useState<"pending" | "approved" | "rejected" | "delivered" | "cancelled" | undefined>(undefined);
+  const [brandId, setBrandId] = useState<number | undefined>(undefined);
   const [rejectId, setRejectId] = useState<number | null>(null);
   const [rejectReason, setRejectReason] = useState("");
 
+  const brands = trpc.brands.list.useQuery();
+
   const requests = trpc.materialRequests.listAll.useQuery({
     status,
+    brandId,
     limit: 100,
   });
 
@@ -57,21 +61,41 @@ export default function MaterialsPage() {
         }
       />
 
-      {/* Status Tabs */}
-      <div className="flex items-center gap-2 mb-6">
-        {statusTabs.map((tab) => (
-          <button
-            key={tab.label}
-            onClick={() => setStatus(tab.key)}
-            className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
-              status === tab.key
-                ? "bg-orange-600 text-white"
-                : "bg-white border border-gray-200 text-gray-600 hover:bg-gray-50"
-            }`}
+      {/* Filters row */}
+      <div className="flex flex-wrap items-center gap-3 mb-6">
+        {/* Status Tabs */}
+        <div className="flex items-center gap-2">
+          {statusTabs.map((tab) => (
+            <button
+              key={tab.label}
+              onClick={() => setStatus(tab.key)}
+              className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
+                status === tab.key
+                  ? "bg-orange-600 text-white"
+                  : "bg-white border border-gray-200 text-gray-600 hover:bg-gray-50"
+              }`}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+
+        {/* Brand filter */}
+        <div className="flex items-center gap-2 ml-auto">
+          <span className="text-xs text-gray-500 font-medium">Marca:</span>
+          <select
+            value={brandId ?? ""}
+            onChange={(e) => setBrandId(e.target.value ? Number(e.target.value) : undefined)}
+            className="text-sm border border-gray-200 rounded-lg px-3 py-1.5 text-gray-700 bg-white focus:outline-none focus:ring-2 focus:ring-orange-400 min-w-[140px]"
           >
-            {tab.label}
-          </button>
-        ))}
+            <option value="">Todas as marcas</option>
+            {(brands.data ?? []).map((b) => (
+              <option key={b.id} value={b.id}>
+                {b.name}
+              </option>
+            ))}
+          </select>
+        </div>
       </div>
 
       {/* Reject modal */}
@@ -110,8 +134,9 @@ export default function MaterialsPage() {
           <thead>
             <tr className="border-b border-gray-100 bg-gray-50">
               <th className="text-left px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">ID</th>
+              <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Material</th>
+              <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide hidden md:table-cell">Marca</th>
               <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide hidden md:table-cell">PDV</th>
-              <th className="text-center px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Material ID</th>
               <th className="text-center px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Qtd.</th>
               <th className="text-center px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Prioridade</th>
               <th className="text-center px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Status</th>
@@ -122,26 +147,35 @@ export default function MaterialsPage() {
           <tbody className="divide-y divide-gray-50">
             {requests.isLoading ? (
               <tr>
-                <td colSpan={8} className="text-center py-12 text-gray-400 text-sm">Carregando...</td>
+                <td colSpan={9} className="text-center py-12 text-gray-400 text-sm">Carregando...</td>
               </tr>
             ) : data.length === 0 ? (
               <tr>
-                <td colSpan={8} className="text-center py-12 text-gray-400 text-sm">
+                <td colSpan={9} className="text-center py-12 text-gray-400 text-sm">
                   Nenhuma solicitação encontrada
                 </td>
               </tr>
             ) : (
-              data.map((req) => (
+              data.map((req: any) => (
                 <tr key={req.id} className="hover:bg-gray-50 transition-colors">
                   <td className="px-5 py-4">
                     <span className="text-sm font-medium text-gray-900">#{req.id}</span>
                     {req.notes && <p className="text-xs text-gray-400 mt-0.5 truncate max-w-xs">{req.notes}</p>}
                   </td>
+                  <td className="px-4 py-4">
+                    <span className="text-sm text-gray-700">{req.materialName ?? `#${req.materialId}`}</span>
+                  </td>
+                  <td className="px-4 py-4 hidden md:table-cell">
+                    {req.brandName ? (
+                      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-50 text-blue-700">
+                        {req.brandName}
+                      </span>
+                    ) : (
+                      <span className="text-xs text-gray-400">—</span>
+                    )}
+                  </td>
                   <td className="px-4 py-4 hidden md:table-cell">
                     <span className="text-sm text-gray-700">PDV #{req.storeId}</span>
-                  </td>
-                  <td className="px-4 py-4 text-center">
-                    <span className="text-sm text-gray-700">#{req.materialId}</span>
                   </td>
                   <td className="px-4 py-4 text-center">
                     <span className="text-sm font-medium text-gray-900">{req.quantityRequested}</span>

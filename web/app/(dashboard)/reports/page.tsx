@@ -4,7 +4,7 @@ import { trpc } from "@/lib/trpc";
 import { PageHeader } from "@/components/page-header";
 import { ScoreRing } from "@/components/ui/score-ring";
 import { getMonthName } from "@/lib/utils";
-import { FileText, RefreshCw, Download, Users, Camera, Package, Clock } from "lucide-react";
+import { FileText, RefreshCw, Download, Users, Camera, Package, Clock, FileDown } from "lucide-react";
 import { useState } from "react";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
@@ -72,6 +72,97 @@ export default function ReportsPage() {
       }))
     : [];
 
+  const handleExportPDF = async () => {
+    const { default: jsPDF } = await import("jspdf");
+    const { default: autoTable } = await import("jspdf-autotable");
+    const doc = new jsPDF();
+    const monthLabel = getMonthName(month);
+
+    // Header
+    doc.setFontSize(18);
+    doc.setTextColor(30, 64, 175);
+    doc.text("Relatório Mensal de Promotores", 14, 18);
+    doc.setFontSize(11);
+    doc.setTextColor(100, 116, 139);
+    doc.text(`Período: ${monthLabel} ${year}`, 14, 26);
+    doc.text(`Gerado em: ${new Date().toLocaleDateString("pt-BR")}`, 14, 32);
+
+    // Summary cards
+    doc.setFontSize(10);
+    doc.setTextColor(30, 30, 30);
+    const summaryY = 42;
+    const summaryItems = [
+      { label: "Fotos Aprovadas", value: String(totals.photos) },
+      { label: "Materiais Solicitados", value: String(totals.materials) },
+      { label: "Visitas a PDVs", value: String(totals.visits) },
+      { label: "Dias Trabalhados", value: String(totals.workDays) },
+      { label: "Horas Trabalhadas", value: `${totals.hours.toFixed(1)}h` },
+    ];
+    summaryItems.forEach((item, i) => {
+      const x = 14 + (i % 3) * 62;
+      const y = summaryY + Math.floor(i / 3) * 18;
+      doc.setFillColor(239, 246, 255);
+      doc.roundedRect(x, y, 58, 14, 2, 2, "F");
+      doc.setFontSize(7);
+      doc.setTextColor(100, 116, 139);
+      doc.text(item.label.toUpperCase(), x + 4, y + 5);
+      doc.setFontSize(11);
+      doc.setTextColor(30, 64, 175);
+      doc.text(item.value, x + 4, y + 11);
+    });
+
+    const tableY = summaryY + Math.ceil(summaryItems.length / 3) * 18 + 8;
+
+    if (hasDailyData) {
+      // Single promoter: daily data table
+      const promoterName = promoters.find((p) => p.id === selectedPromoter)?.name ?? "Promotor";
+      doc.setFontSize(12);
+      doc.setTextColor(30, 30, 30);
+      doc.text(`Detalhes: ${promoterName}`, 14, tableY);
+      autoTable(doc, {
+        startY: tableY + 5,
+        head: [["Dia", "Horas Trabalhadas", "Fotos"]],
+        body: (reportData.dailyData as any[]).filter((d: any) => d.hours > 0 || d.photos > 0).map((d: any) => [
+          `${d.day}/${month}/${year}`,
+          `${parseFloat(d.hours.toFixed(1))}h`,
+          d.photos,
+        ]),
+        styles: { fontSize: 9, cellPadding: 3 },
+        headStyles: { fillColor: [30, 64, 175], textColor: 255, fontStyle: "bold" },
+        alternateRowStyles: { fillColor: [239, 246, 255] },
+      });
+    } else {
+      // All promoters table
+      autoTable(doc, {
+        startY: tableY,
+        head: [["Promotor", "Score", "Fotos Aprovadas", "Materiais", "Visitas", "Dias Trab.", "Horas"]],
+        body: tableData.map((p: any) => [
+          p.promoterName ?? "—",
+          `${p.score ?? 0}%`,
+          p.approvedPhotos ?? 0,
+          p.materialRequests ?? 0,
+          p.storeVisits ?? 0,
+          p.workDays ?? 0,
+          `${(p.totalHours ?? 0).toFixed(1)}h`,
+        ]),
+        styles: { fontSize: 9, cellPadding: 3 },
+        headStyles: { fillColor: [30, 64, 175], textColor: 255, fontStyle: "bold" },
+        alternateRowStyles: { fillColor: [239, 246, 255] },
+      });
+    }
+
+    // Footer
+    const pageCount = doc.getNumberOfPages();
+    for (let i = 1; i <= pageCount; i++) {
+      doc.setPage(i);
+      doc.setFontSize(8);
+      doc.setTextColor(150);
+      doc.text(`PromoterHub · Página ${i} de ${pageCount}`, 14, doc.internal.pageSize.height - 8);
+    }
+
+    doc.save(`relatorio-${monthLabel}-${year}.pdf`);
+  };
+
   const handleExportCSV = () => {
     const header = ["Promotor", "Fotos Aprovadas", "Materiais", "Visitas", "Dias Trabalhados", "Score"];
     const rows = tableData.map((p: any) => [
@@ -104,6 +195,13 @@ export default function ReportsPage() {
         iconBg="bg-blue-50"
         actions={
           <div className="flex items-center gap-2">
+            <button
+              onClick={handleExportPDF}
+              className="flex items-center gap-2 px-3 py-2 text-sm text-white bg-blue-600 hover:bg-blue-700 border border-blue-600 rounded-lg transition-colors"
+            >
+              <FileDown size={14} />
+              Exportar PDF
+            </button>
             <button
               onClick={handleExportCSV}
               className="flex items-center gap-2 px-3 py-2 text-sm text-gray-600 hover:text-gray-900 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"

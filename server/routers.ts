@@ -141,7 +141,7 @@ export const appRouter = router({
         return { id };
       }),
     list: protectedProcedure.input(z.object({ status: z.enum(["pending", "approved", "rejected", "delivered", "cancelled"]).optional(), limit: z.number().default(50), offset: z.number().default(0) })).query(({ ctx, input }) => db.getMaterialRequests({ userId: getAppUserId(ctx.user), ...input })),
-    listAll: protectedProcedure.input(z.object({ status: z.enum(["pending", "approved", "rejected", "delivered", "cancelled"]).optional(), limit: z.number().default(50), offset: z.number().default(0) })).query(({ input }) => db.getMaterialRequests(input)),
+    listAll: protectedProcedure.input(z.object({ status: z.enum(["pending", "approved", "rejected", "delivered", "cancelled"]).optional(), brandId: z.number().optional(), limit: z.number().default(50), offset: z.number().default(0) })).query(({ input }) => db.getMaterialRequests(input)),
     approve: protectedProcedure.input(z.object({ id: z.number(), notes: z.string().optional() })).mutation(async ({ ctx, input }) => {
       const request = await db.getMaterialRequestById(input.id);
       await db.updateMaterialRequest(input.id, { status: "approved", approvedBy: ctx.user.id, approvedAt: new Date(), notes: input.notes });

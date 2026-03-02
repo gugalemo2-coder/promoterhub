@@ -22,24 +22,26 @@ interface AppUser {
   id: number;
   name: string | null;
   login: string;
-  appRole: "promoter" | "manager" | "master";
+  appRole: "promoter" | "manager" | "supervisor" | "master";
   active: boolean;
   avatarUrl?: string | null;
   createdAt?: string;
 }
 
-type RoleFilter = "all" | "promoter" | "manager" | "master";
+type RoleFilter = "all" | "promoter" | "manager" | "supervisor" | "master";
 type StatusFilter = "all" | "active" | "inactive";
 
 const ROLE_LABELS: Record<string, string> = {
   promoter: "Promotor",
   manager: "Gestor",
+  supervisor: "Supervisor",
   master: "Master",
 };
 
 const ROLE_COLORS: Record<string, string> = {
   promoter: "bg-blue-100 text-blue-700",
   manager: "bg-purple-100 text-purple-700",
+  supervisor: "bg-orange-100 text-orange-700",
   master: "bg-amber-100 text-amber-700",
 };
 
@@ -149,7 +151,7 @@ export default function MasterUsersPage() {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({ newRole }),
+        body: JSON.stringify({ appRole: newRole }),
       });
       const data = await res.json();
       if (res.ok) {
@@ -309,6 +311,7 @@ export default function MasterUsersPage() {
           <option value="all">Todos os cargos</option>
           <option value="promoter">Promotores</option>
           <option value="manager">Gestores</option>
+          <option value="supervisor">Supervisores</option>
           <option value="master">Masters</option>
         </select>
         <select
@@ -466,7 +469,7 @@ export default function MasterUsersPage() {
               </span>
             </p>
             <div className="flex flex-col gap-2 mb-5">
-              {(["promoter", "manager", "master"] as const).map((role) => (
+              {(["promoter", "manager", "supervisor"] as const).map((role) => (
                 <button
                   key={role}
                   onClick={() => handleChangeRole(roleModal, role)}

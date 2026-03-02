@@ -375,13 +375,42 @@ export async function createMaterialRequest(data: InsertMaterialRequest): Promis
   return result[0].insertId;
 }
 
-export async function getMaterialRequests(filters: { userId?: number; status?: "pending" | "approved" | "rejected" | "delivered" | "cancelled"; limit?: number; offset?: number; }): Promise<MaterialRequest[]> {
+export async function getMaterialRequests(filters: { userId?: number; status?: "pending" | "approved" | "rejected" | "delivered" | "cancelled"; brandId?: number; limit?: number; offset?: number; }): Promise<(MaterialRequest & { materialName?: string | null; brandId?: number | null; brandName?: string | null })[]> {
   const db = await getDb();
   if (!db) return [];
   const conditions = [];
   if (filters.userId) conditions.push(eq(materialRequests.userId, filters.userId));
   if (filters.status) conditions.push(eq(materialRequests.status, filters.status));
-  return db.select().from(materialRequests).where(conditions.length > 0 ? and(...conditions) : undefined).orderBy(desc(materialRequests.requestedAt)).limit(filters.limit ?? 50).offset(filters.offset ?? 0);
+  if (filters.brandId) conditions.push(eq(materials.brandId, filters.brandId));
+  return db
+    .select({
+      id: materialRequests.id,
+      userId: materialRequests.userId,
+      materialId: materialRequests.materialId,
+      storeId: materialRequests.storeId,
+      quantityRequested: materialRequests.quantityRequested,
+      status: materialRequests.status,
+      priority: materialRequests.priority,
+      notes: materialRequests.notes,
+      requestedAt: materialRequests.requestedAt,
+      approvedAt: materialRequests.approvedAt,
+      approvedBy: materialRequests.approvedBy,
+      deliveredAt: materialRequests.deliveredAt,
+      deliveredBy: materialRequests.deliveredBy,
+      rejectionReason: materialRequests.rejectionReason,
+      createdAt: materialRequests.createdAt,
+      updatedAt: materialRequests.updatedAt,
+      materialName: materials.name,
+      brandId: materials.brandId,
+      brandName: brands.name,
+    })
+    .from(materialRequests)
+    .leftJoin(materials, eq(materialRequests.materialId, materials.id))
+    .leftJoin(brands, eq(materials.brandId, brands.id))
+    .where(conditions.length > 0 ? and(...conditions) : undefined)
+    .orderBy(desc(materialRequests.requestedAt))
+    .limit(filters.limit ?? 50)
+    .offset(filters.offset ?? 0);
 }
 
 export async function getMaterialRequestById(id: number): Promise<MaterialRequest | undefined> {

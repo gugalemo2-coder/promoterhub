@@ -882,3 +882,9 @@
 - [ ] Adicionar chips de filtro por marca na listagem de materiais
 - [ ] Exibir thumbnail pequeno da imagem do produto nos cards da lista
 - [ ] Publicar na Vercel via GitHub push
+
+## Correções e Melhorias (Mar 2026)
+- [ ] Bug: corrigir campo newRole → appRole no handleChangeRole do portal web (master-users)
+- [ ] Bug: adicionar opção Supervisor no modal de troca de cargo do portal web
+- [ ] Feature: exportação de relatório mensal em PDF no portal web
+- [ ] Feature: filtro por marca no catálogo de materiais do portal web
