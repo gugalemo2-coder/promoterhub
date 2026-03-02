@@ -287,7 +287,7 @@ export default function ClockScreen() {
   const [modalEntryType, setModalEntryType] = useState<"entry" | "exit">("entry");
 
   const utils = trpc.useUtils();
-  const { data: lastEntry } = trpc.timeEntries.lastOpenEntry.useQuery();
+  const { data: lastEntry, isSuccess: lastEntryLoaded } = trpc.timeEntries.lastOpenEntry.useQuery();
   const { data: dailySummary, refetch: refetchSummary } = trpc.timeEntries.dailySummary.useQuery({ date: selectedDate.toISOString() });
   const { data: allEntries } = trpc.timeEntries.allForDate.useQuery({ date: selectedDate.toISOString() }, { enabled: isManager });
   const { data: myEntries, refetch: refetchMy } = trpc.timeEntries.list.useQuery({ startDate: selectedDate.toISOString(), endDate: selectedDate.toISOString() }, { enabled: !isManager });
@@ -308,13 +308,14 @@ export default function ClockScreen() {
     });
   }, []);
 
+  // Only sync to AsyncStorage after the server has successfully responded
   useEffect(() => {
-    if (lastEntry !== undefined) {
+    if (lastEntryLoaded) {
       const isOpen = !!lastEntry;
       setLocalHasOpenEntry(isOpen);
       AsyncStorage.setItem(OPEN_ENTRY_KEY, String(isOpen));
     }
-  }, [lastEntry]);
+  }, [lastEntry, lastEntryLoaded]);
 
   // Use server data when available, fall back to local cache
   const hasOpenEntry = lastEntry !== undefined ? !!lastEntry : (localHasOpenEntry ?? false);

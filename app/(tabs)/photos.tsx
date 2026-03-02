@@ -617,7 +617,7 @@ export default function PhotosScreen() {
         brands={brands ?? []}
         stores={stores as any[]}
         uploading={uploading}
-        onClose={() => setUploadModalVisible(false)}
+        onClose={() => { setUploadModalVisible(false); setModalKey((k) => k + 1); }}
         onUpload={handleUpload}
       />
     </ScreenContainer>

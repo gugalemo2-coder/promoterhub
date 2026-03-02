@@ -922,3 +922,9 @@
 - [x] Implementar filtro por marca na listagem de materiais (app)
 - [x] Implementar exportação de relatório mensal em PDF no portal web
 # Fase 38 deploy trigger - Mon Mar  2 12:53:42 EST 2026
+
+## Fase 39 — Correções de Bugs Reportados
+
+- [x] Fix: Modal de fotos — garantir limpeza completa ao fechar (com ou sem envio), incrementar modalKey sempre ao fechar
+- [x] Fix: Seleção de loja ao solicitar material — garantir que promotor vê apenas suas lojas (listForPromoter)
+- [x] Fix: Persistência de ponto — corrigir bug que sobrescreve AsyncStorage com false durante carregamento inicial da query

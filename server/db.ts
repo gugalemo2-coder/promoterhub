@@ -159,7 +159,10 @@ export async function updateStore(id: number, data: Partial<InsertStore>): Promi
 export async function getStoresByPromoter(promoterId: number): Promise<Store[]> {
   const db = await getDb();
   if (!db) return [];
-  return db.select().from(stores).where(and(eq(stores.promoterId, promoterId), eq(stores.status, "active")));
+  // Return stores assigned to this promoter; if none assigned, fall back to all active stores
+  const assigned = await db.select().from(stores).where(and(eq(stores.promoterId, promoterId), eq(stores.status, "active")));
+  if (assigned.length > 0) return assigned;
+  return db.select().from(stores).where(eq(stores.status, "active"));
 }
 
 export async function getAllPromoterUsersWithProfile(): Promise<Array<{ id: number; name: string | null; login: string | null }>> {
