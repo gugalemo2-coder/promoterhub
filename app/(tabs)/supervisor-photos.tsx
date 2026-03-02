@@ -25,6 +25,7 @@ import Reanimated, {
 } from "react-native-reanimated";
 import { ScreenContainer } from "@/components/screen-container";
 import { useColors } from "@/hooks/use-colors";
+import { useAuth } from "@/hooks/use-auth";
 import { trpc } from "@/lib/trpc";
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
@@ -102,6 +103,7 @@ function ZoomableImage({ uri }: { uri: string }) {
 export default function SupervisorPhotosScreen() {
   const colors = useColors();
   const router = useRouter();
+  const { logout } = useAuth();
 
   // Filters
   const [selectedBrandId, setSelectedBrandId] = useState<number | undefined>();
@@ -452,6 +454,16 @@ export default function SupervisorPhotosScreen() {
             </View>
           )}
         </View>
+        {/* Logout button */}
+        {!selectionMode && (
+          <TouchableOpacity
+            style={styles.clearBtn}
+            onPress={logout}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            <Ionicons name="log-out-outline" size={22} color={SUPERVISOR_COLOR} />
+          </TouchableOpacity>
+        )}
         {/* Batch select toggle (download only) */}
         {!selectionMode ? (
           <TouchableOpacity
