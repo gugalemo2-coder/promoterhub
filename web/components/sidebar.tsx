@@ -38,7 +38,6 @@ export function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle:
   const isMaster = user?.appRole === "master";
   const isSupervisor = user?.appRole === "supervisor";
 
-  // Nav groups filtered by role
   const navGroups: NavGroup[] = isSupervisor
     ? [
         {
@@ -115,6 +114,7 @@ export function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle:
       ];
 
   const W = collapsed ? 68 : 260;
+  const badgeColor = getRoleBadgeColor(user?.appRole);
 
   return (
     <aside style={{
@@ -151,51 +151,6 @@ export function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle:
           {collapsed ? <ChevronRight size={14} /> : <ChevronLeft size={14} />}
         </button>
       </div>
-
-      {/* Welcome banner — shown only when expanded */}
-      {!collapsed && (
-        <div style={{
-          margin: "10px 10px 0",
-          background: `linear-gradient(135deg, ${getRoleBadgeColor(user?.appRole)}22, ${getRoleBadgeColor(user?.appRole)}11)`,
-          border: `1px solid ${getRoleBadgeColor(user?.appRole)}33`,
-          borderRadius: 10, padding: "10px 12px",
-          display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8,
-        }}>
-          <div style={{ overflow: "hidden" }}>
-            <div style={{ fontSize: 10, color: "#94a3b8", marginBottom: 2 }}>
-              Bem-vindo(a),
-            </div>
-            <div style={{ fontSize: 13, fontWeight: 700, color: "white", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-              {user?.name ?? "Usuário"}
-            </div>
-            <div style={{
-              display: "inline-flex", alignItems: "center", marginTop: 4,
-              background: getRoleBadgeColor(user?.appRole),
-              borderRadius: 20, padding: "1px 8px",
-            }}>
-              <span style={{ fontSize: 10, fontWeight: 700, color: "white", letterSpacing: "0.04em" }}>
-                {getRoleLabel(user?.appRole)}
-              </span>
-            </div>
-          </div>
-          <button
-            onClick={logout}
-            title="Sair"
-            style={{
-              background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.1)",
-              borderRadius: 8, padding: "6px 8px", cursor: "pointer",
-              color: "#94a3b8", display: "flex", alignItems: "center", gap: 5,
-              flexShrink: 0, fontSize: 11, fontWeight: 500,
-              transition: "background 0.15s",
-            }}
-            onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(239,68,68,0.2)")}
-            onMouseLeave={(e) => (e.currentTarget.style.background = "rgba(255,255,255,0.08)")}
-          >
-            <LogOut size={13} />
-            Sair
-          </button>
-        </div>
-      )}
 
       {/* Nav */}
       <nav style={{ flex: 1, overflowY: "auto", overflowX: "hidden", padding: "10px 8px" }}>
@@ -250,20 +205,84 @@ export function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle:
         ))}
       </nav>
 
-      {/* Footer — shown when collapsed (logout icon only) */}
-      {collapsed && (
-        <div style={{ borderTop: "1px solid rgba(255,255,255,0.06)", padding: "10px 8px" }}>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", padding: "8px 0" }}>
+      {/* Footer — always visible, adapts to collapsed state */}
+      <div style={{ borderTop: "1px solid rgba(255,255,255,0.06)", padding: "10px 10px" }}>
+        {collapsed ? (
+          /* Collapsed: avatar + logout icon stacked */
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
+            <div style={{
+              width: 32, height: 32, borderRadius: "50%",
+              background: badgeColor,
+              display: "flex", alignItems: "center", justifyContent: "center",
+              fontSize: 12, fontWeight: 700, color: "white", overflow: "hidden",
+              flexShrink: 0,
+            }}>
+              {user?.avatarUrl
+                // eslint-disable-next-line @next/next/no-img-element
+                ? <img src={user.avatarUrl} alt="" style={{ width: 32, height: 32, objectFit: "cover" }} />
+                : getInitials(user?.name)}
+            </div>
             <button onClick={logout} title="Sair" style={{
-              background: "transparent", border: "none", color: "#64748b",
-              cursor: "pointer", padding: 4, borderRadius: 6,
+              background: "rgba(255,255,255,0.06)", border: "none", color: "#94a3b8",
+              cursor: "pointer", padding: "5px", borderRadius: 6,
               display: "flex", alignItems: "center", justifyContent: "center",
             }}>
-              <LogOut size={15} />
+              <LogOut size={14} />
             </button>
           </div>
-        </div>
-      )}
+        ) : (
+          /* Expanded: welcome banner with name, role badge and logout */
+          <div style={{
+            background: `${badgeColor}18`,
+            border: `1px solid ${badgeColor}30`,
+            borderRadius: 10, padding: "10px 12px",
+          }}>
+            {/* Top row: avatar + name + logout */}
+            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
+              <div style={{
+                width: 34, height: 34, minWidth: 34, borderRadius: "50%",
+                background: badgeColor,
+                display: "flex", alignItems: "center", justifyContent: "center",
+                fontSize: 13, fontWeight: 700, color: "white", overflow: "hidden", flexShrink: 0,
+              }}>
+                {user?.avatarUrl
+                  // eslint-disable-next-line @next/next/no-img-element
+                  ? <img src={user.avatarUrl} alt="" style={{ width: 34, height: 34, objectFit: "cover" }} />
+                  : getInitials(user?.name)}
+              </div>
+              <div style={{ flex: 1, overflow: "hidden" }}>
+                <div style={{ fontSize: 11, color: "#94a3b8", lineHeight: 1 }}>Bem-vindo(a),</div>
+                <div style={{ fontSize: 13, fontWeight: 700, color: "white", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", marginTop: 2 }}>
+                  {user?.name ?? "Usuário"}
+                </div>
+              </div>
+              <button
+                onClick={logout}
+                title="Sair"
+                style={{
+                  background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.12)",
+                  borderRadius: 7, padding: "5px 8px", cursor: "pointer",
+                  color: "#94a3b8", display: "flex", alignItems: "center", gap: 4,
+                  flexShrink: 0, fontSize: 11, fontWeight: 600,
+                }}
+              >
+                <LogOut size={12} />
+                Sair
+              </button>
+            </div>
+            {/* Role badge */}
+            <div style={{
+              display: "inline-flex", alignItems: "center",
+              background: badgeColor,
+              borderRadius: 20, padding: "2px 10px",
+            }}>
+              <span style={{ fontSize: 10, fontWeight: 700, color: "white", letterSpacing: "0.05em" }}>
+                {getRoleLabel(user?.appRole)}
+              </span>
+            </div>
+          </div>
+        )}
+      </div>
     </aside>
   );
 }
