@@ -23,6 +23,7 @@ import {
 } from "react-native";
 
 const OPEN_ENTRY_KEY = "@promoterhub:open_entry";
+const OPEN_ENTRY_STORE_KEY = "@promoterhub:open_entry_store_id";
 
 type Store = { id: number; name: string; address?: string | null; city?: string | null };
 
@@ -301,10 +302,14 @@ export default function ClockScreen() {
 
   // Persist open entry state locally so it survives app restarts
   const [localHasOpenEntry, setLocalHasOpenEntry] = useState<boolean | null>(null);
+  const [localOpenStoreId, setLocalOpenStoreId] = useState<number | null>(null);
 
   useEffect(() => {
     AsyncStorage.getItem(OPEN_ENTRY_KEY).then((val) => {
       if (val !== null) setLocalHasOpenEntry(val === "true");
+    });
+    AsyncStorage.getItem(OPEN_ENTRY_STORE_KEY).then((val) => {
+      if (val !== null) setLocalOpenStoreId(Number(val));
     });
   }, []);
 
@@ -314,6 +319,13 @@ export default function ClockScreen() {
       const isOpen = !!lastEntry;
       setLocalHasOpenEntry(isOpen);
       AsyncStorage.setItem(OPEN_ENTRY_KEY, String(isOpen));
+      if (isOpen && lastEntry?.storeId) {
+        setLocalOpenStoreId(lastEntry.storeId);
+        AsyncStorage.setItem(OPEN_ENTRY_STORE_KEY, String(lastEntry.storeId));
+      } else if (!isOpen) {
+        setLocalOpenStoreId(null);
+        AsyncStorage.removeItem(OPEN_ENTRY_STORE_KEY);
+      }
     }
   }, [lastEntry, lastEntryLoaded]);
 
@@ -361,8 +373,12 @@ export default function ClockScreen() {
     }
   };
 
-  // For exit: use the store from the last open entry
-  const exitStore = stores.find((s) => s.id === lastEntry?.storeId) ?? (stores.length > 0 ? stores[0] : null);
+  // For exit: use the store from the last open entry (server or local cache)
+  const openStoreId = lastEntry?.storeId ?? localOpenStoreId;
+  // Fallback: if stores list hasn't loaded yet but we know the storeId, create a minimal store object
+  const exitStore = stores.find((s) => s.id === openStoreId)
+    ?? (stores.length > 0 ? stores[0] : null)
+    ?? (openStoreId ? { id: openStoreId, name: "Loja" } : null);
 
   const formatTime = (date: Date | string) => new Date(date).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
   const formatDate = (date: Date) => date.toLocaleDateString("pt-BR", { weekday: "long", day: "2-digit", month: "long" });

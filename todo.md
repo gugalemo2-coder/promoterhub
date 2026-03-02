@@ -928,3 +928,7 @@
 - [x] Fix: Modal de fotos — garantir limpeza completa ao fechar (com ou sem envio), incrementar modalKey sempre ao fechar
 - [x] Fix: Seleção de loja ao solicitar material — garantir que promotor vê apenas suas lojas (listForPromoter)
 - [x] Fix: Persistência de ponto — corrigir bug que sobrescreve AsyncStorage com false durante carregamento inicial da query
+
+## Fase 40 — Correção de Bug: Registro de Saída
+
+- [ ] Fix: Promotor não consegue registrar saída após a correção de persistência de ponto (bug reportado pelo Pabllo)
