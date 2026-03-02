@@ -66,6 +66,15 @@ export function getApiBaseUrl(): string {
     }
   }
 
+  // On web in production (Vercel), use Railway backend as fallback
+  if (ReactNative.Platform.OS === "web" && typeof window !== "undefined" && window.location) {
+    const { hostname } = window.location;
+    // If running on Vercel (promoterhub.vercel.app or custom domain), use Railway
+    if (hostname.includes("vercel.app") || hostname.includes("promoterhub")) {
+      return "https://api-production-bbc3e.up.railway.app";
+    }
+  }
+
   // Fallback to empty (will use relative URL)
   return "";
 }
