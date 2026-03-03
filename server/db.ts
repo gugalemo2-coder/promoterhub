@@ -1767,6 +1767,7 @@ export async function getAllPromoterUserIds(): Promise<number[]> {
 export async function getTimeEntriesAudit(filters: {
   promoterId?: number;
   storeId?: number;
+  entryType?: "entry" | "exit";
   startDate: Date;
   endDate: Date;
 }): Promise<{ id: number; userId: number; storeId: number; entryType: string; entryTime: Date; photoUrl: string | null; promoterName: string | null; storeName: string | null }[]> {
@@ -1780,6 +1781,7 @@ export async function getTimeEntriesAudit(filters: {
   ];
   if (filters.promoterId) conditions.push(eq(timeEntries.userId, filters.promoterId));
   if (filters.storeId) conditions.push(eq(timeEntries.storeId, filters.storeId));
+  if (filters.entryType) conditions.push(eq(timeEntries.entryType, filters.entryType));
   return db
     .select({
       id: timeEntries.id,

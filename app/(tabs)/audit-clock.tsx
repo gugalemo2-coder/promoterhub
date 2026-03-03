@@ -5,7 +5,6 @@ import {
   ActivityIndicator,
   FlatList,
   Modal,
-  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -35,6 +34,8 @@ const MONTHS = [
   "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro",
 ];
 
+type EntryTypeFilter = "all" | "entry" | "exit";
+
 // ─── component ───────────────────────────────────────────────────────────────
 export default function AuditClockScreen() {
   const colors = useColors();
@@ -43,11 +44,9 @@ export default function AuditClockScreen() {
   // ── filter state ──────────────────────────────────────────────────────────
   const [selectedPromoter, setSelectedPromoter] = useState<number | null>(null);
   const [selectedStore, setSelectedStore] = useState<number | null>(null);
-  const [periodMode, setPeriodMode] = useState<"month" | "range">("month");
+  const [selectedEntryType, setSelectedEntryType] = useState<EntryTypeFilter>("all");
   const [selectedYear, setSelectedYear] = useState(now.getFullYear());
   const [selectedMonth, setSelectedMonth] = useState(now.getMonth());
-  const [rangeStart, setRangeStart] = useState<Date>(new Date(now.getFullYear(), now.getMonth(), 1));
-  const [rangeEnd, setRangeEnd] = useState<Date>(now);
 
   // ── modal state ───────────────────────────────────────────────────────────
   const [previewPhoto, setPreviewPhoto] = useState<string | null>(null);
@@ -66,22 +65,15 @@ export default function AuditClockScreen() {
   });
   const availableStores = selectedPromoter !== null ? storesForPromoter : allStores;
 
-  const { startDate, endDate } = useMemo(() => {
-    if (periodMode === "month") {
-      return {
-        startDate: startOfMonth(selectedYear, selectedMonth).toISOString(),
-        endDate: endOfMonth(selectedYear, selectedMonth).toISOString(),
-      };
-    }
-    return {
-      startDate: rangeStart.toISOString(),
-      endDate: rangeEnd.toISOString(),
-    };
-  }, [periodMode, selectedYear, selectedMonth, rangeStart, rangeEnd]);
+  const { startDate, endDate } = useMemo(() => ({
+    startDate: startOfMonth(selectedYear, selectedMonth).toISOString(),
+    endDate: endOfMonth(selectedYear, selectedMonth).toISOString(),
+  }), [selectedYear, selectedMonth]);
 
   const { data: entries = [], isLoading } = trpc.timeEntries.audit.useQuery({
     promoterId: selectedPromoter ?? undefined,
     storeId: selectedStore ?? undefined,
+    entryType: selectedEntryType === "all" ? undefined : selectedEntryType,
     startDate,
     endDate,
   });
@@ -97,6 +89,9 @@ export default function AuditClockScreen() {
 
   const years = Array.from({ length: 3 }, (_, i) => now.getFullYear() - i);
 
+  const entryTypeLabel = selectedEntryType === "entry" ? "Entrada" : selectedEntryType === "exit" ? "Saída" : "Tipo";
+  const entryTypeActive = selectedEntryType !== "all";
+
   return (
     <ScreenContainer>
       <View style={[styles.header, { borderBottomColor: colors.border }]}>
@@ -104,47 +99,88 @@ export default function AuditClockScreen() {
       </View>
 
       {/* ── Filters ─────────────────────────────────────────────────────── */}
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.filterRow}
-      >
-        {/* Promotor */}
-        <TouchableOpacity
-          style={[styles.filterChip, { backgroundColor: colors.surface, borderColor: selectedPromoter ? colors.primary : colors.border }]}
-          onPress={() => setShowPromoterPicker(true)}
+      <View style={[styles.filterContainer, { borderBottomColor: colors.border }]}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.filterRow}
         >
-          <Ionicons name="person-outline" size={14} color={selectedPromoter ? colors.primary : colors.muted} />
-          <Text style={[styles.filterChipText, { color: selectedPromoter ? colors.primary : colors.foreground }]}>
-            {promoterName(selectedPromoter)}
-          </Text>
-          <Ionicons name="chevron-down" size={12} color={colors.muted} />
-        </TouchableOpacity>
+          {/* Promotor */}
+          <TouchableOpacity
+            style={[styles.filterChip, { backgroundColor: colors.surface, borderColor: selectedPromoter ? colors.primary : colors.border }]}
+            onPress={() => setShowPromoterPicker(true)}
+          >
+            <Ionicons name="person-outline" size={14} color={selectedPromoter ? colors.primary : colors.muted} />
+            <Text style={[styles.filterChipText, { color: selectedPromoter ? colors.primary : colors.foreground }]} numberOfLines={1}>
+              {promoterName(selectedPromoter)}
+            </Text>
+            <Ionicons name="chevron-down" size={12} color={colors.muted} />
+          </TouchableOpacity>
 
-        {/* Loja */}
-        <TouchableOpacity
-          style={[styles.filterChip, { backgroundColor: colors.surface, borderColor: selectedStore ? colors.primary : colors.border }]}
-          onPress={() => setShowStorePicker(true)}
-        >
-          <Ionicons name="storefront-outline" size={14} color={selectedStore ? colors.primary : colors.muted} />
-          <Text style={[styles.filterChipText, { color: selectedStore ? colors.primary : colors.foreground }]}>
-            {storeName(selectedStore)}
-          </Text>
-          <Ionicons name="chevron-down" size={12} color={colors.muted} />
-        </TouchableOpacity>
+          {/* Loja */}
+          <TouchableOpacity
+            style={[styles.filterChip, { backgroundColor: colors.surface, borderColor: selectedStore ? colors.primary : colors.border }]}
+            onPress={() => setShowStorePicker(true)}
+          >
+            <Ionicons name="storefront-outline" size={14} color={selectedStore ? colors.primary : colors.muted} />
+            <Text style={[styles.filterChipText, { color: selectedStore ? colors.primary : colors.foreground }]} numberOfLines={1}>
+              {storeName(selectedStore)}
+            </Text>
+            <Ionicons name="chevron-down" size={12} color={colors.muted} />
+          </TouchableOpacity>
 
-        {/* Período: modo mês */}
-        <TouchableOpacity
-          style={[styles.filterChip, { backgroundColor: periodMode === "month" ? colors.primary + "18" : colors.surface, borderColor: periodMode === "month" ? colors.primary : colors.border }]}
-          onPress={() => { setPeriodMode("month"); setShowMonthPicker(true); }}
-        >
-          <Ionicons name="calendar-outline" size={14} color={periodMode === "month" ? colors.primary : colors.muted} />
-          <Text style={[styles.filterChipText, { color: periodMode === "month" ? colors.primary : colors.foreground }]}>
-            {MONTHS[selectedMonth].slice(0, 3)} {selectedYear}
-          </Text>
-          <Ionicons name="chevron-down" size={12} color={colors.muted} />
-        </TouchableOpacity>
-      </ScrollView>
+          {/* Período: mês */}
+          <TouchableOpacity
+            style={[styles.filterChip, { backgroundColor: colors.primary + "18", borderColor: colors.primary }]}
+            onPress={() => setShowMonthPicker(true)}
+          >
+            <Ionicons name="calendar-outline" size={14} color={colors.primary} />
+            <Text style={[styles.filterChipText, { color: colors.primary }]}>
+              {MONTHS[selectedMonth].slice(0, 3)} {selectedYear}
+            </Text>
+            <Ionicons name="chevron-down" size={12} color={colors.primary} />
+          </TouchableOpacity>
+
+          {/* Tipo: Entrada / Saída */}
+          <TouchableOpacity
+            style={[
+              styles.filterChip,
+              {
+                backgroundColor: entryTypeActive
+                  ? (selectedEntryType === "entry" ? "#22C55E18" : "#EF444418")
+                  : colors.surface,
+                borderColor: entryTypeActive
+                  ? (selectedEntryType === "entry" ? "#22C55E" : "#EF4444")
+                  : colors.border,
+              },
+            ]}
+            onPress={() => {
+              // cycle: all → entry → exit → all
+              setSelectedEntryType((prev) =>
+                prev === "all" ? "entry" : prev === "entry" ? "exit" : "all"
+              );
+            }}
+          >
+            <Ionicons
+              name={selectedEntryType === "entry" ? "log-in-outline" : selectedEntryType === "exit" ? "log-out-outline" : "swap-horizontal-outline"}
+              size={14}
+              color={entryTypeActive ? (selectedEntryType === "entry" ? "#22C55E" : "#EF4444") : colors.muted}
+            />
+            <Text
+              style={[
+                styles.filterChipText,
+                {
+                  color: entryTypeActive
+                    ? (selectedEntryType === "entry" ? "#22C55E" : "#EF4444")
+                    : colors.foreground,
+                },
+              ]}
+            >
+              {entryTypeLabel}
+            </Text>
+          </TouchableOpacity>
+        </ScrollView>
+      </View>
 
       {/* ── Content ─────────────────────────────────────────────────────── */}
       {isLoading ? (
@@ -285,13 +321,30 @@ export default function AuditClockScreen() {
 const styles = StyleSheet.create({
   header: { paddingHorizontal: 20, paddingTop: 16, paddingBottom: 12, borderBottomWidth: 0.5 },
   title: { fontSize: 22, fontWeight: "700" },
-  filterRow: { paddingHorizontal: 16, paddingVertical: 10, gap: 8, alignItems: "center" },
-  filterChip: {
-    flexDirection: "row", alignItems: "center", gap: 6,
-    paddingHorizontal: 12, paddingVertical: 7,
-    borderRadius: 20, borderWidth: 1,
+  // Fixed filter container with proper height so chips don't get clipped
+  filterContainer: {
+    height: 56,
+    borderBottomWidth: 0.5,
   },
-  filterChipText: { fontSize: 13, fontWeight: "500" },
+  filterRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    gap: 8,
+    height: 56,
+  },
+  filterChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    paddingHorizontal: 11,
+    paddingVertical: 6,
+    borderRadius: 20,
+    borderWidth: 1,
+    height: 34,
+  },
+  filterChipText: { fontSize: 13, fontWeight: "500", maxWidth: 100 },
   center: { flex: 1, alignItems: "center", justifyContent: "center", gap: 12, padding: 32 },
   emptyText: { fontSize: 14, textAlign: "center", lineHeight: 22 },
   grid: { padding: 12 },
