@@ -23,7 +23,6 @@ import {
 } from "react-native";
 
 const OPEN_ENTRY_KEY = "@promoterhub:open_entry";
-const OPEN_ENTRY_STORE_KEY = "@promoterhub:open_entry_store_id";
 
 type Store = { id: number; name: string; address?: string | null; city?: string | null };
 
@@ -288,7 +287,7 @@ export default function ClockScreen() {
   const [modalEntryType, setModalEntryType] = useState<"entry" | "exit">("entry");
 
   const utils = trpc.useUtils();
-  const { data: lastEntry, isSuccess: lastEntryLoaded } = trpc.timeEntries.lastOpenEntry.useQuery();
+  const { data: lastEntry } = trpc.timeEntries.lastOpenEntry.useQuery();
   const { data: dailySummary, refetch: refetchSummary } = trpc.timeEntries.dailySummary.useQuery({ date: selectedDate.toISOString() });
   const { data: allEntries } = trpc.timeEntries.allForDate.useQuery({ date: selectedDate.toISOString() }, { enabled: isManager });
   const { data: myEntries, refetch: refetchMy } = trpc.timeEntries.list.useQuery({ startDate: selectedDate.toISOString(), endDate: selectedDate.toISOString() }, { enabled: !isManager });
@@ -302,32 +301,20 @@ export default function ClockScreen() {
 
   // Persist open entry state locally so it survives app restarts
   const [localHasOpenEntry, setLocalHasOpenEntry] = useState<boolean | null>(null);
-  const [localOpenStoreId, setLocalOpenStoreId] = useState<number | null>(null);
 
   useEffect(() => {
     AsyncStorage.getItem(OPEN_ENTRY_KEY).then((val) => {
       if (val !== null) setLocalHasOpenEntry(val === "true");
     });
-    AsyncStorage.getItem(OPEN_ENTRY_STORE_KEY).then((val) => {
-      if (val !== null) setLocalOpenStoreId(Number(val));
-    });
   }, []);
 
-  // Only sync to AsyncStorage after the server has successfully responded
   useEffect(() => {
-    if (lastEntryLoaded) {
+    if (lastEntry !== undefined) {
       const isOpen = !!lastEntry;
       setLocalHasOpenEntry(isOpen);
       AsyncStorage.setItem(OPEN_ENTRY_KEY, String(isOpen));
-      if (isOpen && lastEntry?.storeId) {
-        setLocalOpenStoreId(lastEntry.storeId);
-        AsyncStorage.setItem(OPEN_ENTRY_STORE_KEY, String(lastEntry.storeId));
-      } else if (!isOpen) {
-        setLocalOpenStoreId(null);
-        AsyncStorage.removeItem(OPEN_ENTRY_STORE_KEY);
-      }
     }
-  }, [lastEntry, lastEntryLoaded]);
+  }, [lastEntry]);
 
   // Use server data when available, fall back to local cache
   const hasOpenEntry = lastEntry !== undefined ? !!lastEntry : (localHasOpenEntry ?? false);
@@ -354,19 +341,6 @@ export default function ClockScreen() {
 
       if (Platform.OS !== "web") await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 
-      // Update local state immediately so the button switches without waiting for server refetch
-      if (entryType === "entry") {
-        setLocalHasOpenEntry(true);
-        setLocalOpenStoreId(storeId);
-        AsyncStorage.setItem(OPEN_ENTRY_KEY, "true");
-        AsyncStorage.setItem(OPEN_ENTRY_STORE_KEY, String(storeId));
-      } else {
-        setLocalHasOpenEntry(false);
-        setLocalOpenStoreId(null);
-        AsyncStorage.setItem(OPEN_ENTRY_KEY, "false");
-        AsyncStorage.removeItem(OPEN_ENTRY_STORE_KEY);
-      }
-
       // Invalidate all time entry queries so the button state updates immediately
       await utils.timeEntries.lastOpenEntry.invalidate();
       await utils.timeEntries.dailySummary.invalidate();
@@ -386,12 +360,8 @@ export default function ClockScreen() {
     }
   };
 
-  // For exit: use the store from the last open entry (server or local cache)
-  const openStoreId = lastEntry?.storeId ?? localOpenStoreId;
-  // Fallback: if stores list hasn't loaded yet but we know the storeId, create a minimal store object
-  const exitStore = stores.find((s) => s.id === openStoreId)
-    ?? (stores.length > 0 ? stores[0] : null)
-    ?? (openStoreId ? { id: openStoreId, name: "Loja" } : null);
+  // For exit: use the store from the last open entry
+  const exitStore = stores.find((s) => s.id === lastEntry?.storeId) ?? (stores.length > 0 ? stores[0] : null);
 
   const formatTime = (date: Date | string) => new Date(date).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
   const formatDate = (date: Date) => date.toLocaleDateString("pt-BR", { weekday: "long", day: "2-digit", month: "long" });

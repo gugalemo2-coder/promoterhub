@@ -63,5 +63,3 @@ Thumbs.db
 
 # Webdev artifacts (checkpoint zips, migrations, etc.)
 .webdev/
-.vercel
-PROMOTERHUB_TOKENS.md

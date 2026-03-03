@@ -1,5 +1,5 @@
 {
-  "buildCommand": "mkdir -p node_modules/react-native-css-interop/.cache && touch node_modules/react-native-css-interop/.cache/web.css && ./node_modules/.bin/expo export --platform web --clear",
+  "buildCommand": "mkdir -p node_modules/react-native-css-interop/.cache && touch node_modules/react-native-css-interop/.cache/web.css && ./node_modules/.bin/expo export --platform web",
   "outputDirectory": "dist",
   "installCommand": "pnpm install",
   "framework": null,
