@@ -80,7 +80,7 @@ export default function TabLayout() {
         }}
       />
 
-      {/* ─── SUPERVISOR: Fotos (somente leitura) ────────────────────────── */}
+      {/* ─── SUPERVISOR: Fotos (somente leitura) ─ hidden from tab bar ─── */}
       <Tabs.Screen
         name="supervisor-photos"
         options={{
@@ -88,7 +88,7 @@ export default function TabLayout() {
           tabBarIcon: ({ color }) => (
             <IconSymbol size={26} name="photo.on.rectangle.angled" color={color} />
           ),
-          href: isSupervisor ? undefined : null,
+          href: null,
         }}
       />
 

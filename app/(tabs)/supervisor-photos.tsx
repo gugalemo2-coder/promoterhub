@@ -1,15 +1,12 @@
 import { Ionicons } from "@expo/vector-icons";
 import { Image } from "expo-image";
-import * as FileSystem from "expo-file-system/legacy";
-import * as MediaLibrary from "expo-media-library";
-import { useRouter } from "expo-router";
 import { useCallback, useMemo, useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
   Dimensions,
   FlatList,
   Modal,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -29,7 +26,9 @@ import { useAuth } from "@/hooks/use-auth";
 import { trpc } from "@/lib/trpc";
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
-const PHOTO_SIZE = (SCREEN_WIDTH - 48 - 8) / 3;
+// Desktop: 5 columns; tablet/mobile: 3 columns
+const NUM_COLUMNS = Platform.OS === "web" && SCREEN_WIDTH > 768 ? 5 : 3;
+const PHOTO_SIZE = (SCREEN_WIDTH - 48 - (NUM_COLUMNS - 1) * 4) / NUM_COLUMNS;
 
 // Cor de destaque do Supervisor
 const SUPERVISOR_COLOR = "#D97706"; // âmbar
@@ -102,8 +101,7 @@ function ZoomableImage({ uri }: { uri: string }) {
 // ─── Main Screen ──────────────────────────────────────────────────────────────
 export default function SupervisorPhotosScreen() {
   const colors = useColors();
-  const router = useRouter();
-  const { logout, user } = useAuth();
+  const { user } = useAuth();
   const firstName = user?.name?.split(" ")[0] ?? "Supervisor";
 
   // Filters
@@ -127,7 +125,6 @@ export default function SupervisorPhotosScreen() {
 
   // Download state
   const [downloading, setDownloading] = useState(false);
-  const [mediaPermission, requestMediaPermission] = MediaLibrary.usePermissions();
 
   // Data
   const { data: brands } = trpc.brands.list.useQuery();
@@ -198,35 +195,44 @@ export default function SupervisorPhotosScreen() {
     setSelectedIds(new Set());
   }, []);
 
-  // Download helper
-  const downloadPhoto = useCallback(async (url: string) => {
+  // Download helper — uses anchor tag on web, falls back to fetch on native
+  const downloadPhoto = useCallback(async (url: string): Promise<boolean> => {
     try {
-      let perm = mediaPermission;
-      if (!perm?.granted) {
-        perm = await requestMediaPermission();
-        if (!perm?.granted) {
-          Alert.alert("Permissão necessária", "Permita o acesso à galeria para salvar fotos.");
-          return false;
-        }
+      if (Platform.OS === "web") {
+        const filename = url.split("/").pop()?.split("?")[0] ?? `photo_${Date.now()}.jpg`;
+        const response = await fetch(url);
+        const blob = await response.blob();
+        const blobUrl = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = blobUrl;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(blobUrl);
+        return true;
       }
+      // Native fallback (Expo Go / standalone)
+      const { default: FileSystem } = await import("expo-file-system/legacy");
+      const { default: MediaLibrary } = await import("expo-media-library");
+      const { status } = await MediaLibrary.requestPermissionsAsync();
+      if (status !== "granted") return false;
       const filename = url.split("/").pop()?.split("?")[0] ?? `photo_${Date.now()}.jpg`;
-      const localUri = FileSystem.documentDirectory + filename;
-      await FileSystem.downloadAsync(url, localUri);
+      const localUri = (FileSystem as any).documentDirectory + filename;
+      await (FileSystem as any).downloadAsync(url, localUri);
       await MediaLibrary.saveToLibraryAsync(localUri);
       return true;
     } catch {
       return false;
     }
-  }, [mediaPermission, requestMediaPermission]);
+  }, []);
 
   const handleDownloadSingle = useCallback(async () => {
     const photo = sortedPhotos[previewIndex];
     if (!photo?.photoUrl) return;
     setDownloading(true);
-    const ok = await downloadPhoto(photo.photoUrl);
+    await downloadPhoto(photo.photoUrl);
     setDownloading(false);
-    if (ok) Alert.alert("Salvo!", "Foto salva na galeria.");
-    else Alert.alert("Erro", "Não foi possível salvar a foto.");
   }, [sortedPhotos, previewIndex, downloadPhoto]);
 
   const handleDownloadBatch = useCallback(async () => {
@@ -242,7 +248,6 @@ export default function SupervisorPhotosScreen() {
     }
     setBatchProcessing(false);
     exitSelectionMode();
-    Alert.alert("Download concluído", `${successCount} de ${photosToDownload.length} foto${photosToDownload.length !== 1 ? "s" : ""} salva${photosToDownload.length !== 1 ? "s" : ""} na galeria.`);
   }, [selectedIds, sortedPhotos, downloadPhoto, exitSelectionMode]);
 
   const getStatusLabel = (s?: PhotoStatus) => {
@@ -433,20 +438,9 @@ export default function SupervisorPhotosScreen() {
           <Text style={styles.welcomeGreeting}>Olá, {firstName}!</Text>
           <Text style={styles.welcomeRole}>Painel do Supervisor</Text>
         </View>
-        <TouchableOpacity
-          style={styles.welcomeLogoutBtn}
-          onPress={logout}
-          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-        >
-          <Ionicons name="log-out-outline" size={20} color="rgba(255,255,255,0.9)" />
-          <Text style={styles.welcomeLogoutText}>Sair</Text>
-        </TouchableOpacity>
       </View>
       {/* Header */}
       <View style={[styles.header, { borderBottomColor: colors.border, backgroundColor: colors.background }]}>
-        <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
-          <Ionicons name="chevron-back" size={24} color={SUPERVISOR_COLOR} />
-        </TouchableOpacity>
         <View style={styles.headerText}>
           <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
             <Text style={[styles.headerTitle, { color: colors.foreground }]}>Fotos dos Promotores</Text>
@@ -470,16 +464,7 @@ export default function SupervisorPhotosScreen() {
             </View>
           )}
         </View>
-        {/* Logout button */}
-        {!selectionMode && (
-          <TouchableOpacity
-            style={styles.clearBtn}
-            onPress={logout}
-            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-          >
-            <Ionicons name="log-out-outline" size={22} color={SUPERVISOR_COLOR} />
-          </TouchableOpacity>
-        )}
+
         {/* Batch select toggle (download only) */}
         {!selectionMode ? (
           <TouchableOpacity
@@ -561,7 +546,7 @@ export default function SupervisorPhotosScreen() {
         <FlatList
           data={sortedPhotos}
           keyExtractor={(item) => String(item.id)}
-          numColumns={3}
+          numColumns={NUM_COLUMNS}
           contentContainerStyle={styles.grid}
           columnWrapperStyle={styles.row}
           renderItem={({ item, index }) => {
@@ -570,7 +555,7 @@ export default function SupervisorPhotosScreen() {
               <TouchableOpacity
                 style={[
                   styles.photoCell,
-                  { width: PHOTO_SIZE, height: PHOTO_SIZE },
+                  { width: PHOTO_SIZE, height: PHOTO_SIZE * 0.85 },
                   isSelected && styles.photoCellSelected,
                 ]}
                 onPress={() => {
@@ -590,7 +575,7 @@ export default function SupervisorPhotosScreen() {
               >
                 <Image
                   source={{ uri: item.photoUrl }}
-                  style={[styles.photoImage, { width: PHOTO_SIZE, height: PHOTO_SIZE }]}
+                  style={[styles.photoImage, { width: PHOTO_SIZE, height: PHOTO_SIZE * 0.85 }]}
                   contentFit="cover"
                 />
                 {/* Status badge */}
