@@ -59,6 +59,18 @@ export default function MoreMenuScreen() {
       route: "/(tabs)/store-visits",
       description: "Registro de todas as visitas a PDVs",
     },
+    {
+      label: "Auditoria Registro de Ponto",
+      icon: "camera-outline",
+      route: "/(tabs)/audit-clock",
+      description: "Fotos de entrada e saída com filtros por promotor, loja e período",
+    },
+    {
+      label: "Tempo por Loja",
+      icon: "stats-chart-outline",
+      route: "/(tabs)/store-time",
+      description: "Tempo médio semanal de cada promotor por loja",
+    },
   ];
 
   return (

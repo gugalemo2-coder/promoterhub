@@ -46,6 +46,7 @@ export const appRouter = router({
   stores: router({
     list: protectedProcedure.query(() => db.getStores()),
     listForPromoter: protectedProcedure.query(({ ctx }) => db.getStoresByPromoter(getAppUserId(ctx.user))),
+    listForPromoterById: protectedProcedure.input(z.object({ promoterId: z.number() })).query(({ input }) => db.getStoresByPromoter(input.promoterId)),
     listPromoterUsers: protectedProcedure.query(() => db.getAllPromoterUsersWithProfile()),
     getById: protectedProcedure.input(z.object({ id: z.number() })).query(({ input }) => db.getStoreById(input.id)),
     create: protectedProcedure
@@ -86,6 +87,8 @@ export const appRouter = router({
     allForDate: protectedProcedure.input(z.object({ date: z.string().optional() })).query(({ input }) => db.getAllTimeEntriesForDate(input.date ? new Date(input.date) : new Date())),
     allForRange: protectedProcedure.input(z.object({ startDate: z.string(), endDate: z.string() })).query(({ input }) => db.getAllTimeEntriesForRange(new Date(input.startDate), new Date(input.endDate))),
     forUser: protectedProcedure.input(z.object({ userId: z.number(), startDate: z.string().optional(), endDate: z.string().optional() })).query(({ input }) => db.getTimeEntriesByUser(input.userId, input.startDate ? new Date(input.startDate) : undefined, input.endDate ? new Date(input.endDate) : undefined)),
+    audit: protectedProcedure.input(z.object({ promoterId: z.number().optional(), storeId: z.number().optional(), startDate: z.string(), endDate: z.string() })).query(({ input }) => db.getTimeEntriesAudit({ promoterId: input.promoterId, storeId: input.storeId, startDate: new Date(input.startDate), endDate: new Date(input.endDate) })),
+    storeTimeStats: protectedProcedure.input(z.object({ promoterId: z.number(), startDate: z.string(), endDate: z.string() })).query(({ input }) => db.getPromoterStoreTimeStats(input.promoterId, new Date(input.startDate), new Date(input.endDate))),
   }),
   photos: router({
     upload: protectedProcedure

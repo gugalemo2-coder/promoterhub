@@ -922,3 +922,10 @@
 - [x] Implementar filtro por marca na listagem de materiais (app)
 - [x] Implementar exportação de relatório mensal em PDF no portal web
 # Fase 38 deploy trigger - Mon Mar  2 12:53:42 EST 2026
+
+## Fase 39 — Correções e Novas Funcionalidades (Mar 2026)
+- [ ] Corrigir altura dos chips de filtro de marca na tela Materiais (conta promotor, gestor e master)
+- [ ] Corrigir bug do botão de ponto: após registrar saída, botão não volta para "Registrar Entrada"
+- [ ] Criar tela "Auditoria Registro de Ponto" no menu gestor/master com filtros (promotor, loja, período) e grade de fotos de entrada/saída com legenda (promotor + loja)
+- [ ] Criar tela "Tempo por Loja" no menu gestor/master: lista de promotores → ao clicar, exibe tempo médio semanal por loja (% e horas reais, apenas lojas cadastradas para o promotor)
+- [ ] Garantir que todas as correções sejam commitadas e deployadas no Railway + Vercel

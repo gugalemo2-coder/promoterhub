@@ -1762,3 +1762,103 @@ export async function getAllPromoterUserIds(): Promise<number[]> {
   const result = await db.select({ id: appUsers.id }).from(appUsers).where(eq(appUsers.appRole, "promoter"));
   return result.map((r) => r.id);
 }
+
+// ─── AUDIT TIME ENTRIES ───────────────────────────────────────────────────────
+export async function getTimeEntriesAudit(filters: {
+  promoterId?: number;
+  storeId?: number;
+  startDate: Date;
+  endDate: Date;
+}): Promise<{ id: number; userId: number; storeId: number; entryType: string; entryTime: Date; photoUrl: string | null; promoterName: string | null; storeName: string | null }[]> {
+  const db = await getDb();
+  if (!db) return [];
+  const rangeStart = new Date(filters.startDate); rangeStart.setHours(0, 0, 0, 0);
+  const rangeEnd = new Date(filters.endDate); rangeEnd.setHours(23, 59, 59, 999);
+  const conditions: any[] = [
+    gte(timeEntries.entryTime, rangeStart),
+    lte(timeEntries.entryTime, rangeEnd),
+  ];
+  if (filters.promoterId) conditions.push(eq(timeEntries.userId, filters.promoterId));
+  if (filters.storeId) conditions.push(eq(timeEntries.storeId, filters.storeId));
+  return db
+    .select({
+      id: timeEntries.id,
+      userId: timeEntries.userId,
+      storeId: timeEntries.storeId,
+      entryType: timeEntries.entryType,
+      entryTime: timeEntries.entryTime,
+      photoUrl: timeEntries.photoUrl,
+      promoterName: appUsers.name,
+      storeName: stores.name,
+    })
+    .from(timeEntries)
+    .leftJoin(appUsers, eq(timeEntries.userId, appUsers.id))
+    .leftJoin(stores, eq(timeEntries.storeId, stores.id))
+    .where(and(...conditions))
+    .orderBy(desc(timeEntries.entryTime))
+    .limit(500);
+}
+
+// ─── PROMOTER STORE TIME STATS ────────────────────────────────────────────────
+export async function getPromoterStoreTimeStats(promoterId: number, startDate: Date, endDate: Date): Promise<{
+  storeId: number;
+  storeName: string;
+  totalMinutes: number;
+  weeklyAvgMinutes: number;
+  percentage: number;
+}[]> {
+  const db = await getDb();
+  if (!db) return [];
+  const rangeStart = new Date(startDate); rangeStart.setHours(0, 0, 0, 0);
+  const rangeEnd = new Date(endDate); rangeEnd.setHours(23, 59, 59, 999);
+
+  // Fetch all entries for this promoter in the range, ordered by time
+  const entries = await db
+    .select({
+      storeId: timeEntries.storeId,
+      storeName: stores.name,
+      entryType: timeEntries.entryType,
+      entryTime: timeEntries.entryTime,
+    })
+    .from(timeEntries)
+    .leftJoin(stores, eq(timeEntries.storeId, stores.id))
+    .where(and(
+      eq(timeEntries.userId, promoterId),
+      gte(timeEntries.entryTime, rangeStart),
+      lte(timeEntries.entryTime, rangeEnd)
+    ))
+    .orderBy(timeEntries.entryTime);
+
+  // Calculate time per store by pairing entry/exit
+  const storeMinutes: Record<number, { storeName: string; totalMinutes: number }> = {};
+  const openEntries: Record<number, Date> = {}; // storeId -> entry time
+
+  for (const e of entries) {
+    const sid = e.storeId;
+    if (!storeMinutes[sid]) storeMinutes[sid] = { storeName: e.storeName ?? `Loja ${sid}`, totalMinutes: 0 };
+    if (e.entryType === "entry") {
+      openEntries[sid] = new Date(e.entryTime);
+    } else if (e.entryType === "exit" && openEntries[sid]) {
+      const mins = (new Date(e.entryTime).getTime() - openEntries[sid].getTime()) / 60000;
+      storeMinutes[sid].totalMinutes += Math.max(0, mins);
+      delete openEntries[sid];
+    }
+  }
+
+  const totalMinutesAll = Object.values(storeMinutes).reduce((s, v) => s + v.totalMinutes, 0);
+
+  // Calculate number of weeks in the range
+  const diffDays = Math.max(1, Math.round((rangeEnd.getTime() - rangeStart.getTime()) / 86400000));
+  const weeks = Math.max(1, diffDays / 7);
+
+  return Object.entries(storeMinutes)
+    .filter(([, v]) => v.totalMinutes > 0)
+    .map(([sid, v]) => ({
+      storeId: Number(sid),
+      storeName: v.storeName,
+      totalMinutes: Math.round(v.totalMinutes),
+      weeklyAvgMinutes: Math.round(v.totalMinutes / weeks),
+      percentage: totalMinutesAll > 0 ? Math.round((v.totalMinutes / totalMinutesAll) * 100) : 0,
+    }))
+    .sort((a, b) => b.totalMinutes - a.totalMinutes);
+}
