@@ -70,16 +70,21 @@ export default function AuditClockScreen() {
     endDate: endOfMonth(selectedYear, selectedMonth).toISOString(),
   }), [selectedYear, selectedMonth]);
 
-  const { data: entries = [], isLoading } = trpc.timeEntries.audit.useQuery({
+  const { data: rawEntries = [], isLoading } = trpc.timeEntries.audit.useQuery({
     promoterId: selectedPromoter ?? undefined,
     storeId: selectedStore ?? undefined,
-    entryType: selectedEntryType === "all" ? undefined : selectedEntryType,
     startDate,
     endDate,
   });
 
-  // only entries with photos
-  const photosEntries = entries.filter((e) => !!e.photoUrl);
+  // filter by entryType and only entries with photos
+  const photosEntries = useMemo(() => {
+    return rawEntries.filter((e) => {
+      if (!e.photoUrl) return false;
+      if (selectedEntryType !== "all" && e.entryType !== selectedEntryType) return false;
+      return true;
+    });
+  }, [rawEntries, selectedEntryType]);
 
   // ── helpers ───────────────────────────────────────────────────────────────
   const promoterName = (id: number | null) =>
