@@ -939,4 +939,13 @@
 
 ## Fase 42 — Correção de Estilo: Filtros de Marca em Materiais
 
-- [ ] Fix: Botões de filtro de marca na tela Materiais estão com altura exagerada — corrigir para chips compactos como nos outros filtros do app
+- [x] Fix: Botões de filtro de marca na tela Materiais estão com altura exagerada — corrigir para chips compactos como nos outros filtros do app
+
+## Fase 43 — Melhoria de Layout
+
+- [ ] Melhoria: Layout dos filtros (status + marca) na tela de Fotos do promotor — mais espaçado e elegante
+
+## Fase 43 — Melhorias de UI
+
+- [ ] Melhoria: Filtros de status e marca na tela de Fotos do promotor — mais espaçados e elegantes
+- [ ] Melhoria: Cards de solicitação de material (gestor) — mostrar loja e promotor; ao clicar abrir modal com foto do material, detalhes e botões Aprovar/Recusar

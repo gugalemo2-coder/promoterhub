@@ -453,14 +453,17 @@ export default function PhotosScreen() {
         )}
       </View>
 
-      {/* Status Filter */}
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        style={[styles.filterBar, { borderBottomColor: colors.border }]}
-        contentContainerStyle={styles.filterContent}
-      >
-        {([
+      {/* Filter Section */}
+      <View style={[styles.filterSection, { borderBottomColor: colors.border }]}>
+        {/* Status Filter Row */}
+        <View style={styles.filterRow}>
+          <Text style={[styles.filterLabel, { color: colors.muted }]}>Status</Text>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.filterChipRow}
+          >
+            {([
           { key: null, label: "Todos", color: colors.primary },
           { key: "pending" as const, label: "Pendente", color: colors.warning },
           { key: "approved" as const, label: "Aprovada", color: colors.success },
@@ -483,15 +486,20 @@ export default function PhotosScreen() {
             </Pressable>
           );
         })}
-      </ScrollView>
+          </ScrollView>
+        </View>
 
-      {/* Brand Filter */}
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        style={[styles.filterBar, { borderBottomColor: colors.border }]}
-        contentContainerStyle={styles.filterContent}
-      >
+        {/* Divider */}
+        <View style={[styles.filterDivider, { backgroundColor: colors.border }]} />
+
+        {/* Brand Filter Row */}
+        <View style={styles.filterRow}>
+          <Text style={[styles.filterLabel, { color: colors.muted }]}>Marca</Text>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.filterChipRow}
+          >
         <Pressable
           style={({ pressed }) => [
             styles.chip,
@@ -536,7 +544,9 @@ export default function PhotosScreen() {
             </Pressable>
           );
         })}
-      </ScrollView>
+          </ScrollView>
+        </View>
+      </View>
 
       {/* Photos Grid */}
       {!displayPhotos || displayPhotos.length === 0 ? (
@@ -628,8 +638,11 @@ const styles = StyleSheet.create({
   header: { paddingTop: 16, paddingBottom: 16, paddingHorizontal: 20, flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
   headerTitle: { fontSize: 20, fontWeight: "700", color: "#FFFFFF" },
   headerBtn: { padding: 8, borderRadius: 10 },
-  filterBar: { borderBottomWidth: 0.5, maxHeight: 60 },
-  filterContent: { paddingHorizontal: 14, paddingVertical: 10, gap: 8, alignItems: "center" },
+  filterSection: { borderBottomWidth: 0.5, paddingVertical: 8 },
+  filterRow: { flexDirection: "row", alignItems: "center", paddingHorizontal: 14, paddingVertical: 4 },
+  filterLabel: { fontSize: 11, fontWeight: "700", textTransform: "uppercase", letterSpacing: 0.5, width: 44, flexShrink: 0 },
+  filterChipRow: { flexDirection: "row", gap: 8, alignItems: "center", paddingRight: 8 },
+  filterDivider: { height: 0.5, marginHorizontal: 14, marginVertical: 2 },
   chip: { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20 },
   chipDot: { width: 7, height: 7, borderRadius: 4 },
   chipText: { fontSize: 13, fontWeight: "600" },

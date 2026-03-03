@@ -138,6 +138,13 @@ export default function MaterialsScreen() {
   // ── Brand filter ─────────────────────────────────────────────────────────────
   const [filterBrandId, setFilterBrandId] = useState<number | null>(null);
 
+  // ── Request status filter ─────────────────────────────────────────────────
+  const [filterRequestStatus, setFilterRequestStatus] = useState<string | null>(null);
+
+  // ── Modal: detalhe da solicitação (gestor) ────────────────────────────────
+  const [showRequestDetailModal, setShowRequestDetailModal] = useState(false);
+  const [selectedRequest, setSelectedRequest] = useState<any | null>(null);
+
   // ── Modal: solicitar material ─────────────────────────────────────────────
   const [showRequestModal, setShowRequestModal] = useState(false);
   const [selectedMaterialId, setSelectedMaterialId] = useState<number | null>(null);
@@ -198,7 +205,10 @@ export default function MaterialsScreen() {
   const updateMaterialMutation = trpc.materials.update.useMutation();
   const uploadPhotoMutation = trpc.materials.uploadPhoto.useMutation();
 
-  const displayRequests = isManager ? allRequests : myRequests;
+  const rawRequests = isManager ? allRequests : myRequests;
+  const displayRequests = filterRequestStatus
+    ? rawRequests?.filter((r) => r.status === filterRequestStatus)
+    : rawRequests;
 
   // ── Handlers: solicitar ───────────────────────────────────────────────────
   const handleRequestMaterial = (materialId: number) => {
@@ -462,7 +472,7 @@ export default function MaterialsScreen() {
         ))}
       </View>
 
-      {/* Brand filter chips */}
+      {/* Brand filter chips — Catálogo */}
       {activeTab === "catalog" && brands && brands.length > 0 && (
         <ScrollView
           horizontal
@@ -497,6 +507,41 @@ export default function MaterialsScreen() {
               <Text style={{ fontSize: 13, fontWeight: "600", color: filterBrandId === b.id ? colors.primary : colors.muted }}>{b.name}</Text>
             </TouchableOpacity>
           ))}
+        </ScrollView>
+      )}
+
+      {/* Status filter chips — Solicitações */}
+      {activeTab === "requests" && (
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          style={{ flexGrow: 0, borderBottomWidth: 0.5, borderBottomColor: colors.border }}
+          contentContainerStyle={{ paddingHorizontal: 16, paddingVertical: 10, gap: 8, alignItems: "center" }}
+        >
+          {([
+            { key: null, label: "Todos", color: colors.primary },
+            { key: "pending", label: "Pendentes", color: "#D97706" },
+            { key: "approved", label: "Aprovados", color: "#0E9F6E" },
+            { key: "rejected", label: "Recusados", color: "#E02424" },
+            { key: "delivered", label: "Entregues", color: colors.primary },
+          ] as const).map(({ key, label, color }) => {
+            const isActive = filterRequestStatus === key;
+            return (
+              <TouchableOpacity
+                key={String(key)}
+                style={[{
+                  paddingHorizontal: 14, paddingVertical: 6, borderRadius: 20, borderWidth: 1.5,
+                  alignSelf: "center",
+                  borderColor: isActive ? color : colors.border,
+                  backgroundColor: isActive ? color + "25" : colors.surface,
+                }]}
+                onPress={() => setFilterRequestStatus(key)}
+                activeOpacity={0.7}
+              >
+                <Text style={{ fontSize: 13, fontWeight: "600", color: isActive ? color : colors.muted }}>{label}</Text>
+              </TouchableOpacity>
+            );
+          })}
         </ScrollView>
       )}
 
@@ -592,78 +637,256 @@ export default function MaterialsScreen() {
           }
           renderItem={({ item }) => {
             const material = materials?.find((m) => m.id === item.materialId);
-            return (
+            const cardContent = (
               <View style={[styles.requestCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+                {/* Header: nome do material + status */}
                 <View style={styles.requestHeader}>
-                  <Text style={[styles.requestMaterial, { color: colors.foreground }]}>{material?.name ?? "Material"}</Text>
-                  <View style={[styles.statusBadge, { backgroundColor: statusColor(item.status) + "20" }]}>
-                    <Text style={[styles.statusText, { color: statusColor(item.status) }]}>{statusLabel(item.status)}</Text>
-                  </View>
-                </View>
-                <View style={styles.requestMeta}>
-                  <View style={[styles.priorityBadge, { backgroundColor: priorityColor(item.priority) + "20" }]}>
-                    <Text style={[styles.priorityText, { color: priorityColor(item.priority) }]}>
-                      {item.priority === "high" ? "Alta" : item.priority === "medium" ? "Média" : "Baixa"}
-                    </Text>
-                  </View>
-                  <Text style={[styles.requestQty, { color: colors.muted }]}>Qtd: {item.quantityRequested}</Text>
-                  <Text style={[styles.requestDate, { color: colors.muted }]}>
-                    {new Date(item.createdAt).toLocaleDateString("pt-BR")}
-                  </Text>
-                </View>
-                {/* Promoter and store info for manager */}
-                {isManager && ((item as any).promoterName || (item as any).storeName) && (
-                  <View style={{ flexDirection: "row", gap: 12, marginTop: 4, flexWrap: "wrap" }}>
-                    {(item as any).promoterName && (
-                      <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
-                        <Ionicons name="person-outline" size={13} color={colors.muted} />
-                        <Text style={{ fontSize: 12, color: colors.muted }}>{(item as any).promoterName}</Text>
+                  <View style={{ flex: 1, flexDirection: "row", alignItems: "center", gap: 10 }}>
+                    {material?.photoUrl ? (
+                      <Image source={{ uri: material.photoUrl }} style={styles.requestThumb} contentFit="cover" />
+                    ) : (
+                      <View style={[styles.requestThumbPlaceholder, { backgroundColor: colors.border }]}>
+                        <Ionicons name="cube-outline" size={18} color={colors.muted} />
                       </View>
                     )}
-                    {(item as any).storeName && (
-                      <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
-                        <Ionicons name="storefront-outline" size={13} color={colors.muted} />
-                        <Text style={{ fontSize: 12, color: colors.muted }}>{(item as any).storeName}</Text>
-                      </View>
-                    )}
+                    <View style={{ flex: 1 }}>
+                      <Text style={[styles.requestMaterial, { color: colors.foreground }]} numberOfLines={1}>
+                        {(item as any).materialName ?? material?.name ?? "Material"}
+                      </Text>
+                      <Text style={[styles.requestDate, { color: colors.muted }]}>
+                        {new Date(item.createdAt).toLocaleDateString("pt-BR")}
+                      </Text>
+                    </View>
                   </View>
-                )}
-                {item.notes && <Text style={[styles.requestNotes, { color: colors.muted }]}>{item.notes}</Text>}
-                {isManager && item.status === "pending" && (
-                  <View style={styles.requestActions}>
-                    <TouchableOpacity
-                      style={[styles.actionBtn, { backgroundColor: "#0E9F6E20" }]}
-                      onPress={() => handleApprove(item.id)}
-                      activeOpacity={0.75}
-                    >
-                      <Ionicons name="checkmark" size={16} color="#0E9F6E" />
-                      <Text style={[styles.actionBtnText, { color: "#0E9F6E" }]}>Aprovar</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={[styles.actionBtn, { backgroundColor: "#E0242420" }]}
-                      onPress={() => handleReject(item.id)}
-                      activeOpacity={0.75}
-                    >
-                      <Ionicons name="close" size={16} color="#E02424" />
-                      <Text style={[styles.actionBtnText, { color: "#E02424" }]}>Recusar</Text>
-                    </TouchableOpacity>
+                  <View style={{ alignItems: "flex-end", gap: 4 }}>
+                    <View style={[styles.statusBadge, { backgroundColor: statusColor(item.status) + "20" }]}>
+                      <Text style={[styles.statusText, { color: statusColor(item.status) }]}>{statusLabel(item.status)}</Text>
+                    </View>
+                    <View style={[styles.priorityBadge, { backgroundColor: priorityColor(item.priority) + "20" }]}>
+                      <Text style={[styles.priorityText, { color: priorityColor(item.priority) }]}>
+                        {item.priority === "high" ? "Alta" : item.priority === "medium" ? "Média" : "Baixa"}
+                      </Text>
+                    </View>
                   </View>
-                )}
-                {isManager && item.status === "approved" && (
-                  <TouchableOpacity
-                    style={[styles.deliverBtn, { backgroundColor: colors.primary }]}
-                    onPress={() => handleDeliver(item.id)}
-                    activeOpacity={0.8}
-                  >
-                    <Ionicons name="checkmark-done" size={16} color="#FFFFFF" />
-                    <Text style={styles.deliverBtnText}>Marcar como Entregue</Text>
-                  </TouchableOpacity>
+                </View>
+
+                {/* Meta: quantidade + promotor + loja */}
+                <View style={styles.requestMetaRow}>
+                  <View style={styles.requestMetaItem}>
+                    <Ionicons name="layers-outline" size={13} color={colors.muted} />
+                    <Text style={[styles.requestQty, { color: colors.muted }]}>{item.quantityRequested} un.</Text>
+                  </View>
+                  {(item as any).promoterName && (
+                    <View style={styles.requestMetaItem}>
+                      <Ionicons name="person-outline" size={13} color={colors.muted} />
+                      <Text style={[styles.requestQty, { color: colors.muted }]} numberOfLines={1}>{(item as any).promoterName}</Text>
+                    </View>
+                  )}
+                  {(item as any).storeName && (
+                    <View style={styles.requestMetaItem}>
+                      <Ionicons name="storefront-outline" size={13} color={colors.muted} />
+                      <Text style={[styles.requestQty, { color: colors.muted }]} numberOfLines={1}>{(item as any).storeName}</Text>
+                    </View>
+                  )}
+                </View>
+
+                {/* Gestão: botões de ação rápida (apenas para não-gestor) */}
+                {!isManager && item.notes && <Text style={[styles.requestNotes, { color: colors.muted }]}>{item.notes}</Text>}
+
+                {/* Hint de toque para gestor */}
+                {isManager && (
+                  <View style={styles.requestTapHint}>
+                    <Text style={[styles.requestTapHintText, { color: colors.primary }]}>Ver detalhes</Text>
+                    <Ionicons name="chevron-forward" size={14} color={colors.primary} />
+                  </View>
                 )}
               </View>
             );
+
+            if (isManager) {
+              return (
+                <TouchableOpacity
+                  activeOpacity={0.75}
+                  onPress={() => { setSelectedRequest(item); setShowRequestDetailModal(true); }}
+                >
+                  {cardContent}
+                </TouchableOpacity>
+              );
+            }
+            return cardContent;
           }}
         />
       )}
+
+      {/* ════════════════════════════════════════════════════════════════════
+          MODAL: Detalhe da Solicitação (Gestor)
+      ════════════════════════════════════════════════════════════════════ */}
+      <Modal visible={showRequestDetailModal} transparent animationType="slide" onRequestClose={() => setShowRequestDetailModal(false)}>
+        <View style={styles.fullOverlay}>
+          <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ flex: 1, justifyContent: "flex-end" }}>
+            <View style={[styles.fullSheet, { backgroundColor: colors.background, maxHeight: SCREEN_HEIGHT * 0.9 }]}>
+              {/* Header */}
+              <View style={[styles.sheetHeader, { borderBottomColor: colors.border }]}>
+                <Text style={[styles.sheetTitle, { color: colors.foreground }]}>Solicitação</Text>
+                <TouchableOpacity style={styles.closeBtn} onPress={() => setShowRequestDetailModal(false)} activeOpacity={0.7}>
+                  <Ionicons name="close" size={24} color={colors.muted} />
+                </TouchableOpacity>
+              </View>
+
+              <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.sheetBody} showsVerticalScrollIndicator={false}>
+                {selectedRequest && (() => {
+                  const reqMaterial = materials?.find((m) => m.id === selectedRequest.materialId);
+                  const photoUrl = reqMaterial?.photoUrl;
+                  const brand = brands?.find((b) => b.id === (selectedRequest.brandId ?? reqMaterial?.brandId));
+                  return (
+                    <>
+                      {/* Foto do material */}
+                      {photoUrl ? (
+                        <Image source={{ uri: photoUrl }} style={styles.detailPhoto} contentFit="cover" />
+                      ) : (
+                        <View style={[styles.detailPhotoPlaceholder, { backgroundColor: colors.border }]}>
+                          <Ionicons name="cube-outline" size={48} color={colors.muted} />
+                          <Text style={{ color: colors.muted, fontSize: 13, marginTop: 8 }}>Sem foto do material</Text>
+                        </View>
+                      )}
+
+                      {/* Status + prioridade */}
+                      <View style={{ flexDirection: "row", gap: 8, marginTop: 4 }}>
+                        <View style={[styles.statusBadge, { backgroundColor: statusColor(selectedRequest.status) + "20" }]}>
+                          <Text style={[styles.statusText, { color: statusColor(selectedRequest.status) }]}>{statusLabel(selectedRequest.status)}</Text>
+                        </View>
+                        <View style={[styles.priorityBadge, { backgroundColor: priorityColor(selectedRequest.priority) + "20" }]}>
+                          <Text style={[styles.priorityText, { color: priorityColor(selectedRequest.priority) }]}>
+                            Prioridade {selectedRequest.priority === "high" ? "Alta" : selectedRequest.priority === "medium" ? "Média" : "Baixa"}
+                          </Text>
+                        </View>
+                        {brand && (
+                          <View style={[styles.brandBadge, { backgroundColor: (brand.colorHex ?? "#3B82F6") + "20" }]}>
+                            <Text style={[styles.brandBadgeText, { color: brand.colorHex ?? "#3B82F6" }]}>{brand.name}</Text>
+                          </View>
+                        )}
+                      </View>
+
+                      {/* Informações */}
+                      <View style={{ gap: 14, marginTop: 8 }}>
+                        <View style={styles.detailRow}>
+                          <Ionicons name="cube-outline" size={18} color={colors.muted} />
+                          <View style={{ flex: 1 }}>
+                            <Text style={[styles.detailLabel, { color: colors.muted }]}>Material</Text>
+                            <Text style={[styles.detailValue, { color: colors.foreground }]}>
+                              {selectedRequest.materialName ?? reqMaterial?.name ?? "—"}
+                            </Text>
+                          </View>
+                        </View>
+
+                        <View style={[styles.detailDivider, { backgroundColor: colors.border }]} />
+
+                        <View style={styles.detailRow}>
+                          <Ionicons name="person-outline" size={18} color={colors.muted} />
+                          <View style={{ flex: 1 }}>
+                            <Text style={[styles.detailLabel, { color: colors.muted }]}>Promotor</Text>
+                            <Text style={[styles.detailValue, { color: colors.foreground }]}>{selectedRequest.promoterName ?? "—"}</Text>
+                          </View>
+                        </View>
+
+                        <View style={styles.detailRow}>
+                          <Ionicons name="storefront-outline" size={18} color={colors.muted} />
+                          <View style={{ flex: 1 }}>
+                            <Text style={[styles.detailLabel, { color: colors.muted }]}>Loja</Text>
+                            <Text style={[styles.detailValue, { color: colors.foreground }]}>{selectedRequest.storeName ?? "—"}</Text>
+                          </View>
+                        </View>
+
+                        <View style={[styles.detailDivider, { backgroundColor: colors.border }]} />
+
+                        <View style={styles.detailRow}>
+                          <Ionicons name="layers-outline" size={18} color={colors.muted} />
+                          <View style={{ flex: 1 }}>
+                            <Text style={[styles.detailLabel, { color: colors.muted }]}>Quantidade solicitada</Text>
+                            <Text style={[styles.detailValue, { color: colors.foreground }]}>{selectedRequest.quantityRequested} un.</Text>
+                          </View>
+                        </View>
+
+                        <View style={styles.detailRow}>
+                          <Ionicons name="calendar-outline" size={18} color={colors.muted} />
+                          <View style={{ flex: 1 }}>
+                            <Text style={[styles.detailLabel, { color: colors.muted }]}>Data da solicitação</Text>
+                            <Text style={[styles.detailValue, { color: colors.foreground }]}>
+                              {new Date(selectedRequest.createdAt).toLocaleDateString("pt-BR", { day: "2-digit", month: "long", year: "numeric" })}
+                            </Text>
+                          </View>
+                        </View>
+
+                        {selectedRequest.notes && (
+                          <View style={styles.detailRow}>
+                            <Ionicons name="chatbubble-outline" size={18} color={colors.muted} />
+                            <View style={{ flex: 1 }}>
+                              <Text style={[styles.detailLabel, { color: colors.muted }]}>Observações</Text>
+                              <Text style={[styles.detailValue, { color: colors.foreground }]}>{selectedRequest.notes}</Text>
+                            </View>
+                          </View>
+                        )}
+
+                        {selectedRequest.rejectionReason && (
+                          <View style={styles.detailRow}>
+                            <Ionicons name="alert-circle-outline" size={18} color="#E02424" />
+                            <View style={{ flex: 1 }}>
+                              <Text style={[styles.detailLabel, { color: "#E02424" }]}>Motivo da recusa</Text>
+                              <Text style={[styles.detailValue, { color: colors.foreground }]}>{selectedRequest.rejectionReason}</Text>
+                            </View>
+                          </View>
+                        )}
+                      </View>
+
+                      {/* Botões de ação */}
+                      {selectedRequest.status === "pending" && (
+                        <View style={styles.detailActions}>
+                          <TouchableOpacity
+                            style={[styles.detailActionBtn, { backgroundColor: "#0E9F6E" }]}
+                            onPress={() => {
+                              setShowRequestDetailModal(false);
+                              handleApprove(selectedRequest.id);
+                            }}
+                            activeOpacity={0.8}
+                          >
+                            <Ionicons name="checkmark-circle" size={20} color="#FFFFFF" />
+                            <Text style={[styles.detailActionBtnText, { color: "#FFFFFF" }]}>Aprovar</Text>
+                          </TouchableOpacity>
+                          <TouchableOpacity
+                            style={[styles.detailActionBtn, { backgroundColor: "#E02424" }]}
+                            onPress={() => {
+                              setShowRequestDetailModal(false);
+                              handleReject(selectedRequest.id);
+                            }}
+                            activeOpacity={0.8}
+                          >
+                            <Ionicons name="close-circle" size={20} color="#FFFFFF" />
+                            <Text style={[styles.detailActionBtnText, { color: "#FFFFFF" }]}>Recusar</Text>
+                          </TouchableOpacity>
+                        </View>
+                      )}
+
+                      {selectedRequest.status === "approved" && (
+                        <TouchableOpacity
+                          style={[styles.deliverBtn, { backgroundColor: colors.primary, paddingVertical: 14, borderRadius: 14, marginTop: 8 }]}
+                          onPress={() => {
+                            setShowRequestDetailModal(false);
+                            handleDeliver(selectedRequest.id);
+                          }}
+                          activeOpacity={0.8}
+                        >
+                          <Ionicons name="checkmark-done" size={20} color="#FFFFFF" />
+                          <Text style={styles.deliverBtnText}>Marcar como Entregue</Text>
+                        </TouchableOpacity>
+                      )}
+                    </>
+                  );
+                })()}
+              </ScrollView>
+            </View>
+          </KeyboardAvoidingView>
+        </View>
+      </Modal>
 
       {/* ════════════════════════════════════════════════════════════════════
           MODAL: Solicitar Material
@@ -1062,15 +1285,17 @@ const styles = StyleSheet.create({
   requestBtn: { paddingHorizontal: 14, paddingVertical: 6, borderRadius: 10 },
   requestBtnText: { fontSize: 13, fontWeight: "700", color: "#FFFFFF" },
   iconBtn: { padding: 6, borderRadius: 8, borderWidth: 1 },
-  requestCard: { borderRadius: 16, padding: 16, borderWidth: 1, gap: 8 },
-  requestHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
-  requestMaterial: { flex: 1, fontSize: 15, fontWeight: "700" },
+  requestCard: { borderRadius: 16, padding: 14, borderWidth: 1, gap: 8 },
+  requestHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" },
+  requestMaterial: { fontSize: 15, fontWeight: "700" },
   statusBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 10 },
   statusText: { fontSize: 12, fontWeight: "700" },
   requestMeta: { flexDirection: "row", alignItems: "center", gap: 10 },
+  requestMetaRow: { flexDirection: "row", flexWrap: "wrap", gap: 10, alignItems: "center" },
+  requestMetaItem: { flexDirection: "row", alignItems: "center", gap: 4 },
   priorityBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8 },
   priorityText: { fontSize: 11, fontWeight: "700" },
-  requestQty: { fontSize: 13 },
+  requestQty: { fontSize: 12 },
   requestDate: { fontSize: 12 },
   requestNotes: { fontSize: 13, fontStyle: "italic" },
   requestActions: { flexDirection: "row", gap: 10 },
@@ -1078,6 +1303,20 @@ const styles = StyleSheet.create({
   actionBtnText: { fontSize: 14, fontWeight: "600" },
   deliverBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, paddingVertical: 10, borderRadius: 10 },
   deliverBtnText: { fontSize: 14, fontWeight: "600", color: "#FFFFFF" },
+  requestThumb: { width: 44, height: 44, borderRadius: 10 },
+  requestThumbPlaceholder: { width: 44, height: 44, borderRadius: 10, alignItems: "center", justifyContent: "center" },
+  requestTapHint: { flexDirection: "row", alignItems: "center", justifyContent: "flex-end", gap: 2, marginTop: 2 },
+  requestTapHintText: { fontSize: 12, fontWeight: "600" },
+  // Modal de detalhe da solicitação
+  detailPhoto: { width: "100%", height: 200, borderRadius: 16 },
+  detailPhotoPlaceholder: { width: "100%", height: 160, borderRadius: 16, alignItems: "center", justifyContent: "center" },
+  detailRow: { flexDirection: "row", alignItems: "center", gap: 8 },
+  detailLabel: { fontSize: 12, fontWeight: "600", textTransform: "uppercase", letterSpacing: 0.5 },
+  detailValue: { fontSize: 15, fontWeight: "500" },
+  detailDivider: { height: 1, marginVertical: 4 },
+  detailActions: { flexDirection: "row", gap: 12, marginTop: 8 },
+  detailActionBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, paddingVertical: 14, borderRadius: 14 },
+  detailActionBtnText: { fontSize: 15, fontWeight: "700" },
   emptyState: { flex: 1, alignItems: "center", justifyContent: "center", gap: 12, padding: 40, paddingTop: 80 },
   emptyTitle: { fontSize: 18, fontWeight: "700" },
   emptyDesc: { fontSize: 14, textAlign: "center", lineHeight: 21 },
