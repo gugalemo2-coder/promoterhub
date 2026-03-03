@@ -101,7 +101,7 @@ function ZoomableImage({ uri }: { uri: string }) {
 // ─── Main Screen ──────────────────────────────────────────────────────────────
 export default function SupervisorPhotosScreen() {
   const colors = useColors();
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
   const firstName = user?.name?.split(" ")[0] ?? "Supervisor";
 
   // Filters
@@ -438,6 +438,14 @@ export default function SupervisorPhotosScreen() {
           <Text style={styles.welcomeGreeting}>Olá, {firstName}!</Text>
           <Text style={styles.welcomeRole}>Painel do Supervisor</Text>
         </View>
+        <TouchableOpacity
+          style={styles.welcomeLogoutBtn}
+          onPress={logout}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+        >
+          <Ionicons name="log-out-outline" size={20} color="rgba(255,255,255,0.9)" />
+          <Text style={styles.welcomeLogoutText}>Sair</Text>
+        </TouchableOpacity>
       </View>
       {/* Header */}
       <View style={[styles.header, { borderBottomColor: colors.border, backgroundColor: colors.background }]}>
