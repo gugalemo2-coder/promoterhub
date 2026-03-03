@@ -215,6 +215,14 @@ export default function TabLayout() {
         name="notifications"
         options={{ title: "Avisos", href: null }}
       />
+      <Tabs.Screen
+        name="audit-clock"
+        options={{ title: "Auditoria de Ponto", href: null }}
+      />
+      <Tabs.Screen
+        name="store-time"
+        options={{ title: "Tempo por Loja", href: null }}
+      />
     </Tabs>
   );
 }
