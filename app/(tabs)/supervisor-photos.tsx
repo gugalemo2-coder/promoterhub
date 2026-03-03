@@ -3,7 +3,7 @@ import { Image } from "expo-image";
 import * as FileSystem from "expo-file-system/legacy";
 import * as MediaLibrary from "expo-media-library";
 import { useRouter } from "expo-router";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -119,7 +119,6 @@ export default function SupervisorPhotosScreen() {
   const [previewVisible, setPreviewVisible] = useState(false);
   const [previewIndex, setPreviewIndex] = useState<number>(0);
   const [showInfo, setShowInfo] = useState(false);
-  const previewFlatListRef = useRef<FlatList<PhotoItem>>(null);
 
   // Batch selection state (download only)
   const [selectionMode, setSelectionMode] = useState(false);
@@ -162,22 +161,6 @@ export default function SupervisorPhotosScreen() {
     return arr.sort((a, b) => new Date(b.photoTimestamp ?? 0).getTime() - new Date(a.photoTimestamp ?? 0).getTime());
   }, [photos]);
 
-  // Bug fix: scroll to correct index when modal opens
-  useEffect(() => {
-    if (previewVisible && previewFlatListRef.current && sortedPhotos.length > 0) {
-      const timer = setTimeout(() => {
-        try {
-          previewFlatListRef.current?.scrollToIndex({
-            index: previewIndex,
-            animated: false,
-          });
-        } catch {
-          // ignore scroll errors
-        }
-      }, 50);
-      return () => clearTimeout(timer);
-    }
-  }, [previewVisible, previewIndex, sortedPhotos.length]);
 
   const openPhoto = useCallback((index: number) => {
     setPreviewIndex(index);
@@ -680,43 +663,19 @@ export default function SupervisorPhotosScreen() {
             </View>
           )}
 
-          {/* Swipeable photo list with zoom */}
-          <FlatList
-            ref={previewFlatListRef}
-            data={sortedPhotos}
-            horizontal
-            pagingEnabled
-            showsHorizontalScrollIndicator={false}
-            keyExtractor={(item) => String(item.id)}
-            initialScrollIndex={previewIndex}
-            getItemLayout={(_, index) => ({
-              length: SCREEN_WIDTH,
-              offset: SCREEN_WIDTH * index,
-              index,
-            })}
-            onMomentumScrollEnd={(e) => {
-              const newIndex = Math.round(e.nativeEvent.contentOffset.x / SCREEN_WIDTH);
-              if (newIndex >= 0 && newIndex < sortedPhotos.length) {
-                setPreviewIndex(newIndex);
-                setShowInfo(false);
-              }
-            }}
-            renderItem={({ item }) => (
-              <View style={{ width: SCREEN_WIDTH, height: SCREEN_HEIGHT * 0.65, alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
-                <ZoomableImage uri={item.photoUrl} />
-              </View>
-            )}
-            style={{ width: SCREEN_WIDTH }}
-          />
+          {/* Photo display — renders only the current photo by index (no FlatList/scrollToIndex) */}
+          {sortedPhotos[previewIndex] && (
+            <View style={{ width: SCREEN_WIDTH, height: SCREEN_HEIGHT * 0.65, alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
+              <ZoomableImage key={previewIndex} uri={sortedPhotos[previewIndex].photoUrl} />
+            </View>
+          )}
 
           {/* Navigation arrows */}
           {previewIndex > 0 && (
             <TouchableOpacity
               style={styles.navArrowLeft}
               onPress={() => {
-                const newIdx = previewIndex - 1;
-                previewFlatListRef.current?.scrollToIndex({ index: newIdx, animated: true });
-                setPreviewIndex(newIdx);
+                setPreviewIndex(previewIndex - 1);
                 setShowInfo(false);
               }}
             >
@@ -727,9 +686,7 @@ export default function SupervisorPhotosScreen() {
             <TouchableOpacity
               style={styles.navArrowRight}
               onPress={() => {
-                const newIdx = previewIndex + 1;
-                previewFlatListRef.current?.scrollToIndex({ index: newIdx, animated: true });
-                setPreviewIndex(newIdx);
+                setPreviewIndex(previewIndex + 1);
                 setShowInfo(false);
               }}
             >
