@@ -7,7 +7,8 @@ import * as Haptics from "expo-haptics";
 import * as ImagePicker from "expo-image-picker";
 import { Image } from "expo-image";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
+import { Animated } from "react-native";
 
 import {
   ActivityIndicator,
@@ -286,6 +287,23 @@ export default function ClockScreen() {
   const [modalVisible, setModalVisible] = useState(false);
   const [modalEntryType, setModalEntryType] = useState<"entry" | "exit">("entry");
 
+  // Toast notification state
+  const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
+  const toastOpacity = useRef(new Animated.Value(0)).current;
+  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const showToast = (message: string, type: "success" | "error" = "success") => {
+    if (toastTimer.current) clearTimeout(toastTimer.current);
+    setToast({ message, type });
+    toastOpacity.setValue(0);
+    Animated.sequence([
+      Animated.timing(toastOpacity, { toValue: 1, duration: 250, useNativeDriver: true }),
+      Animated.delay(2500),
+      Animated.timing(toastOpacity, { toValue: 0, duration: 400, useNativeDriver: true }),
+    ]).start(() => setToast(null));
+    toastTimer.current = setTimeout(() => setToast(null), 3200);
+  };
+
   const utils = trpc.useUtils();
   const { data: lastEntry } = trpc.timeEntries.lastOpenEntry.useQuery();
   const { data: dailySummary, refetch: refetchSummary } = trpc.timeEntries.dailySummary.useQuery({ date: selectedDate.toISOString() });
@@ -351,15 +369,16 @@ export default function ClockScreen() {
       await utils.timeEntries.dailySummary.invalidate();
       await utils.timeEntries.list.invalidate();
 
-      if (Platform.OS === "web") {
-        // Alert.alert doesn't work on web — show nothing (state update is enough)
-      } else {
-        Alert.alert("✅ Registrado!", `${entryType === "entry" ? "Entrada" : "Saída"} registrada com sucesso!`);
-      }
+      showToast(
+        entryType === "entry"
+          ? "✅ Entrada registrada com sucesso!"
+          : "✅ Saída registrada com sucesso!",
+        "success"
+      );
     } catch (err: any) {
       if (Platform.OS !== "web") await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       const msg = err?.message ?? "Não foi possível registrar o ponto. Tente novamente.";
-      if (Platform.OS !== "web") Alert.alert("Erro", msg);
+      showToast(`❌ ${msg}`, "error");
     } finally {
       setRegistering(false);
     }
@@ -386,6 +405,23 @@ export default function ClockScreen() {
 
   return (
     <ScreenContainer>
+      {/* Toast Notification */}
+      {toast && (
+        <Animated.View
+          style={[
+            styles.toast,
+            {
+              backgroundColor: toast.type === "success" ? "#0E9F6E" : "#EF4444",
+              opacity: toastOpacity,
+              transform: [{ translateY: toastOpacity.interpolate({ inputRange: [0, 1], outputRange: [-20, 0] }) }],
+            },
+          ]}
+          pointerEvents="none"
+        >
+          <Text style={styles.toastText}>{toast.message}</Text>
+        </Animated.View>
+      )}
+
       {/* Header */}
       <View style={[styles.header, { backgroundColor: colors.primary }]}>
         <Text style={styles.headerTitle}>{isManager ? "Controle de Ponto" : "Registro de Ponto"}</Text>
@@ -571,6 +607,8 @@ const styles = StyleSheet.create({
   emptyState: { flex: 1, alignItems: "center", justifyContent: "center", gap: 12, padding: 40, paddingTop: 60 },
   emptyTitle: { fontSize: 18, fontWeight: "700" },
   emptyDesc: { fontSize: 14, textAlign: "center", lineHeight: 21 },
+  toast: { position: "absolute", top: 16, left: 20, right: 20, zIndex: 999, borderRadius: 14, paddingVertical: 16, paddingHorizontal: 20, shadowColor: "#000", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.25, shadowRadius: 10, elevation: 10, alignItems: "center" },
+  toastText: { color: "#FFFFFF", fontSize: 16, fontWeight: "700", textAlign: "center", lineHeight: 22 },
   // Modal
   modal: { flex: 1 },
   modalHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 20, paddingVertical: 16, borderBottomWidth: 1 },
