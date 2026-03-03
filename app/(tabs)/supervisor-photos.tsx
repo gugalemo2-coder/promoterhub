@@ -3,7 +3,7 @@ import { Image } from "expo-image";
 import * as FileSystem from "expo-file-system/legacy";
 import * as MediaLibrary from "expo-media-library";
 import { useRouter } from "expo-router";
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -161,6 +161,23 @@ export default function SupervisorPhotosScreen() {
     }));
     return arr.sort((a, b) => new Date(b.photoTimestamp ?? 0).getTime() - new Date(a.photoTimestamp ?? 0).getTime());
   }, [photos]);
+
+  // Bug fix: scroll to correct index when modal opens
+  useEffect(() => {
+    if (previewVisible && previewFlatListRef.current && sortedPhotos.length > 0) {
+      const timer = setTimeout(() => {
+        try {
+          previewFlatListRef.current?.scrollToIndex({
+            index: previewIndex,
+            animated: false,
+          });
+        } catch {
+          // ignore scroll errors
+        }
+      }, 50);
+      return () => clearTimeout(timer);
+    }
+  }, [previewVisible, previewIndex, sortedPhotos.length]);
 
   const openPhoto = useCallback((index: number) => {
     setPreviewIndex(index);

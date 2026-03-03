@@ -3,7 +3,7 @@ import { Image } from "expo-image";
 import * as FileSystem from "expo-file-system/legacy";
 import * as MediaLibrary from "expo-media-library";
 import { useRouter } from "expo-router";
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -127,6 +127,23 @@ export default function ManagerPhotosScreen() {
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [batchProcessing, setBatchProcessing] = useState(false);
 
+  // Confirmation modal state (replaces Alert.alert for web compatibility)
+  const [confirmModal, setConfirmModal] = useState<{
+    visible: boolean;
+    title: string;
+    message: string;
+    confirmLabel: string;
+    confirmColor: string;
+    onConfirm: () => void;
+  }>({
+    visible: false,
+    title: "",
+    message: "",
+    confirmLabel: "",
+    confirmColor: "",
+    onConfirm: () => {},
+  });
+
   // Download state
   const [downloading, setDownloading] = useState(false);
   const [mediaPermission, requestMediaPermission] = MediaLibrary.usePermissions();
@@ -166,6 +183,24 @@ export default function ManagerPhotosScreen() {
     return arr.sort((a, b) => new Date(b.photoTimestamp ?? 0).getTime() - new Date(a.photoTimestamp ?? 0).getTime());
   }, [photos]);
 
+  // Bug fix: scroll to correct index when modal opens
+  useEffect(() => {
+    if (previewVisible && previewFlatListRef.current && sortedPhotos.length > 0) {
+      // Use a small timeout to ensure the FlatList has rendered before scrolling
+      const timer = setTimeout(() => {
+        try {
+          previewFlatListRef.current?.scrollToIndex({
+            index: previewIndex,
+            animated: false,
+          });
+        } catch {
+          // ignore scroll errors
+        }
+      }, 50);
+      return () => clearTimeout(timer);
+    }
+  }, [previewVisible, previewIndex, sortedPhotos.length]);
+
   const openPhoto = useCallback((index: number) => {
     setPreviewIndex(index);
     setShowInfo(false);
@@ -202,32 +237,30 @@ export default function ManagerPhotosScreen() {
     setSelectedIds(new Set());
   }, []);
 
-  const handleBatchAction = async (status: PhotoStatus) => {
+  const handleBatchAction = (status: PhotoStatus) => {
     if (selectedIds.size === 0) return;
     const label = status === "approved" ? "aprovar" : "rejeitar";
-    Alert.alert(
-      "Confirmar",
-      `Deseja ${label} ${selectedIds.size} foto${selectedIds.size > 1 ? "s" : ""}?`,
-      [
-        { text: "Cancelar", style: "cancel" },
-        {
-          text: status === "approved" ? "Aprovar" : "Rejeitar",
-          style: status === "rejected" ? "destructive" : "default",
-          onPress: async () => {
-            setBatchProcessing(true);
-            try {
-              await updateStatusBatchMutation.mutateAsync({ ids: Array.from(selectedIds), status });
-              await refetch();
-              exitSelectionMode();
-            } catch {
-              Alert.alert("Erro", "Não foi possível processar as fotos.");
-            } finally {
-              setBatchProcessing(false);
-            }
-          },
-        },
-      ]
-    );
+    const count = selectedIds.size;
+    setConfirmModal({
+      visible: true,
+      title: "Confirmar",
+      message: `Deseja ${label} ${count} foto${count > 1 ? "s" : ""}?`,
+      confirmLabel: status === "approved" ? "Aprovar" : "Rejeitar",
+      confirmColor: status === "approved" ? "#0E9F6E" : "#E02424",
+      onConfirm: async () => {
+        setConfirmModal((prev) => ({ ...prev, visible: false }));
+        setBatchProcessing(true);
+        try {
+          await updateStatusBatchMutation.mutateAsync({ ids: Array.from(selectedIds), status });
+          await refetch();
+          exitSelectionMode();
+        } catch {
+          Alert.alert("Erro", "Não foi possível processar as fotos.");
+        } finally {
+          setBatchProcessing(false);
+        }
+      },
+    });
   };
 
   // Download helper
@@ -847,6 +880,35 @@ export default function ManagerPhotosScreen() {
           </View>
         </View>
       </Modal>
+
+      {/* Confirmation Modal (web-compatible replacement for Alert.alert) */}
+      <Modal
+        visible={confirmModal.visible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setConfirmModal((prev) => ({ ...prev, visible: false }))}
+      >
+        <View style={styles.confirmOverlay}>
+          <View style={[styles.confirmBox, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+            <Text style={[styles.confirmTitle, { color: colors.foreground }]}>{confirmModal.title}</Text>
+            <Text style={[styles.confirmMessage, { color: colors.muted }]}>{confirmModal.message}</Text>
+            <View style={styles.confirmButtons}>
+              <TouchableOpacity
+                style={[styles.confirmBtn, { backgroundColor: colors.border }]}
+                onPress={() => setConfirmModal((prev) => ({ ...prev, visible: false }))}
+              >
+                <Text style={[styles.confirmBtnText, { color: colors.foreground }]}>Cancelar</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.confirmBtn, { backgroundColor: confirmModal.confirmColor }]}
+                onPress={confirmModal.onConfirm}
+              >
+                <Text style={[styles.confirmBtnText, { color: "#fff" }]}>{confirmModal.confirmLabel}</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </ScreenContainer>
   );
 }
@@ -1088,4 +1150,46 @@ const styles = StyleSheet.create({
   actionBtnActive: { opacity: 0.5 },
   actionBtnDisabled: { opacity: 0.6 },
   actionBtnText: { color: "#fff", fontSize: 16, fontWeight: "700" },
+  // Confirmation modal styles
+  confirmOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.55)",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 24,
+  },
+  confirmBox: {
+    width: "100%",
+    maxWidth: 360,
+    borderRadius: 20,
+    borderWidth: 1,
+    padding: 24,
+    gap: 12,
+  },
+  confirmTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+    textAlign: "center",
+  },
+  confirmMessage: {
+    fontSize: 15,
+    textAlign: "center",
+    lineHeight: 22,
+  },
+  confirmButtons: {
+    flexDirection: "row",
+    gap: 12,
+    marginTop: 8,
+  },
+  confirmBtn: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  confirmBtnText: {
+    fontSize: 15,
+    fontWeight: "600",
+  },
 });
