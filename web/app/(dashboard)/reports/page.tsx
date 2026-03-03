@@ -72,95 +72,27 @@ export default function ReportsPage() {
       }))
     : [];
 
-  const handleExportPDF = async () => {
-    const { default: jsPDF } = await import("jspdf");
-    const { default: autoTable } = await import("jspdf-autotable");
-    const doc = new jsPDF();
+  const handleExportPDF = () => {
     const monthLabel = getMonthName(month);
-
-    // Header
-    doc.setFontSize(18);
-    doc.setTextColor(30, 64, 175);
-    doc.text("Relatório Mensal de Promotores", 14, 18);
-    doc.setFontSize(11);
-    doc.setTextColor(100, 116, 139);
-    doc.text(`Período: ${monthLabel} ${year}`, 14, 26);
-    doc.text(`Gerado em: ${new Date().toLocaleDateString("pt-BR")}`, 14, 32);
-
-    // Summary cards
-    doc.setFontSize(10);
-    doc.setTextColor(30, 30, 30);
-    const summaryY = 42;
-    const summaryItems = [
-      { label: "Fotos Aprovadas", value: String(totals.photos) },
-      { label: "Materiais Solicitados", value: String(totals.materials) },
-      { label: "Visitas a PDVs", value: String(totals.visits) },
-      { label: "Dias Trabalhados", value: String(totals.workDays) },
-      { label: "Horas Trabalhadas", value: `${totals.hours.toFixed(1)}h` },
-    ];
-    summaryItems.forEach((item, i) => {
-      const x = 14 + (i % 3) * 62;
-      const y = summaryY + Math.floor(i / 3) * 18;
-      doc.setFillColor(239, 246, 255);
-      doc.roundedRect(x, y, 58, 14, 2, 2, "F");
-      doc.setFontSize(7);
-      doc.setTextColor(100, 116, 139);
-      doc.text(item.label.toUpperCase(), x + 4, y + 5);
-      doc.setFontSize(11);
-      doc.setTextColor(30, 64, 175);
-      doc.text(item.value, x + 4, y + 11);
-    });
-
-    const tableY = summaryY + Math.ceil(summaryItems.length / 3) * 18 + 8;
-
-    if (hasDailyData) {
-      // Single promoter: daily data table
-      const promoterName = promoters.find((p) => p.id === selectedPromoter)?.name ?? "Promotor";
-      doc.setFontSize(12);
-      doc.setTextColor(30, 30, 30);
-      doc.text(`Detalhes: ${promoterName}`, 14, tableY);
-      autoTable(doc, {
-        startY: tableY + 5,
-        head: [["Dia", "Horas Trabalhadas", "Fotos"]],
-        body: (reportData.dailyData as any[]).filter((d: any) => d.hours > 0 || d.photos > 0).map((d: any) => [
-          `${d.day}/${month}/${year}`,
-          `${parseFloat(d.hours.toFixed(1))}h`,
-          d.photos,
-        ]),
-        styles: { fontSize: 9, cellPadding: 3 },
-        headStyles: { fillColor: [30, 64, 175], textColor: 255, fontStyle: "bold" },
-        alternateRowStyles: { fillColor: [239, 246, 255] },
-      });
-    } else {
-      // All promoters table
-      autoTable(doc, {
-        startY: tableY,
-        head: [["Promotor", "Score", "Fotos Aprovadas", "Materiais", "Visitas", "Dias Trab.", "Horas"]],
-        body: tableData.map((p: any) => [
-          p.promoterName ?? "—",
-          `${p.score ?? 0}%`,
-          p.approvedPhotos ?? 0,
-          p.materialRequests ?? 0,
-          p.storeVisits ?? 0,
-          p.workDays ?? 0,
-          `${(p.totalHours ?? 0).toFixed(1)}h`,
-        ]),
-        styles: { fontSize: 9, cellPadding: 3 },
-        headStyles: { fillColor: [30, 64, 175], textColor: 255, fontStyle: "bold" },
-        alternateRowStyles: { fillColor: [239, 246, 255] },
-      });
+    const tableHead = hasDailyData
+      ? "<tr><th>Dia</th><th>Horas Trabalhadas</th><th>Fotos</th></tr>"
+      : "<tr><th>Promotor</th><th>Score</th><th>Fotos Aprovadas</th><th>Materiais</th><th>Visitas</th><th>Dias</th><th>Horas</th></tr>";
+    const tableRows = hasDailyData
+      ? (reportData.dailyData as any[])
+          .filter((d: any) => d.hours > 0 || d.photos > 0)
+          .map((d: any) => `<tr><td>${d.day}/${month}/${year}</td><td>${parseFloat(d.hours.toFixed(1))}h</td><td>${d.photos}</td></tr>`)
+          .join("")
+      : tableData
+          .map((p: any) => `<tr><td>${p.promoterName ?? "—"}</td><td>${p.score ?? 0}%</td><td>${p.approvedPhotos ?? 0}</td><td>${p.materialRequests ?? 0}</td><td>${p.storeVisits ?? 0}</td><td>${p.workDays ?? 0}</td><td>${(p.totalHours ?? 0).toFixed(1)}h</td></tr>`)
+          .join("");
+    const html = `<!DOCTYPE html><html><head><meta charset='utf-8'><title>Relatório ${monthLabel} ${year}</title><style>body{font-family:Arial,sans-serif;padding:24px;color:#1e293b}h1{color:#1e40af;font-size:20px;margin-bottom:4px}p{color:#64748b;font-size:12px;margin:2px 0}.summary{display:flex;flex-wrap:wrap;gap:12px;margin:16px 0}.card{background:#eff6ff;border-radius:6px;padding:10px 16px;min-width:120px}.card .label{font-size:10px;color:#64748b;text-transform:uppercase}.card .value{font-size:16px;font-weight:bold;color:#1e40af}table{width:100%;border-collapse:collapse;margin-top:16px;font-size:12px}th{background:#1e40af;color:#fff;padding:8px;text-align:left}td{padding:6px 8px;border-bottom:1px solid #e2e8f0}tr:nth-child(even) td{background:#eff6ff}.footer{margin-top:24px;font-size:10px;color:#94a3b8;text-align:center}@media print{body{padding:0}}</style></head><body><h1>Relatório Mensal de Promotores</h1><p>Período: ${monthLabel} ${year}</p><p>Gerado em: ${new Date().toLocaleDateString("pt-BR")}</p><div class='summary'><div class='card'><div class='label'>Fotos Aprovadas</div><div class='value'>${totals.photos}</div></div><div class='card'><div class='label'>Materiais</div><div class='value'>${totals.materials}</div></div><div class='card'><div class='label'>Visitas</div><div class='value'>${totals.visits}</div></div><div class='card'><div class='label'>Dias Trabalhados</div><div class='value'>${totals.workDays}</div></div><div class='card'><div class='label'>Horas Trabalhadas</div><div class='value'>${totals.hours.toFixed(1)}h</div></div></div><table><thead>${tableHead}</thead><tbody>${tableRows}</tbody></table><div class='footer'>PromoterHub · ${monthLabel} ${year}</div></body></html>`;
+    const win = window.open("", "_blank");
+    if (win) {
+      win.document.write(html);
+      win.document.close();
+      win.focus();
+      setTimeout(() => { win.print(); }, 500);
     }
-
-    // Footer
-    const pageCount = doc.getNumberOfPages();
-    for (let i = 1; i <= pageCount; i++) {
-      doc.setPage(i);
-      doc.setFontSize(8);
-      doc.setTextColor(150);
-      doc.text(`PromoterHub · Página ${i} de ${pageCount}`, 14, doc.internal.pageSize.height - 8);
-    }
-
-    doc.save(`relatorio-${monthLabel}-${year}.pdf`);
   };
 
   const handleExportCSV = () => {
