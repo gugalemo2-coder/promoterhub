@@ -57,7 +57,7 @@ export default function StoreTimeScreen() {
   }, [selectedPeriodDays]);
 
   const { data: stats = [], isLoading: loadingStats } = trpc.timeEntries.storeTimeStats.useQuery(
-    { promoterId: selectedPromoter!.id, startDate, endDate },
+    { promoterId: selectedPromoter?.id ?? 0, startDate, endDate },
     { enabled: selectedPromoter !== null }
   );
 
