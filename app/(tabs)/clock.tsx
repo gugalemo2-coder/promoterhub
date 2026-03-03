@@ -416,35 +416,31 @@ export default function ClockScreen() {
             </View>
           ) : (
             <View style={styles.clockButtons}>
-              {/* Entry Button — shown when no open entry */}
-              {!hasOpenEntry && (
-                <Pressable
-                  style={({ pressed }) => [
-                    styles.clockBtn,
-                    { backgroundColor: "#0E9F6E" },
-                    pressed && { transform: [{ scale: 0.97 }], opacity: 0.9 },
-                  ]}
-                  onPress={() => openModal("entry")}
-                >
-                  <Ionicons name="log-in-outline" size={28} color="#FFFFFF" />
-                  <Text style={styles.clockBtnText}>Registrar Entrada</Text>
-                </Pressable>
-              )}
+              {/* Entry Button — always visible */}
+              <Pressable
+                style={({ pressed }) => [
+                  styles.clockBtn,
+                  { backgroundColor: "#0E9F6E" },
+                  pressed && { transform: [{ scale: 0.97 }], opacity: 0.9 },
+                ]}
+                onPress={() => openModal("entry")}
+              >
+                <Ionicons name="log-in-outline" size={28} color="#FFFFFF" />
+                <Text style={styles.clockBtnText}>Registrar Entrada</Text>
+              </Pressable>
 
-              {/* Exit Button — shown when there is an open entry */}
-              {hasOpenEntry && (
-                <Pressable
-                  style={({ pressed }) => [
-                    styles.clockBtn,
-                    { backgroundColor: "#EF4444" },
-                    pressed && { transform: [{ scale: 0.97 }], opacity: 0.9 },
-                  ]}
-                  onPress={() => openModal("exit")}
-                >
-                  <Ionicons name="log-out-outline" size={28} color="#FFFFFF" />
-                  <Text style={styles.clockBtnText}>Registrar Saída</Text>
-                </Pressable>
-              )}
+              {/* Exit Button — always visible */}
+              <Pressable
+                style={({ pressed }) => [
+                  styles.clockBtn,
+                  { backgroundColor: "#EF4444" },
+                  pressed && { transform: [{ scale: 0.97 }], opacity: 0.9 },
+                ]}
+                onPress={() => openModal("exit")}
+              >
+                <Ionicons name="log-out-outline" size={28} color="#FFFFFF" />
+                <Text style={styles.clockBtnText}>Registrar Saída</Text>
+              </Pressable>
             </View>
           )}
 
