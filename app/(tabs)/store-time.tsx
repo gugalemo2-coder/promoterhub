@@ -40,7 +40,6 @@ const PERIOD_OPTIONS = [
 // ─── component ───────────────────────────────────────────────────────────────
 export default function StoreTimeScreen() {
   const colors = useColors();
-  const now = new Date();
 
   const [selectedPromoter, setSelectedPromoter] = useState<{ id: number; name: string } | null>(null);
   const [selectedPeriodDays, setSelectedPeriodDays] = useState(30);
@@ -50,10 +49,16 @@ export default function StoreTimeScreen() {
   const { data: promoters = [], isLoading: loadingPromoters } = trpc.stores.listPromoterUsers.useQuery();
 
   const { startDate, endDate } = useMemo(() => {
-    const end = new Date(now);
-    const start = new Date(now);
+    const end = new Date();
+    end.setHours(23, 59, 59, 999);
+    const start = new Date();
     start.setDate(start.getDate() - selectedPeriodDays);
-    return { startDate: start.toISOString(), endDate: end.toISOString() };
+    start.setHours(0, 0, 0, 0);
+    // Truncate to day precision to avoid re-renders from millisecond differences
+    return {
+      startDate: start.toISOString().substring(0, 10) + "T00:00:00.000Z",
+      endDate: end.toISOString().substring(0, 10) + "T23:59:59.999Z",
+    };
   }, [selectedPeriodDays]);
 
   const { data: stats = [], isLoading: loadingStats } = trpc.timeEntries.storeTimeStats.useQuery(
