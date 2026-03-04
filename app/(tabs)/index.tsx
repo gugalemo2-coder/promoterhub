@@ -369,7 +369,7 @@ export default function HomeScreen() {
             { label: "Tirar Foto", icon: "camera-outline", route: "/(tabs)/photos", color: "#3B82F6" },
             { label: "Solicitar Material", icon: "cube-outline", route: "/(tabs)/materials", color: "#F59E0B" },
             { label: "Arquivos", icon: "document-outline", route: "/(tabs)/files", color: "#8B5CF6" },
-            { label: "Histórico", icon: "time-outline", route: "/(tabs)/clock", color: "#10B981" },
+            { label: "Vencimento", icon: "alert-circle-outline", route: "/(tabs)/product-expiration", color: "#10B981" },
           ].map((action) => (
             <Pressable
               key={action.label}

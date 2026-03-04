@@ -1,0 +1,24 @@
+{
+  "query": "SELECT id, name, login, appRole, active FROM app_users WHERE appRole IN ('manager', 'master');",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 3MUjan8YnY9PgZH.4cd173914575 --database cSF363ubWEjutwgRMZGZ84 --execute SELECT id, name, login, appRole, active FROM app_users WHERE appRole IN ('manager', 'master');",
+  "rows": [
+    {
+      "id": "1",
+      "name": "Gustavo Lemes",
+      "login": "gustavolemes",
+      "appRole": "master",
+      "active": "1"
+    },
+    {
+      "id": "30001",
+      "name": "Lenicia Lemes",
+      "login": "lenicialemes",
+      "appRole": "manager",
+      "active": "1"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tname\tlogin\tappRole\tactive\n1\tGustavo Lemes\tgustavolemes\tmaster\t1\n30001\tLenicia Lemes\tlenicialemes\tmanager\t1\n",
+  "stderr": "",
+  "execution_time_ms": 60
+}

@@ -331,3 +331,33 @@ export const appUsers = mysqlTable("app_users", {
 });
 export type AppUser = typeof appUsers.$inferSelect;
 export type InsertAppUser = typeof appUsers.$inferInsert;
+
+// ─── PRODUCT EXPIRATIONS ──────────────────────────────────────────────────────
+export const productExpirations = mysqlTable("product_expirations", {
+  id: int("id").autoincrement().primaryKey(),
+  /** Promotor que enviou */
+  userId: int("userId").notNull(),
+  brandId: int("brandId").notNull(),
+  storeId: int("storeId").notNull(),
+  /** Descrição / informações complementares */
+  description: text("description"),
+  /** Status da solicitação */
+  status: mysqlEnum("status", ["pending", "approved", "rejected"]).default("pending").notNull(),
+  /** Notas do gestor ao aprovar/recusar */
+  managerNotes: text("managerNotes"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type ProductExpiration = typeof productExpirations.$inferSelect;
+export type InsertProductExpiration = typeof productExpirations.$inferInsert;
+
+// ─── PRODUCT EXPIRATION PHOTOS ────────────────────────────────────────────────
+export const productExpirationPhotos = mysqlTable("product_expiration_photos", {
+  id: int("id").autoincrement().primaryKey(),
+  expirationId: int("expirationId").notNull(),
+  photoUrl: varchar("photoUrl", { length: 500 }).notNull(),
+  sortOrder: int("sortOrder").default(0).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+export type ProductExpirationPhoto = typeof productExpirationPhotos.$inferSelect;
+export type InsertProductExpirationPhoto = typeof productExpirationPhotos.$inferInsert;

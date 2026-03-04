@@ -370,5 +370,74 @@ geoAlerts: router({
         return push.checkAndNotifyLowDailyHours(appUserId);
       }),
   }),
+  productExpirations: router({
+    // Promotor: cria um novo registro de vencimento com fotos
+    create: protectedProcedure
+      .input(z.object({
+        brandId: z.number().int().positive(),
+        storeId: z.number().int().positive(),
+        description: z.string().optional(),
+        photos: z.array(z.object({
+          fileBase64: z.string(),
+          fileType: z.string().default("image/jpeg"),
+          fileName: z.string().default("expiration.jpg"),
+        })).min(1).max(10),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const userId = getAppUserId(ctx.user);
+        // Create the expiration record
+        const id = await db.createProductExpiration({
+          userId,
+          brandId: input.brandId,
+          storeId: input.storeId,
+          description: input.description,
+        });
+        // Upload and save each photo
+        for (let i = 0; i < input.photos.length; i++) {
+          const p = input.photos[i];
+          const buffer = Buffer.from(p.fileBase64, "base64");
+          const fileKey = `product-expirations/${userId}/${Date.now()}-${i}-${p.fileName}`;
+          const { url } = await storagePut(fileKey, buffer, p.fileType);
+          await db.addProductExpirationPhoto({ expirationId: id, photoUrl: url, sortOrder: i });
+        }
+        return { id };
+      }),
+    // Promotor: lista seus próprios registros
+    list: protectedProcedure
+      .input(z.object({
+        status: z.enum(["pending", "approved", "rejected"]).optional(),
+        limit: z.number().default(50),
+        offset: z.number().default(0),
+      }))
+      .query(({ ctx, input }) => db.getProductExpirations({ ...input, userId: getAppUserId(ctx.user) })),
+    // Gestor/Master: lista todos os registros com filtros
+    listAll: protectedProcedure
+      .input(z.object({
+        brandId: z.number().optional(),
+        storeId: z.number().optional(),
+        userId: z.number().optional(),
+        status: z.enum(["pending", "approved", "rejected"]).optional(),
+        startDate: z.string().optional(),
+        endDate: z.string().optional(),
+        limit: z.number().default(100),
+        offset: z.number().default(0),
+      }))
+      .query(({ input }) => db.getProductExpirations({
+        ...input,
+        startDate: input.startDate ? new Date(input.startDate) : undefined,
+        endDate: input.endDate ? new Date(input.endDate) : undefined,
+      })),
+    // Gestor/Master: aprova ou recusa
+    updateStatus: protectedProcedure
+      .input(z.object({
+        id: z.number().int().positive(),
+        status: z.enum(["approved", "rejected"]),
+        managerNotes: z.string().optional(),
+      }))
+      .mutation(({ input }) => db.updateProductExpirationStatus(input.id, input.status, input.managerNotes)),
+    // Contagem de pendentes
+    countPending: protectedProcedure
+      .query(() => db.countPendingProductExpirations()),
+  }),
 });
 export type AppRouter = typeof appRouter;

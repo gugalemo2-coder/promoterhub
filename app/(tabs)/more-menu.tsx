@@ -71,6 +71,12 @@ export default function MoreMenuScreen() {
       route: "/(tabs)/store-time",
       description: "Tempo médio semanal de cada promotor por loja",
     },
+    {
+      label: "Configurações",
+      icon: "settings-outline",
+      route: "/(tabs)/settings",
+      description: "Marcas, lojas, equipe e configurações do sistema",
+    },
   ];
 
   return (

@@ -1,0 +1,24 @@
+{
+  "query": "SELECT id, name, login, appRole, passwordHash FROM app_users WHERE appRole IN ('manager', 'master') LIMIT 5;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 3MUjan8YnY9PgZH.4cd173914575 --database cSF363ubWEjutwgRMZGZ84 --execute SELECT id, name, login, appRole, passwordHash FROM app_users WHERE appRole IN ('manager', 'master') LIMIT 5;",
+  "rows": [
+    {
+      "id": "1",
+      "name": "Gustavo Lemes",
+      "login": "gustavolemes",
+      "appRole": "master",
+      "passwordHash": "$2b$10$0nNi3sK4UFS9WbihA7yaWO0Xk58T5BExMcxBIqqiQ/Ze/d6wYIO1q"
+    },
+    {
+      "id": "30001",
+      "name": "Lenicia Lemes",
+      "login": "lenicialemes",
+      "appRole": "manager",
+      "passwordHash": "$2b$06$DQoIg5E0a2/VCuZZ5y2ELu1cvz9OM04R03kbhWa1g8u.gsXBb9KD2"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tname\tlogin\tappRole\tpasswordHash\n1\tGustavo Lemes\tgustavolemes\tmaster\t$2b$10$0nNi3sK4UFS9WbihA7yaWO0Xk58T5BExMcxBIqqiQ/Ze/d6wYIO1q\n30001\tLenicia Lemes\tlenicialemes\tmanager\t$2b$06$DQoIg5E0a2/VCuZZ5y2ELu1cvz9OM04R03kbhWa1g8u.gsXBb9KD2\n",
+  "stderr": "",
+  "execution_time_ms": 61
+}

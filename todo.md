@@ -929,3 +929,12 @@
 - [ ] Criar tela "Auditoria Registro de Ponto" no menu gestor/master com filtros (promotor, loja, período) e grade de fotos de entrada/saída com legenda (promotor + loja)
 - [ ] Criar tela "Tempo por Loja" no menu gestor/master: lista de promotores → ao clicar, exibe tempo médio semanal por loja (% e horas reais, apenas lojas cadastradas para o promotor)
 - [ ] Garantir que todas as correções sejam commitadas e deployadas no Railway + Vercel
+
+## Fase atual — Correções de Bugs
+
+- [x] fix: tela branca ao abrir store-time (selectedPromoter null)
+- [x] fix: foto errada ao clicar na tela de fotos (gestor e supervisor)
+- [x] fix: seleção múltipla (aprovar/rejeitar/baixar) não funcionava na tela de fotos do gestor
+- [x] fix: layout bugado dos filtros na tela de Auditoria de Ponto
+- [x] feat: adicionar filtro Entrada/Saída na tela de Auditoria de Ponto
+- [ ] fix: filtro Entrada/Saída na Auditoria de Ponto não está filtrando corretamente

@@ -44,6 +44,12 @@ import {
   type AppSettings,
   appUsers,
   type AppUser,
+  productExpirations,
+  productExpirationPhotos,
+  type ProductExpiration,
+  type ProductExpirationPhoto,
+  type InsertProductExpiration,
+  type InsertProductExpirationPhoto,
 } from "../drizzle/schema";
 import { ENV } from "./_core/env";
 
@@ -1863,4 +1869,115 @@ export async function getPromoterStoreTimeStats(promoterId: number, startDate: D
       percentage: totalMinutesAll > 0 ? Math.round((v.totalMinutes / totalMinutesAll) * 100) : 0,
     }))
     .sort((a, b) => b.totalMinutes - a.totalMinutes);
+}
+
+// ─── PRODUCT EXPIRATIONS ──────────────────────────────────────────────────────
+
+export async function createProductExpiration(data: InsertProductExpiration): Promise<number> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const [result] = await db.insert(productExpirations).values(data);
+  return (result as any).insertId as number;
+}
+
+export async function addProductExpirationPhoto(data: InsertProductExpirationPhoto): Promise<number> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const [result] = await db.insert(productExpirationPhotos).values(data);
+  return (result as any).insertId as number;
+}
+
+export async function getProductExpirations(filters: {
+  userId?: number;
+  brandId?: number;
+  storeId?: number;
+  status?: "pending" | "approved" | "rejected";
+  startDate?: Date;
+  endDate?: Date;
+  limit?: number;
+  offset?: number;
+}): Promise<(ProductExpiration & {
+  promoterName: string | null;
+  brandName: string | null;
+  storeName: string | null;
+  photos: { id: number; photoUrl: string; sortOrder: number }[];
+})[]> {
+  const db = await getDb();
+  if (!db) return [];
+  const conditions: ReturnType<typeof eq>[] = [];
+  if (filters.userId) conditions.push(eq(productExpirations.userId, filters.userId));
+  if (filters.brandId) conditions.push(eq(productExpirations.brandId, filters.brandId));
+  if (filters.storeId) conditions.push(eq(productExpirations.storeId, filters.storeId));
+  if (filters.status) conditions.push(eq(productExpirations.status, filters.status));
+  if (filters.startDate) conditions.push(gte(productExpirations.createdAt, filters.startDate));
+  if (filters.endDate) {
+    const end = new Date(filters.endDate);
+    end.setHours(23, 59, 59, 999);
+    conditions.push(lte(productExpirations.createdAt, end));
+  }
+  const rows = await db
+    .select({
+      id: productExpirations.id,
+      userId: productExpirations.userId,
+      brandId: productExpirations.brandId,
+      storeId: productExpirations.storeId,
+      description: productExpirations.description,
+      status: productExpirations.status,
+      managerNotes: productExpirations.managerNotes,
+      createdAt: productExpirations.createdAt,
+      updatedAt: productExpirations.updatedAt,
+      promoterName: appUsers.name,
+      brandName: brands.name,
+      storeName: stores.name,
+    })
+    .from(productExpirations)
+    .leftJoin(appUsers, eq(productExpirations.userId, appUsers.id))
+    .leftJoin(brands, eq(productExpirations.brandId, brands.id))
+    .leftJoin(stores, eq(productExpirations.storeId, stores.id))
+    .where(conditions.length > 0 ? and(...conditions) : undefined)
+    .orderBy(desc(productExpirations.createdAt))
+    .limit(filters.limit ?? 100)
+    .offset(filters.offset ?? 0);
+
+  if (rows.length === 0) return [];
+  const ids = rows.map((r) => r.id);
+  const photoRows = await db
+    .select()
+    .from(productExpirationPhotos)
+    .where(inArray(productExpirationPhotos.expirationId, ids))
+    .orderBy(productExpirationPhotos.expirationId, productExpirationPhotos.sortOrder);
+
+  const photosByExpiration: Record<number, { id: number; photoUrl: string; sortOrder: number }[]> = {};
+  for (const p of photoRows) {
+    if (!photosByExpiration[p.expirationId]) photosByExpiration[p.expirationId] = [];
+    photosByExpiration[p.expirationId].push({ id: p.id, photoUrl: p.photoUrl, sortOrder: p.sortOrder });
+  }
+
+  return rows.map((r) => ({
+    ...r,
+    photos: photosByExpiration[r.id] ?? [],
+  }));
+}
+
+export async function updateProductExpirationStatus(
+  id: number,
+  status: "pending" | "approved" | "rejected",
+  managerNotes?: string
+): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db
+    .update(productExpirations)
+    .set({ status, managerNotes: managerNotes ?? null, updatedAt: new Date() })
+    .where(eq(productExpirations.id, id));
+}
+
+export async function countPendingProductExpirations(): Promise<number> {
+  const db = await getDb();
+  if (!db) return 0;
+  const [row] = await db
+    .select({ count: sql<number>`count(*)` })
+    .from(productExpirations)
+    .where(eq(productExpirations.status, "pending"));
+  return Number(row?.count ?? 0);
 }

@@ -126,7 +126,19 @@ export default function TabLayout() {
         }}
       />
 
-      {/* ─── MANAGER/MASTER: Config ──────────────────────────────────────── */}
+      {/* ─── MANAGER/MASTER: Vencimento de Produtos ────────────────────── */}
+      <Tabs.Screen
+        name="manager-product-expiration"
+        options={{
+          title: "Vencimento",
+          tabBarIcon: ({ color }) => (
+            <IconSymbol size={26} name="exclamationmark.triangle.fill" color={color} />
+          ),
+          href: isManager ? undefined : null,
+        }}
+      />
+
+      {/* ─── MANAGER/MASTER: Config (hidden — acessível pelo Menu) ───────────── */}
       <Tabs.Screen
         name="settings"
         options={{
@@ -134,7 +146,7 @@ export default function TabLayout() {
           tabBarIcon: ({ color }) => (
             <IconSymbol size={26} name="gear" color={color} />
           ),
-          href: isManager ? undefined : null,
+          href: null,
         }}
       />
 
@@ -222,6 +234,10 @@ export default function TabLayout() {
       <Tabs.Screen
         name="store-time"
         options={{ title: "Tempo por Loja", href: null }}
+      />
+      <Tabs.Screen
+        name="product-expiration"
+        options={{ title: "Vencimento Produtos", href: isPromoter ? undefined : null }}
       />
     </Tabs>
   );
