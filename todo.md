@@ -938,3 +938,7 @@
 - [x] fix: layout bugado dos filtros na tela de Auditoria de Ponto
 - [x] feat: adicionar filtro Entrada/Saída na tela de Auditoria de Ponto
 - [ ] fix: filtro Entrada/Saída na Auditoria de Ponto não está filtrando corretamente
+
+## Fase atual — Backend e Navegação (Mar 2026)
+- [x] fix: backend Railway confirmado funcionando - rotas productExpirations.list, listAll, countPending, create, updateStatus todas OK
+- [x] fix: remover aba "Vencimento Produtos" da barra de navegação inferior do promotor (acesso via botão na tela inicial mantido)

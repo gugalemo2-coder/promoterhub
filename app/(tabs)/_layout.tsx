@@ -237,7 +237,7 @@ export default function TabLayout() {
       />
       <Tabs.Screen
         name="product-expiration"
-        options={{ title: "Vencimento Produtos", href: isPromoter ? undefined : null }}
+        options={{ title: "Vencimento Produtos", href: null }}
       />
     </Tabs>
   );
