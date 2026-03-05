@@ -310,6 +310,7 @@ export default function PhotosScreen() {
   const [uploadModalVisible, setUploadModalVisible] = useState(false);
   const [modalKey, setModalKey] = useState(0);
   const [downloadingId, setDownloadingId] = useState<number | null>(null);
+  const [downloadingAll, setDownloadingAll] = useState(false);
   const [mediaPermission, requestMediaPermission] = MediaLibrary.usePermissions();
 
   const { data: brands } = trpc.brands.list.useQuery();
@@ -389,22 +390,68 @@ export default function PhotosScreen() {
     isManager ? refetchPhotos() : refetchMyPhotos();
   };
 
+  const downloadAllPhotos = useCallback(async () => {
+    if (!displayPhotos || displayPhotos.length === 0) return;
+    setDownloadingAll(true);
+    try {
+      if (Platform.OS === "web") {
+        for (const photo of displayPhotos) {
+          const filename = photo.photoUrl.split("/").pop()?.split("?")[0] ?? `photo_${photo.id}.jpg`;
+          const response = await fetch(photo.photoUrl);
+          const blob = await response.blob();
+          const objectUrl = URL.createObjectURL(blob);
+          const anchor = document.createElement("a");
+          anchor.href = objectUrl;
+          anchor.download = filename;
+          document.body.appendChild(anchor);
+          anchor.click();
+          document.body.removeChild(anchor);
+          URL.revokeObjectURL(objectUrl);
+          // Small delay to avoid browser blocking multiple downloads
+          await new Promise((r) => setTimeout(r, 300));
+        }
+      } else {
+        Alert.alert("Info", "Use o botão individual em cada foto para salvar na galeria.");
+      }
+    } catch {
+      Alert.alert("Erro", "Não foi possível baixar as fotos.");
+    } finally {
+      setDownloadingAll(false);
+    }
+  }, [displayPhotos]);
+
   const downloadPhoto = useCallback(async (url: string, photoId: number) => {
     setDownloadingId(photoId);
     try {
-      let perm = mediaPermission;
-      if (!perm?.granted) {
-        perm = await requestMediaPermission();
+      if (Platform.OS === "web") {
+        // Web/desktop: use anchor element to trigger download
+        const filename = url.split("/").pop()?.split("?")[0] ?? `photo_${Date.now()}.jpg`;
+        const response = await fetch(url);
+        const blob = await response.blob();
+        const objectUrl = URL.createObjectURL(blob);
+        const anchor = document.createElement("a");
+        anchor.href = objectUrl;
+        anchor.download = filename;
+        document.body.appendChild(anchor);
+        anchor.click();
+        document.body.removeChild(anchor);
+        URL.revokeObjectURL(objectUrl);
+      } else {
+        // Mobile: save to gallery
+        let perm = mediaPermission;
         if (!perm?.granted) {
-          Alert.alert("Permissão necessária", "Permita o acesso à galeria para salvar fotos.");
-          return;
+          perm = await requestMediaPermission();
+          if (!perm?.granted) {
+            Alert.alert("Permissão necessária", "Permita o acesso à galeria para salvar fotos.");
+            return;
+          }
         }
+        const filename = url.split("/").pop()?.split("?")[0] ?? `photo_${Date.now()}.jpg`;
+        const localUri = FileSystem.documentDirectory + filename;
+        await FileSystem.downloadAsync(url, localUri);
+        await MediaLibrary.saveToLibraryAsync(localUri);
+        Alert.alert("Salvo!", "Foto salva na galeria.");
       }
-      const filename = url.split("/").pop()?.split("?")[0] ?? `photo_${Date.now()}.jpg`;
-      const localUri = FileSystem.documentDirectory + filename;
-      await FileSystem.downloadAsync(url, localUri);
-      await MediaLibrary.saveToLibraryAsync(localUri);
-      Alert.alert("Salvo!", "Foto salva na galeria.");
     } catch {
       Alert.alert("Erro", "Não foi possível salvar a foto.");
     } finally {
@@ -438,6 +485,18 @@ export default function PhotosScreen() {
       {/* Header */}
       <View style={[styles.header, { backgroundColor: colors.primary }]}>
         <Text style={styles.headerTitle}>{isManager ? "Galeria de Fotos" : "Minhas Fotos"}</Text>
+        {isManager && Platform.OS === "web" && displayPhotos && displayPhotos.length > 0 && (
+          <Pressable
+            style={({ pressed }) => [styles.headerBtn, { backgroundColor: "rgba(255,255,255,0.2)", flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12 }, pressed && { opacity: 0.7 }]}
+            onPress={downloadAllPhotos}
+            disabled={downloadingAll}
+          >
+            {downloadingAll
+              ? <ActivityIndicator size="small" color="#FFFFFF" />
+              : <Ionicons name="download-outline" size={18} color="#FFFFFF" />}
+            <Text style={{ color: "#FFFFFF", fontSize: 13, fontWeight: "600" }}>Baixar Todas</Text>
+          </Pressable>
+        )}
         {!isManager && (
           <Pressable
             style={({ pressed }) => [styles.headerBtn, { backgroundColor: "rgba(255,255,255,0.2)" }, pressed && { opacity: 0.7 }]}
@@ -453,6 +512,8 @@ export default function PhotosScreen() {
         )}
       </View>
 
+      {/* Filters Container */}
+      <View style={styles.filtersContainer}>
       {/* Status Filter */}
       <ScrollView
         horizontal
@@ -537,6 +598,7 @@ export default function PhotosScreen() {
           );
         })}
       </ScrollView>
+      </View>
 
       {/* Photos Grid */}
       {!displayPhotos || displayPhotos.length === 0 ? (
@@ -628,8 +690,9 @@ const styles = StyleSheet.create({
   header: { paddingTop: 16, paddingBottom: 16, paddingHorizontal: 20, flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
   headerTitle: { fontSize: 20, fontWeight: "700", color: "#FFFFFF" },
   headerBtn: { padding: 8, borderRadius: 10 },
-  filterBar: { borderBottomWidth: 0.5, maxHeight: 60 },
-  filterContent: { paddingHorizontal: 14, paddingVertical: 10, gap: 8, alignItems: "center" },
+  filtersContainer: { flexShrink: 0 },
+  filterBar: { borderBottomWidth: 0.5 },
+  filterContent: { paddingHorizontal: 14, paddingVertical: 8, gap: 8, alignItems: "center", flexDirection: "row" },
   chip: { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20 },
   chipDot: { width: 7, height: 7, borderRadius: 4 },
   chipText: { fontSize: 13, fontWeight: "600" },

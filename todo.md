@@ -942,3 +942,10 @@
 ## Fase atual — Backend e Navegação (Mar 2026)
 - [x] fix: backend Railway confirmado funcionando - rotas productExpirations.list, listAll, countPending, create, updateStatus todas OK
 - [x] fix: remover aba "Vencimento Produtos" da barra de navegação inferior do promotor (acesso via botão na tela inicial mantido)
+
+## Fase atual — Correção de Filtros (Mar 2026)
+- [ ] fix: corrigir layout dos chips de filtro de marca na tela de Fotos do promotor (barra sumida/cortada)
+- [ ] fix: corrigir altura dos chips de filtro de marca na tela de Materiais do promotor
+
+- [x] fix: corrigir filtros de marca nas telas de Fotos e Materiais do promotor
+- [x] fix: corrigir download de fotos para supervisor via desktop (versao web)
