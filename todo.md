@@ -949,3 +949,4 @@
 
 - [x] fix: corrigir filtros de marca nas telas de Fotos e Materiais do promotor
 - [x] fix: corrigir download de fotos para supervisor via desktop (versao web)
+- [x] feat: alterar calculo de media semanal na tela Tempo por Loja (divisao fixa por 4 semanas + percentual do total do promotor)

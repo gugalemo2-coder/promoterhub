@@ -1853,11 +1853,11 @@ export async function getPromoterStoreTimeStats(promoterId: number, startDate: D
     }
   }
 
-  const totalMinutesAll = Object.values(storeMinutes).reduce((s, v) => s + v.totalMinutes, 0);
+  // Total de minutos do promotor no período (soma de todas as lojas)
+  const totalPromoterMinutes = Object.values(storeMinutes).reduce((s, v) => s + v.totalMinutes, 0);
 
-  // Calculate number of weeks in the range
-  const diffDays = Math.max(1, Math.round((rangeEnd.getTime() - rangeStart.getTime()) / 86400000));
-  const weeks = Math.max(1, diffDays / 7);
+  // Média semanal: total da loja dividido por 4 semanas (fixo)
+  const FIXED_WEEKS = 4;
 
   return Object.entries(storeMinutes)
     .filter(([, v]) => v.totalMinutes > 0)
@@ -1865,8 +1865,10 @@ export async function getPromoterStoreTimeStats(promoterId: number, startDate: D
       storeId: Number(sid),
       storeName: v.storeName,
       totalMinutes: Math.round(v.totalMinutes),
-      weeklyAvgMinutes: Math.round(v.totalMinutes / weeks),
-      percentage: totalMinutesAll > 0 ? Math.round((v.totalMinutes / totalMinutesAll) * 100) : 0,
+      // Média semanal = total na loja / 4 semanas
+      weeklyAvgMinutes: Math.round(v.totalMinutes / FIXED_WEEKS),
+      // Percentual = tempo na loja / tempo total do promotor no período
+      percentage: totalPromoterMinutes > 0 ? Math.round((v.totalMinutes / totalPromoterMinutes) * 100) : 0,
     }))
     .sort((a, b) => b.totalMinutes - a.totalMinutes);
 }

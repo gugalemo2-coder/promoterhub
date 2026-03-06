@@ -147,7 +147,7 @@ export default function StoreTimeScreen() {
               </View>
               <View style={[styles.summaryDivider, { backgroundColor: colors.border }]} />
               <View style={styles.summaryItem}>
-                <Text style={[styles.summaryValue, { color: colors.foreground }]}>{fmtHours(Math.round(totalMinutes / (selectedPeriodDays / 7)))}</Text>
+                <Text style={[styles.summaryValue, { color: colors.foreground }]}>{fmtHours(Math.round(totalMinutes / 4))}</Text>
                 <Text style={[styles.summaryLabel, { color: colors.muted }]}>Média semanal</Text>
               </View>
             </View>
@@ -181,7 +181,10 @@ export default function StoreTimeScreen() {
                   <View style={styles.storeStat}>
                     <Ionicons name="calendar-outline" size={13} color={colors.muted} />
                     <Text style={[styles.storeStatText, { color: colors.muted }]}>
-                      Média/semana: <Text style={{ color: colors.foreground, fontWeight: "600" }}>{fmtHours(item.weeklyAvgMinutes)}</Text>
+                      Média/sem: <Text style={{ color: colors.foreground, fontWeight: "600" }}>{fmtHours(item.weeklyAvgMinutes)}</Text>
+                      <Text style={{ color: colors.muted }}>{" · "}</Text>
+                      <Text style={{ color: barColor, fontWeight: "700" }}>{item.percentage}%</Text>
+                      <Text style={{ color: colors.muted }}> do total</Text>
                     </Text>
                   </View>
                 </View>
