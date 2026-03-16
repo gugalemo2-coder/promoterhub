@@ -951,3 +951,5 @@
 - [x] fix: corrigir download de fotos para supervisor via desktop (versao web)
 - [x] feat: alterar calculo de media semanal na tela Tempo por Loja (divisao fixa por 4 semanas + percentual do total do promotor)
 - [x] feat: faixa permanente de informacoes (promotor, loja, marca) no visualizador de fotos do gestor
+- [x] feat: faixa permanente de informacoes no visualizador de fotos do supervisor
+- [x] feat: filtro por promotor na galeria de fotos (gestor e supervisor)
