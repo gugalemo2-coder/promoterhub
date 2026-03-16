@@ -753,25 +753,29 @@ export default function ManagerPhotosScreen() {
             </TouchableOpacity>
           )}
 
-          {/* Info panel (toggle) */}
-          {showInfo && currentPhoto && (
-            <View style={styles.infoPanel}>
-              <View style={styles.infoRow}>
-                <Ionicons name="person-outline" size={16} color="#ccc" />
-                <Text style={styles.infoText}>{currentPhoto.userName ?? "—"}</Text>
+          {/* Info strip — always visible, updates with current photo */}
+          {currentPhoto && (
+            <View style={styles.infoStrip}>
+              <View style={styles.infoStripRow}>
+                <View style={styles.infoStripItem}>
+                  <Ionicons name="person" size={13} color="rgba(255,255,255,0.7)" />
+                  <Text style={styles.infoStripLabel}>Promotor</Text>
+                  <Text style={styles.infoStripValue} numberOfLines={1}>{currentPhoto.userName ?? "—"}</Text>
+                </View>
+                <View style={styles.infoStripDivider} />
+                <View style={styles.infoStripItem}>
+                  <Ionicons name="storefront" size={13} color="rgba(255,255,255,0.7)" />
+                  <Text style={styles.infoStripLabel}>Loja</Text>
+                  <Text style={styles.infoStripValue} numberOfLines={1}>{currentPhoto.storeName ?? "—"}</Text>
+                </View>
+                <View style={styles.infoStripDivider} />
+                <View style={styles.infoStripItem}>
+                  <Ionicons name="pricetag" size={13} color="rgba(255,255,255,0.7)" />
+                  <Text style={styles.infoStripLabel}>Marca</Text>
+                  <Text style={styles.infoStripValue} numberOfLines={1}>{currentPhoto.brandName ?? "—"}</Text>
+                </View>
               </View>
-              <View style={styles.infoRow}>
-                <Ionicons name="storefront-outline" size={16} color="#ccc" />
-                <Text style={styles.infoText}>{currentPhoto.storeName ?? "—"}</Text>
-              </View>
-              <View style={styles.infoRow}>
-                <Ionicons name="pricetag-outline" size={16} color="#ccc" />
-                <Text style={styles.infoText}>{currentPhoto.brandName ?? "—"}</Text>
-              </View>
-              <View style={styles.infoRow}>
-                <Ionicons name="calendar-outline" size={16} color="#ccc" />
-                <Text style={styles.infoText}>{formatDate(currentPhoto.photoTimestamp)}</Text>
-              </View>
+              <Text style={styles.infoStripDate}>{formatDate(currentPhoto.photoTimestamp)}</Text>
             </View>
           )}
 
@@ -1057,31 +1061,65 @@ const styles = StyleSheet.create({
     borderRadius: 22,
     zIndex: 20,
   },
-  infoPanel: {
+  // Legacy (kept for safety, no longer rendered)
+  infoPanel: { display: "none" },
+  infoRow: { display: "none" },
+  infoText: { display: "none" },
+  // Permanent info strip
+  infoStrip: {
     position: "absolute",
-    bottom: 130,
-    left: 16,
-    right: 16,
-    backgroundColor: "rgba(0,0,0,0.75)",
-    borderRadius: 16,
-    padding: 16,
-    gap: 10,
+    bottom: 110,
+    left: 0,
+    right: 0,
+    backgroundColor: "rgba(0,0,0,0.72)",
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: 10,
     zIndex: 20,
+    borderTopWidth: 0.5,
+    borderTopColor: "rgba(255,255,255,0.12)",
   },
-  infoRow: {
+  infoStripRow: {
     flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    marginBottom: 6,
   },
-  infoText: {
-    color: "#fff",
-    fontSize: 14,
-    fontWeight: "500",
+  infoStripItem: {
     flex: 1,
+    alignItems: "center",
+    gap: 2,
+  },
+  infoStripDivider: {
+    width: 0.5,
+    height: 36,
+    backgroundColor: "rgba(255,255,255,0.2)",
+    alignSelf: "center",
+  },
+  infoStripLabel: {
+    color: "rgba(255,255,255,0.55)",
+    fontSize: 10,
+    fontWeight: "500",
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+    marginTop: 2,
+  },
+  infoStripValue: {
+    color: "#fff",
+    fontSize: 13,
+    fontWeight: "700",
+    textAlign: "center",
+    paddingHorizontal: 4,
+  },
+  infoStripDate: {
+    color: "rgba(255,255,255,0.5)",
+    fontSize: 11,
+    textAlign: "center",
+    marginTop: 2,
   },
   previewActions: {
     position: "absolute",
-    bottom: 40,
+    bottom: 28,
     left: 0,
     right: 0,
     flexDirection: "row",
