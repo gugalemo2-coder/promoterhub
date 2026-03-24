@@ -953,3 +953,4 @@
 - [x] feat: faixa permanente de informacoes (promotor, loja, marca) no visualizador de fotos do gestor
 - [x] feat: faixa permanente de informacoes no visualizador de fotos do supervisor
 - [x] feat: filtro por promotor na galeria de fotos (gestor e supervisor)
+- [x] fix: limpar loja selecionada e foto ao registrar saída no ponto do promotor

@@ -7,7 +7,7 @@ import * as Haptics from "expo-haptics";
 import * as ImagePicker from "expo-image-picker";
 import { Image } from "expo-image";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { Animated } from "react-native";
 
 import {
@@ -76,6 +76,14 @@ function ClockEntryModal({
 
   const isEntry = entryType === "entry";
   const accentColor = isEntry ? "#0E9F6E" : "#EF4444";
+
+  // Reset state every time the modal opens so previous data never bleeds into the next session
+  useEffect(() => {
+    if (visible) {
+      setSelectedStore(null);
+      setPhoto(null);
+    }
+  }, [visible]);
 
   const handlePickPhoto = async (source: "camera" | "gallery") => {
     setPickingPhoto(true);
