@@ -295,6 +295,9 @@ export default function ClockScreen() {
   const [modalVisible, setModalVisible] = useState(false);
   const [modalEntryType, setModalEntryType] = useState<"entry" | "exit">("entry");
 
+  // Duplicate entry warning modal
+  const [dupWarningVisible, setDupWarningVisible] = useState(false);
+
   // Toast notification state
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
   const toastOpacity = useRef(new Animated.Value(0)).current;
@@ -347,6 +350,11 @@ export default function ClockScreen() {
   const displayEntries = isManager ? allEntries : myEntries;
 
   const openModal = (type: "entry" | "exit") => {
+    // If promoter tries to register a new entry while one is already open, show warning
+    if (type === "entry" && hasOpenEntry) {
+      setDupWarningVisible(true);
+      return;
+    }
     setModalEntryType(type);
     setModalVisible(true);
   };
@@ -583,6 +591,58 @@ export default function ClockScreen() {
         onClose={() => setModalVisible(false)}
         onConfirm={handleConfirmEntry}
       />
+
+      {/* Duplicate Entry Warning Modal */}
+      <Modal
+        visible={dupWarningVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setDupWarningVisible(false)}
+      >
+        <View style={styles.dupOverlay}>
+          <View style={[styles.dupCard, { backgroundColor: colors.background, borderColor: colors.border }]}>
+            <View style={styles.dupIconWrap}>
+              <Ionicons name="warning-outline" size={40} color="#F59E0B" />
+            </View>
+            <Text style={[styles.dupTitle, { color: colors.foreground }]}>Entrada já registrada</Text>
+            <Text style={[styles.dupDesc, { color: colors.muted }]}>
+              Você já possui uma entrada em aberto{exitStore ? ` na loja ${exitStore.name}` : ""}. Registre a saída antes de iniciar um novo turno.
+            </Text>
+            {exitStore && (
+              <View style={[styles.dupStoreTag, { backgroundColor: "#F59E0B20", borderColor: "#F59E0B" }]}>
+                <Ionicons name="storefront-outline" size={16} color="#F59E0B" />
+                <Text style={[styles.dupStoreText, { color: "#F59E0B" }]}>{exitStore.name}</Text>
+              </View>
+            )}
+            <View style={styles.dupActions}>
+              <Pressable
+                style={({ pressed }) => [
+                  styles.dupBtn,
+                  { backgroundColor: "#EF4444", opacity: pressed ? 0.85 : 1 },
+                ]}
+                onPress={() => {
+                  setDupWarningVisible(false);
+                  // Open exit modal so they can register the exit first
+                  setModalEntryType("exit");
+                  setModalVisible(true);
+                }}
+              >
+                <Ionicons name="log-out-outline" size={18} color="#FFFFFF" />
+                <Text style={styles.dupBtnText}>Registrar Saída</Text>
+              </Pressable>
+              <Pressable
+                style={({ pressed }) => [
+                  styles.dupBtnOutline,
+                  { borderColor: colors.border, opacity: pressed ? 0.7 : 1 },
+                ]}
+                onPress={() => setDupWarningVisible(false)}
+              >
+                <Text style={[styles.dupBtnOutlineText, { color: colors.muted }]}>Cancelar</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </ScreenContainer>
   );
 }
@@ -644,4 +704,17 @@ const styles = StyleSheet.create({
   retakeBtnText: { fontSize: 14, fontWeight: "500" },
   confirmBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 10, paddingVertical: 18, borderRadius: 18 },
   confirmBtnText: { fontSize: 17, fontWeight: "700", color: "#FFFFFF" },
+  // Duplicate entry warning
+  dupOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.55)", alignItems: "center", justifyContent: "center", padding: 24 },
+  dupCard: { width: "100%", maxWidth: 360, borderRadius: 20, borderWidth: 1, padding: 24, gap: 16, alignItems: "center" },
+  dupIconWrap: { width: 72, height: 72, borderRadius: 36, backgroundColor: "#F59E0B20", alignItems: "center", justifyContent: "center" },
+  dupTitle: { fontSize: 20, fontWeight: "800", textAlign: "center" },
+  dupDesc: { fontSize: 14, textAlign: "center", lineHeight: 21 },
+  dupStoreTag: { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 10, borderWidth: 1 },
+  dupStoreText: { fontSize: 14, fontWeight: "700" },
+  dupActions: { width: "100%", gap: 10 },
+  dupBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, paddingVertical: 16, borderRadius: 14 },
+  dupBtnText: { fontSize: 16, fontWeight: "700", color: "#FFFFFF" },
+  dupBtnOutline: { paddingVertical: 14, borderRadius: 14, borderWidth: 1, alignItems: "center", justifyContent: "center" },
+  dupBtnOutlineText: { fontSize: 15, fontWeight: "600" },
 });
