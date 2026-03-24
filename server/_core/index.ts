@@ -8,6 +8,7 @@ import { registerOAuthRoutes } from "./oauth";
 import { registerCustomAuthRoutes, seedMasterAccount } from "./custom-auth";
 import { registerFileUploadRoutes } from "../file-upload";
 import { appRouter } from "../routers";
+import { checkAndNotifyPendingExits } from "../notifications";
 import { createContext } from "./context";
 
 function isPortAvailable(port: number): Promise<boolean> {
@@ -104,6 +105,24 @@ async function startServer() {
   server.listen(port, () => {
     console.log(`[api] server listening on port ${port}`);
   });
+
+  // ─── Periodic Jobs ────────────────────────────────────────────────────────────
+  // Check every 30 minutes for promoters with open entries older than 3 hours
+  const PENDING_EXIT_CHECK_INTERVAL_MS = 30 * 60 * 1000; // 30 minutes
+  const PENDING_EXIT_THRESHOLD_HOURS = 3;
+
+  setInterval(async () => {
+    try {
+      const notified = await checkAndNotifyPendingExits(PENDING_EXIT_THRESHOLD_HOURS);
+      if (notified.length > 0) {
+        console.log(`[jobs] Pending exit alert sent to: ${notified.join(", ")}`);
+      }
+    } catch (err) {
+      console.warn("[jobs] Error checking pending exits:", err);
+    }
+  }, PENDING_EXIT_CHECK_INTERVAL_MS);
+
+  console.log(`[jobs] Pending exit check scheduled every ${PENDING_EXIT_CHECK_INTERVAL_MS / 60000} minutes (threshold: ${PENDING_EXIT_THRESHOLD_HOURS}h)`);
 }
 
 startServer().catch(console.error);

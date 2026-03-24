@@ -955,3 +955,4 @@
 - [x] feat: filtro por promotor na galeria de fotos (gestor e supervisor)
 - [x] fix: limpar loja selecionada e foto ao registrar saída no ponto do promotor
 - [x] feat: validar registro duplo de entrada no ponto do promotor
+- [x] feat: notificação push ao promotor após 3h com entrada em aberto sem saída

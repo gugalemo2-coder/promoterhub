@@ -257,3 +257,66 @@ export async function notifyNewFileAvailable(promoterUserIds: number[], brandNam
     }))
   );
 }
+
+/**
+ * Check all promoters for open entries older than the given threshold (in hours).
+ * Sends a push notification directly to the promoter reminding them to register exit.
+ * Also notifies managers about the pending exit.
+ * Returns the list of promoter names notified.
+ */
+export async function checkAndNotifyPendingExits(thresholdHours: number = 3): Promise<string[]> {
+  const promoters = await db.getAllPromoterUsers();
+  if (promoters.length === 0) return [];
+
+  const now = new Date();
+  const notified: string[] = [];
+
+  for (const promoter of promoters) {
+    const openEntry = await db.getLastOpenEntry(promoter.id);
+    if (!openEntry) continue;
+
+    const entryTime = new Date(openEntry.entryTime);
+    const hoursElapsed = (now.getTime() - entryTime.getTime()) / (1000 * 60 * 60);
+
+    if (hoursElapsed >= thresholdHours) {
+      const hoursInt = Math.floor(hoursElapsed);
+      const minutesInt = Math.floor((hoursElapsed - hoursInt) * 60);
+      const timeStr = minutesInt > 0 ? `${hoursInt}h ${minutesInt}min` : `${hoursInt}h`;
+      const promoterName = promoter.name ?? promoter.email ?? "Promotor";
+
+      // Notify the promoter directly
+      const promoterTokens = await getTokensForUsers([promoter.id]);
+      if (promoterTokens.length > 0) {
+        await sendPushNotifications(
+          promoterTokens.map((to) => ({
+            to,
+            title: "⏰ Saída pendente",
+            body: `Você está com entrada em aberto há ${timeStr}. Não esqueça de registrar sua saída!`,
+            data: { type: "pending_exit", action: "reminder" },
+            sound: "default" as const,
+            priority: "high" as const,
+          }))
+        );
+      }
+
+      // Also notify managers
+      const managerTokens = await getManagerTokens();
+      if (managerTokens.length > 0) {
+        await sendPushNotifications(
+          managerTokens.map((to) => ({
+            to,
+            title: "⚠️ Saída pendente",
+            body: `${promoterName} está com entrada em aberto há ${timeStr} sem registrar saída.`,
+            data: { type: "pending_exit", action: "manager_alert", promoterId: promoter.id },
+            sound: "default" as const,
+            priority: "high" as const,
+          }))
+        );
+      }
+
+      notified.push(promoterName);
+    }
+  }
+
+  return notified;
+}
