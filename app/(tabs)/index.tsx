@@ -65,13 +65,14 @@ export default function HomeScreen() {
   );
   const { data: brands } = trpc.brands.list.useQuery(undefined, { enabled: isReady && isManager });
 
-  // Photos for selected brand (today)
   const [selectedBrandId, setSelectedBrandId] = useState<number | undefined>();
   const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
   const endOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59).toISOString();
 
+  // FIX: limit reduzido de 30 → 9. O grid da home exibe no máximo 9 fotos.
+  // Todas as fotos continuam acessíveis via "Ver todas" → manager-photos.
   const { data: todayPhotos } = trpc.photos.listAll.useQuery(
-    { brandId: selectedBrandId, startDate: startOfDay, endDate: endOfDay, limit: 30 },
+    { brandId: selectedBrandId, startDate: startOfDay, endDate: endOfDay, limit: 9 },
     { enabled: isReady && isManager }
   );
 
@@ -103,7 +104,6 @@ export default function HomeScreen() {
 
   const handleLogout = () => {
     if (Platform.OS === "web") {
-      // Alert.alert não funciona na web — logout direto
       doLogout();
     } else {
       Alert.alert("Sair da conta", "Deseja sair?", [
@@ -112,15 +112,13 @@ export default function HomeScreen() {
       ]);
     }
   };
-  // ──────────────────────────────────────────────────────────────────────────────────────
-  // SUPERVISOR: redirect para a tela de fotos
-  // ──────────────────────────────────────────────────────────────────────────────────────
+
+  // ── SUPERVISOR: redirect para a tela de fotos ──────────────────────────────
   if (isSupervisor) {
     return <Redirect href="/(tabs)/supervisor-photos" />;
   }
 
-  // ──────────────────────────────────────────────────────────────────────────────────────
-  // MANAGER / MASTER DASHBOARD──────────────────────────────────────────────────────────────────────
+  // ── MANAGER / MASTER DASHBOARD ─────────────────────────────────────────────
   if (isManager) {
     return (
       <ScreenContainer>
@@ -128,7 +126,6 @@ export default function HomeScreen() {
 
           {/* ── Header ── */}
           <View style={[styles.managerHeader, { backgroundColor: accentColor }]}>
-            {/* Sino de alertas (esquerda) */}
             <TouchableOpacity
               style={styles.bellBtn}
               onPress={() => router.push("/(tabs)/alerts" as any)}
@@ -142,7 +139,6 @@ export default function HomeScreen() {
               )}
             </TouchableOpacity>
 
-            {/* Saudação (centro) */}
             <View style={styles.managerGreeting}>
               <Text style={styles.managerGreetingText}>{greeting}, {firstName}!</Text>
               <Text style={styles.managerSubtitle}>
@@ -150,7 +146,6 @@ export default function HomeScreen() {
               </Text>
             </View>
 
-            {/* Logout (direita) */}
             <TouchableOpacity onPress={handleLogout} style={styles.logoutBtn} activeOpacity={0.8}>
               <Ionicons name="log-out-outline" size={24} color="rgba(255,255,255,0.85)" />
             </TouchableOpacity>
@@ -294,9 +289,7 @@ export default function HomeScreen() {
     );
   }
 
-  // ─────────────────────────────────────────────────────────────────────────
-  // PROMOTER HOME
-  // ─────────────────────────────────────────────────────────────────────────
+  // ── PROMOTER HOME ──────────────────────────────────────────────────────────
   return (
     <ScreenContainer>
       <ScrollView showsVerticalScrollIndicator={false}>
@@ -434,7 +427,6 @@ export default function HomeScreen() {
 }
 
 const styles = StyleSheet.create({
-  // Manager header
   managerHeader: {
     flexDirection: "row",
     alignItems: "center",
@@ -461,8 +453,6 @@ const styles = StyleSheet.create({
   managerGreetingText: { fontSize: 20, fontWeight: "800", color: "#fff" },
   managerSubtitle: { fontSize: 13, color: "rgba(255,255,255,0.8)", marginTop: 2 },
   logoutBtn: { padding: 4 },
-
-  // Promoter header
   promoterHeader: {
     flexDirection: "row",
     alignItems: "center",
@@ -472,26 +462,18 @@ const styles = StyleSheet.create({
   },
   promoterGreeting: { fontSize: 22, fontWeight: "700", color: "#fff" },
   promoterSubtitle: { fontSize: 14, color: "rgba(255,255,255,0.8)", marginTop: 4 },
-
-  // Stats
   statsGrid: { flexDirection: "row", flexWrap: "wrap", padding: 16, gap: 12 },
   statCard: { flex: 1, minWidth: "44%", borderRadius: 16, padding: 16, alignItems: "center", borderWidth: 1 },
   statIcon: { width: 44, height: 44, borderRadius: 12, alignItems: "center", justifyContent: "center", marginBottom: 8 },
   statValue: { fontSize: 26, fontWeight: "800" },
   statLabel: { fontSize: 12, marginTop: 2, textAlign: "center" },
-
-  // Section
   sectionRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 16, marginTop: 4, marginBottom: 10 },
   sectionTitle: { fontSize: 17, fontWeight: "700", marginHorizontal: 16, marginTop: 8, marginBottom: 12 },
   seeAll: { fontSize: 14, fontWeight: "600" },
-
-  // Brand chips
   brandScroll: { paddingHorizontal: 16, paddingBottom: 12, gap: 8, flexDirection: "row" },
   brandChip: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, borderWidth: 1.5 },
   brandDot: { width: 8, height: 8, borderRadius: 4 },
   brandChipText: { fontSize: 13, fontWeight: "600" },
-
-  // Photo grid
   photoGrid: { flexDirection: "row", flexWrap: "wrap", paddingHorizontal: 16, gap: 4, marginBottom: 8 },
   photoCell: { borderRadius: 8, overflow: "hidden" },
   photoImage: { width: "100%", height: "100%" },
@@ -499,8 +481,6 @@ const styles = StyleSheet.create({
   moreCellText: { fontSize: 18, fontWeight: "800" },
   emptyPhotos: { marginHorizontal: 16, borderRadius: 16, borderWidth: 1, padding: 32, alignItems: "center", gap: 10, marginBottom: 8 },
   emptyPhotosText: { fontSize: 14, textAlign: "center" },
-
-  // Promoter summary
   summaryCard: { margin: 16, borderRadius: 20, padding: 20, borderWidth: 1 },
   summaryTitle: { fontSize: 16, fontWeight: "700", marginBottom: 16 },
   summaryRow: { flexDirection: "row", alignItems: "center" },
@@ -508,18 +488,12 @@ const styles = StyleSheet.create({
   summaryDivider: { width: 1, height: 48 },
   summaryValue: { fontSize: 22, fontWeight: "800" },
   summaryLabel: { fontSize: 12 },
-
-  // Clock CTA
   clockCta: { marginHorizontal: 16, marginBottom: 8, borderRadius: 16, paddingVertical: 18, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 12 },
   clockCtaText: { fontSize: 18, fontWeight: "700", color: "#FFFFFF" },
-
-  // Quick actions
   quickActions: { flexDirection: "row", flexWrap: "wrap", paddingHorizontal: 16, paddingBottom: 16, gap: 12 },
   quickAction: { flex: 1, minWidth: "44%", borderRadius: 16, padding: 16, alignItems: "center", gap: 10, borderWidth: 1 },
   quickActionIcon: { width: 52, height: 52, borderRadius: 16, alignItems: "center", justifyContent: "center" },
   quickActionLabel: { fontSize: 13, fontWeight: "600", textAlign: "center" },
-
-  // My Stores section
   emptyStores: { marginHorizontal: 16, borderRadius: 16, borderWidth: 1, padding: 24, alignItems: "center", gap: 10, marginBottom: 24 },
   emptyStoresText: { fontSize: 14, textAlign: "center", lineHeight: 20 },
   storesList: { paddingHorizontal: 16, gap: 10, marginBottom: 24 },
