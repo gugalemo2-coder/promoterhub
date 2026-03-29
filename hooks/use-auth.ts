@@ -1,5 +1,6 @@
 import * as Api from "@/lib/_core/api";
 import * as Auth from "@/lib/_core/auth";
+import { clearTokenCache } from "@/lib/trpc";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Platform } from "react-native";
 
@@ -22,7 +23,7 @@ export function useAuth(options?: UseAuthOptions) {
       // Web platform: check for custom app token first, then fall back to OAuth cookie
       if (Platform.OS === "web") {
         console.log("[useAuth] Web platform: checking session...");
-        
+
         // First: check if there's a custom app token in localStorage
         const sessionToken = await Auth.getSessionToken();
         if (sessionToken) {
@@ -47,7 +48,7 @@ export function useAuth(options?: UseAuthOptions) {
             await Auth.removeSessionToken();
           }
         }
-        
+
         // Fallback: OAuth cookie-based auth
         console.log("[useAuth] Web: no custom token, trying OAuth cookie...");
         const apiUser = await Api.getMe();
@@ -114,10 +115,15 @@ export function useAuth(options?: UseAuthOptions) {
       console.error("[Auth] Logout API call failed:", err);
       // Continue with logout even if API call fails
     } finally {
+      // FIX: limpa o cache do token em memória para evitar que o token
+      // antigo seja reutilizado em requisições após o logout
+      clearTokenCache();
+
       await Auth.removeSessionToken();
       await Auth.clearUserInfo();
       setUser(null);
       setError(null);
+
       // On web: clear ALL localStorage (role, user info, session) and force a full page reload
       // This destroys all in-memory React state and ensures a clean login screen
       if (Platform.OS === "web" && typeof window !== "undefined") {
