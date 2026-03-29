@@ -47,6 +47,9 @@ export default function TabLayout() {
         tabBarActiveTintColor: activeTint,
         headerShown: false,
         tabBarButton: HapticTab,
+        // FIX: lazy=true carrega cada tela apenas quando o usuário acessá-la
+        // pela primeira vez, em vez de inicializar todas as 26 telas juntas
+        lazy: true,
         tabBarStyle: {
           paddingTop: 8,
           paddingBottom: bottomPadding,
@@ -138,7 +141,7 @@ export default function TabLayout() {
         }}
       />
 
-      {/* ─── MANAGER/MASTER: Config (hidden — acessível pelo Menu) ───────────── */}
+      {/* ─── MANAGER/MASTER: Config (hidden) ─────────────────────────────── */}
       <Tabs.Screen
         name="settings"
         options={{
@@ -162,7 +165,7 @@ export default function TabLayout() {
         }}
       />
 
-      {/* ─── PROMOTER: Meu Perfil (ÚLTIMO) ──────────────────────────────── */}
+      {/* ─── PROMOTER: Meu Perfil ────────────────────────────────────────── */}
       <Tabs.Screen
         name="my-profile"
         options={{
@@ -174,71 +177,23 @@ export default function TabLayout() {
         }}
       />
 
-      {/* ─── HIDDEN TABS (accessible via more-menu or direct navigation) ── */}
-      <Tabs.Screen
-        name="alerts"
-        options={{ title: "Alertas", href: null }}
-      />
-      <Tabs.Screen
-        name="team"
-        options={{ title: "Equipe", href: null }}
-      />
-      <Tabs.Screen
-        name="stores"
-        options={{ title: "Lojas", href: null }}
-      />
-      <Tabs.Screen
-        name="brands"
-        options={{ title: "Marcas", href: null }}
-      />
-      <Tabs.Screen
-        name="reports"
-        options={{ title: "Relatórios", href: null }}
-      />
-      <Tabs.Screen
-        name="sign-report"
-        options={{ title: "Assinar", href: null }}
-      />
-      <Tabs.Screen
-        name="store-dashboard"
-        options={{ title: "PDVs", href: null }}
-      />
-      <Tabs.Screen
-        name="promoter-ranking"
-        options={{ title: "Ranking", href: null }}
-      />
-      <Tabs.Screen
-        name="store-visits"
-        options={{ title: "Visitas", href: null }}
-      />
-      <Tabs.Screen
-        name="master-users"
-        options={{ title: "Usuários", href: null }}
-      />
-      <Tabs.Screen
-        name="manager-photos"
-        options={{ title: "Fotos Gestor", href: null }}
-      />
-      <Tabs.Screen
-        name="offline-queue"
-        options={{ title: "Offline", href: null }}
-      />
-      <Tabs.Screen
-        name="notifications"
-        options={{ title: "Avisos", href: null }}
-      />
-      <Tabs.Screen
-        name="audit-clock"
-        options={{ title: "Auditoria de Ponto", href: null }}
-      />
-      <Tabs.Screen
-        name="store-time"
-        options={{ title: "Tempo por Loja", href: null }}
-      />
-      <Tabs.Screen
-        name="product-expiration"
-        options={{ title: "Vencimento Produtos", href: null }}
-      />
+      {/* ─── HIDDEN TABS — carregadas só quando acessadas (lazy) ─────────── */}
+      <Tabs.Screen name="alerts" options={{ title: "Alertas", href: null }} />
+      <Tabs.Screen name="team" options={{ title: "Equipe", href: null }} />
+      <Tabs.Screen name="stores" options={{ title: "Lojas", href: null }} />
+      <Tabs.Screen name="brands" options={{ title: "Marcas", href: null }} />
+      <Tabs.Screen name="reports" options={{ title: "Relatórios", href: null }} />
+      <Tabs.Screen name="sign-report" options={{ title: "Assinar", href: null }} />
+      <Tabs.Screen name="store-dashboard" options={{ title: "PDVs", href: null }} />
+      <Tabs.Screen name="promoter-ranking" options={{ title: "Ranking", href: null }} />
+      <Tabs.Screen name="store-visits" options={{ title: "Visitas", href: null }} />
+      <Tabs.Screen name="master-users" options={{ title: "Usuários", href: null }} />
+      <Tabs.Screen name="manager-photos" options={{ title: "Fotos Gestor", href: null }} />
+      <Tabs.Screen name="offline-queue" options={{ title: "Offline", href: null }} />
+      <Tabs.Screen name="notifications" options={{ title: "Avisos", href: null }} />
+      <Tabs.Screen name="audit-clock" options={{ title: "Auditoria de Ponto", href: null }} />
+      <Tabs.Screen name="store-time" options={{ title: "Tempo por Loja", href: null }} />
+      <Tabs.Screen name="product-expiration" options={{ title: "Vencimento Produtos", href: null }} />
     </Tabs>
   );
 }
