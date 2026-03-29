@@ -10,6 +10,7 @@ import {
   Dimensions,
   FlatList,
   Modal,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -97,6 +98,28 @@ function ZoomableImage({ uri }: { uri: string }) {
   );
 }
 
+// ─── Web download helper ───────────────────────────────────────────────────────
+// No navegador (desktop/PWA), usa fetch + blob + <a> para forçar o download.
+async function webDownloadPhoto(url: string): Promise<boolean> {
+  try {
+    const response = await fetch(url);
+    if (!response.ok) return false;
+    const blob = await response.blob();
+    const blobUrl = URL.createObjectURL(blob);
+    const filename = url.split("/").pop()?.split("?")[0] ?? `photo_${Date.now()}.jpg`;
+    const a = document.createElement("a");
+    a.href = blobUrl;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(blobUrl);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 // ─── Main Screen ──────────────────────────────────────────────────────────────
 export default function ManagerPhotosScreen() {
   const colors = useColors();
@@ -125,7 +148,7 @@ export default function ManagerPhotosScreen() {
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [batchProcessing, setBatchProcessing] = useState(false);
 
-  // Confirmation modal state (replaces Alert.alert for web compatibility)
+  // Confirmation modal state
   const [confirmModal, setConfirmModal] = useState<{
     visible: boolean;
     title: string;
@@ -171,7 +194,6 @@ export default function ManagerPhotosScreen() {
   const updateStatusMutation = trpc.photos.updateStatus.useMutation();
   const updateStatusBatchMutation = trpc.photos.updateStatusBatch.useMutation();
 
-  // Sort: newest first always
   const sortedPhotos = useMemo((): PhotoItem[] => {
     const arr: PhotoItem[] = (photos ?? []).map((p) => ({
       ...p,
@@ -180,7 +202,6 @@ export default function ManagerPhotosScreen() {
     }));
     return arr.sort((a, b) => new Date(b.photoTimestamp ?? 0).getTime() - new Date(a.photoTimestamp ?? 0).getTime());
   }, [photos]);
-
 
   const openPhoto = useCallback((index: number) => {
     setPreviewIndex(index);
@@ -244,8 +265,13 @@ export default function ManagerPhotosScreen() {
     });
   };
 
-  // Download helper
-  const downloadPhoto = useCallback(async (url: string) => {
+  // ── FIX: Download helper com suporte a Web (desktop/PWA) ──────────────────
+  const downloadPhoto = useCallback(async (url: string): Promise<boolean> => {
+    // Web: usa fetch + blob + <a> para forçar download no navegador
+    if (Platform.OS === "web") {
+      return webDownloadPhoto(url);
+    }
+    // Native (iOS/Android): usa FileSystem + MediaLibrary
     try {
       let perm = mediaPermission;
       if (!perm?.granted) {
@@ -271,8 +297,15 @@ export default function ManagerPhotosScreen() {
     setDownloading(true);
     const ok = await downloadPhoto(photo.photoUrl);
     setDownloading(false);
-    if (ok) Alert.alert("Salvo!", "Foto salva na galeria.");
-    else Alert.alert("Erro", "Não foi possível salvar a foto.");
+    if (ok) {
+      if (Platform.OS === "web") {
+        // No web o download já inicia automaticamente, sem necessidade de alert
+      } else {
+        Alert.alert("Salvo!", "Foto salva na galeria.");
+      }
+    } else {
+      Alert.alert("Erro", "Não foi possível baixar a foto.");
+    }
   }, [sortedPhotos, previewIndex, downloadPhoto]);
 
   const handleDownloadBatch = useCallback(async () => {
@@ -288,7 +321,12 @@ export default function ManagerPhotosScreen() {
     }
     setBatchProcessing(false);
     exitSelectionMode();
-    Alert.alert("Download concluído", `${successCount} de ${photosToDownload.length} foto${photosToDownload.length !== 1 ? "s" : ""} salva${photosToDownload.length !== 1 ? "s" : ""} na galeria.`);
+    if (Platform.OS !== "web") {
+      Alert.alert(
+        "Download concluído",
+        `${successCount} de ${photosToDownload.length} foto${photosToDownload.length !== 1 ? "s" : ""} salva${photosToDownload.length !== 1 ? "s" : ""} na galeria.`
+      );
+    }
   }, [selectedIds, sortedPhotos, downloadPhoto, exitSelectionMode]);
 
   const getStatusLabel = (s?: PhotoStatus) => {
@@ -419,7 +457,6 @@ export default function ManagerPhotosScreen() {
             {years.map((year) =>
               MONTHS.map((monthName, monthIndex) => {
                 const isSelected = selectedMonth === monthIndex && selectedYear === year;
-                // Only show months up to current month for current year
                 if (year === currentYear && monthIndex > now.getMonth()) return null;
                 return (
                   <TouchableOpacity
@@ -525,7 +562,6 @@ export default function ManagerPhotosScreen() {
             </View>
           )}
         </View>
-        {/* Batch select toggle */}
         {!selectionMode ? (
           <TouchableOpacity
             style={[styles.batchBtn, { borderColor: accentColor }]}
@@ -577,7 +613,7 @@ export default function ManagerPhotosScreen() {
         </View>
       )}
 
-      {/* Filter bar (hidden in selection mode) */}
+      {/* Filter bar */}
       {!selectionMode && (
         <View style={[styles.filterBar, { borderBottomColor: colors.border, backgroundColor: colors.background }]}>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterScroll}>
@@ -654,7 +690,6 @@ export default function ManagerPhotosScreen() {
                   contentFit="cover"
                   transition={200}
                 />
-                {/* Status badge */}
                 {item.status === "approved" && (
                   <View style={[styles.statusBadge, { backgroundColor: "#0E9F6E" }]}>
                     <Ionicons name="checkmark" size={10} color="#fff" />
@@ -670,7 +705,6 @@ export default function ManagerPhotosScreen() {
                     <Ionicons name="time" size={10} color="#fff" />
                   </View>
                 )}
-                {/* Selection overlay */}
                 {selectionMode && (
                   <View style={[styles.selectionOverlay, isSelected && styles.selectionOverlayActive]}>
                     {isSelected && <Ionicons name="checkmark-circle" size={28} color="#fff" />}
@@ -682,22 +716,19 @@ export default function ManagerPhotosScreen() {
         />
       )}
 
-      {/* Photo Preview Modal with Swipe + Zoom + Info Panel + Approve/Reject */}
+      {/* Photo Preview Modal */}
       <Modal visible={previewVisible} transparent animationType="fade" onRequestClose={closePreview}>
         <View style={styles.previewOverlay}>
-          {/* Close button */}
           <TouchableOpacity style={styles.previewClose} onPress={closePreview}>
             <Ionicons name="close-circle" size={36} color="#fff" />
           </TouchableOpacity>
 
-          {/* Counter: X / N */}
           <View style={styles.previewCounter}>
             <Text style={styles.previewCounterText}>
               {previewIndex + 1} / {sortedPhotos.length}
             </Text>
           </View>
 
-          {/* Info toggle button */}
           <TouchableOpacity
             style={styles.infoToggleBtn}
             onPress={() => setShowInfo((v) => !v)}
@@ -705,7 +736,6 @@ export default function ManagerPhotosScreen() {
             <Ionicons name={showInfo ? "information-circle" : "information-circle-outline"} size={28} color="#fff" />
           </TouchableOpacity>
 
-          {/* Status badge */}
           {currentStatus && (
             <View style={[
               styles.previewStatusBadge,
@@ -722,21 +752,16 @@ export default function ManagerPhotosScreen() {
             </View>
           )}
 
-          {/* Photo display — renders only the current photo by index (no FlatList/scrollToIndex) */}
           {sortedPhotos[previewIndex] && (
             <View style={{ width: SCREEN_WIDTH, height: SCREEN_HEIGHT * 0.65, alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
               <ZoomableImage key={previewIndex} uri={sortedPhotos[previewIndex].photoUrl} />
             </View>
           )}
 
-          {/* Navigation arrows */}
           {previewIndex > 0 && (
             <TouchableOpacity
               style={styles.navArrowLeft}
-              onPress={() => {
-                setPreviewIndex(previewIndex - 1);
-                setShowInfo(false);
-              }}
+              onPress={() => { setPreviewIndex(previewIndex - 1); setShowInfo(false); }}
             >
               <Ionicons name="chevron-back" size={32} color="rgba(255,255,255,0.85)" />
             </TouchableOpacity>
@@ -744,16 +769,12 @@ export default function ManagerPhotosScreen() {
           {previewIndex < sortedPhotos.length - 1 && (
             <TouchableOpacity
               style={styles.navArrowRight}
-              onPress={() => {
-                setPreviewIndex(previewIndex + 1);
-                setShowInfo(false);
-              }}
+              onPress={() => { setPreviewIndex(previewIndex + 1); setShowInfo(false); }}
             >
               <Ionicons name="chevron-forward" size={32} color="rgba(255,255,255,0.85)" />
             </TouchableOpacity>
           )}
 
-          {/* Info strip — always visible, updates with current photo */}
           {currentPhoto && (
             <View style={styles.infoStrip}>
               <View style={styles.infoStripRow}>
@@ -779,7 +800,6 @@ export default function ManagerPhotosScreen() {
             </View>
           )}
 
-          {/* Action buttons */}
           <View style={styles.previewActions}>
             <TouchableOpacity
               style={[styles.actionBtn, { backgroundColor: "rgba(255,255,255,0.15)", opacity: downloading ? 0.5 : 1 }]}
@@ -840,7 +860,7 @@ export default function ManagerPhotosScreen() {
         </View>
       </Modal>
 
-      {/* Confirmation Modal (web-compatible replacement for Alert.alert) */}
+      {/* Confirmation Modal */}
       <Modal
         visible={confirmModal.visible}
         transparent
@@ -873,316 +893,69 @@ export default function ManagerPhotosScreen() {
 }
 
 const styles = StyleSheet.create({
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderBottomWidth: 0.5,
-    gap: 12,
-  },
+  header: { flexDirection: "row", alignItems: "center", paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 0.5, gap: 12 },
   backBtn: { padding: 4 },
   headerText: { flex: 1 },
   headerTitle: { fontSize: 18, fontWeight: "700" },
   headerCount: { fontSize: 13, marginTop: 1 },
   clearBtn: { padding: 4 },
-  batchBtn: {
-    padding: 6,
-    borderRadius: 8,
-    borderWidth: 1,
-  },
-  batchBar: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderBottomWidth: 0.5,
-    gap: 12,
-  },
+  batchBtn: { padding: 6, borderRadius: 8, borderWidth: 1 },
+  batchBar: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 16, paddingVertical: 10, borderBottomWidth: 0.5, gap: 12 },
   batchBarText: { fontSize: 14, fontWeight: "500", flex: 1 },
-  batchActionBtn: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 8,
-  },
+  batchActionBtn: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 8 },
   batchActionText: { color: "#fff", fontSize: 14, fontWeight: "600" },
   filterBar: { borderBottomWidth: 0.5 },
   filterScroll: { paddingHorizontal: 16, paddingVertical: 10, gap: 8, flexDirection: "row" },
-  filterChip: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    paddingHorizontal: 14,
-    paddingVertical: 7,
-    borderRadius: 20,
-    borderWidth: 1,
-  },
+  filterChip: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20, borderWidth: 1 },
   filterChipText: { fontSize: 13, fontWeight: "500" },
-  dropdownOverlay: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    zIndex: 100,
-  },
-  dropdownContainer: {
-    position: "absolute",
-    top: 110,
-    left: 16,
-    right: 16,
-    zIndex: 101,
-  },
-  dropdown: {
-    borderRadius: 12,
-    borderWidth: 1,
-    overflow: "hidden",
-  },
-  dropdownScroll: {
-    maxHeight: 260,
-  },
-  dropdownItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderBottomWidth: 0.5,
-  },
+  dropdownOverlay: { position: "absolute", top: 0, left: 0, right: 0, bottom: 0, zIndex: 100 },
+  dropdownContainer: { position: "absolute", top: 110, left: 16, right: 16, zIndex: 101 },
+  dropdown: { borderRadius: 12, borderWidth: 1, overflow: "hidden" },
+  dropdownScroll: { maxHeight: 260 },
+  dropdownItem: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 0.5 },
   dropdownItemText: { fontSize: 15 },
   center: { flex: 1, alignItems: "center", justifyContent: "center", gap: 12 },
   emptyText: { fontSize: 15, textAlign: "center" },
   grid: { padding: 16, gap: 4 },
   row: { gap: 4 },
   photoCell: { borderRadius: 8, overflow: "hidden" },
-  photoCellSelected: {
-    borderWidth: 3,
-    borderColor: "#7C3AED",
-    borderRadius: 8,
-  },
+  photoCellSelected: { borderWidth: 3, borderColor: "#7C3AED", borderRadius: 8 },
   photoImage: { width: "100%", height: "100%" },
-  statusBadge: {
-    position: "absolute",
-    top: 4,
-    right: 4,
-    width: 18,
-    height: 18,
-    borderRadius: 9,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  selectionOverlay: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: "rgba(0,0,0,0.25)",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  selectionOverlayActive: {
-    backgroundColor: "rgba(124,58,237,0.45)",
-  },
-  previewOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.95)",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  previewImage: {
-    width: SCREEN_WIDTH,
-    height: SCREEN_HEIGHT * 0.65,
-  },
-  previewClose: {
-    position: "absolute",
-    top: 50,
-    right: 16,
-    zIndex: 20,
-  },
-  previewCounter: {
-    position: "absolute",
-    top: 56,
-    alignSelf: "center",
-    backgroundColor: "rgba(0,0,0,0.5)",
-    paddingHorizontal: 12,
-    paddingVertical: 4,
-    borderRadius: 12,
-    zIndex: 20,
-  },
-  previewCounterText: {
-    color: "#fff",
-    fontSize: 14,
-    fontWeight: "600",
-  },
-  infoToggleBtn: {
-    position: "absolute",
-    top: 50,
-    left: 16,
-    zIndex: 20,
-  },
-  previewStatusBadge: {
-    position: "absolute",
-    top: 96,
-    left: 16,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 12,
-    zIndex: 20,
-  },
+  statusBadge: { position: "absolute", top: 4, right: 4, width: 18, height: 18, borderRadius: 9, alignItems: "center", justifyContent: "center" },
+  selectionOverlay: { position: "absolute", top: 0, left: 0, right: 0, bottom: 0, backgroundColor: "rgba(0,0,0,0.25)", alignItems: "center", justifyContent: "center" },
+  selectionOverlayActive: { backgroundColor: "rgba(124,58,237,0.45)" },
+  previewOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.95)", alignItems: "center", justifyContent: "center" },
+  previewImage: { width: SCREEN_WIDTH, height: SCREEN_HEIGHT * 0.65 },
+  previewClose: { position: "absolute", top: 50, right: 16, zIndex: 20 },
+  previewCounter: { position: "absolute", top: 56, alignSelf: "center", backgroundColor: "rgba(0,0,0,0.5)", paddingHorizontal: 12, paddingVertical: 4, borderRadius: 12, zIndex: 20 },
+  previewCounterText: { color: "#fff", fontSize: 14, fontWeight: "600" },
+  infoToggleBtn: { position: "absolute", top: 50, left: 16, zIndex: 20 },
+  previewStatusBadge: { position: "absolute", top: 96, left: 16, flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12, zIndex: 20 },
   previewStatusText: { color: "#fff", fontSize: 12, fontWeight: "600" },
-  navArrowLeft: {
-    position: "absolute",
-    left: 8,
-    top: "45%",
-    marginTop: -22,
-    width: 44,
-    height: 44,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "rgba(0,0,0,0.35)",
-    borderRadius: 22,
-    zIndex: 20,
-  },
-  navArrowRight: {
-    position: "absolute",
-    right: 8,
-    top: "45%",
-    marginTop: -22,
-    width: 44,
-    height: 44,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "rgba(0,0,0,0.35)",
-    borderRadius: 22,
-    zIndex: 20,
-  },
-  // Legacy (kept for safety, no longer rendered)
+  navArrowLeft: { position: "absolute", left: 8, top: "45%", marginTop: -22, width: 44, height: 44, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(0,0,0,0.35)", borderRadius: 22, zIndex: 20 },
+  navArrowRight: { position: "absolute", right: 8, top: "45%", marginTop: -22, width: 44, height: 44, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(0,0,0,0.35)", borderRadius: 22, zIndex: 20 },
   infoPanel: { display: "none" },
   infoRow: { display: "none" },
   infoText: { display: "none" },
-  // Permanent info strip
-  infoStrip: {
-    position: "absolute",
-    bottom: 110,
-    left: 0,
-    right: 0,
-    backgroundColor: "rgba(0,0,0,0.72)",
-    paddingHorizontal: 16,
-    paddingTop: 12,
-    paddingBottom: 10,
-    zIndex: 20,
-    borderTopWidth: 0.5,
-    borderTopColor: "rgba(255,255,255,0.12)",
-  },
-  infoStripRow: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    justifyContent: "space-between",
-    marginBottom: 6,
-  },
-  infoStripItem: {
-    flex: 1,
-    alignItems: "center",
-    gap: 2,
-  },
-  infoStripDivider: {
-    width: 0.5,
-    height: 36,
-    backgroundColor: "rgba(255,255,255,0.2)",
-    alignSelf: "center",
-  },
-  infoStripLabel: {
-    color: "rgba(255,255,255,0.55)",
-    fontSize: 10,
-    fontWeight: "500",
-    textTransform: "uppercase",
-    letterSpacing: 0.5,
-    marginTop: 2,
-  },
-  infoStripValue: {
-    color: "#fff",
-    fontSize: 13,
-    fontWeight: "700",
-    textAlign: "center",
-    paddingHorizontal: 4,
-  },
-  infoStripDate: {
-    color: "rgba(255,255,255,0.5)",
-    fontSize: 11,
-    textAlign: "center",
-    marginTop: 2,
-  },
-  previewActions: {
-    position: "absolute",
-    bottom: 28,
-    left: 0,
-    right: 0,
-    flexDirection: "row",
-    paddingHorizontal: 24,
-    gap: 16,
-    justifyContent: "center",
-    zIndex: 20,
-  },
-  actionBtn: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 8,
-    paddingVertical: 14,
-    borderRadius: 14,
-    maxWidth: 180,
-  },
+  infoStrip: { position: "absolute", bottom: 110, left: 0, right: 0, backgroundColor: "rgba(0,0,0,0.72)", paddingHorizontal: 16, paddingTop: 12, paddingBottom: 10, zIndex: 20, borderTopWidth: 0.5, borderTopColor: "rgba(255,255,255,0.12)" },
+  infoStripRow: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 6 },
+  infoStripItem: { flex: 1, alignItems: "center", gap: 2 },
+  infoStripDivider: { width: 0.5, height: 36, backgroundColor: "rgba(255,255,255,0.2)", alignSelf: "center" },
+  infoStripLabel: { color: "rgba(255,255,255,0.55)", fontSize: 10, fontWeight: "500", textTransform: "uppercase", letterSpacing: 0.5, marginTop: 2 },
+  infoStripValue: { color: "#fff", fontSize: 13, fontWeight: "700", textAlign: "center", paddingHorizontal: 4 },
+  infoStripDate: { color: "rgba(255,255,255,0.5)", fontSize: 11, textAlign: "center", marginTop: 2 },
+  previewActions: { position: "absolute", bottom: 28, left: 0, right: 0, flexDirection: "row", paddingHorizontal: 24, gap: 16, justifyContent: "center", zIndex: 20 },
+  actionBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, paddingVertical: 14, borderRadius: 14, maxWidth: 180 },
   rejectBtn: { backgroundColor: "#E02424" },
   approveBtn: { backgroundColor: "#0E9F6E" },
   actionBtnActive: { opacity: 0.5 },
   actionBtnDisabled: { opacity: 0.6 },
   actionBtnText: { color: "#fff", fontSize: 16, fontWeight: "700" },
-  // Confirmation modal styles
-  confirmOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.55)",
-    alignItems: "center",
-    justifyContent: "center",
-    padding: 24,
-  },
-  confirmBox: {
-    width: "100%",
-    maxWidth: 360,
-    borderRadius: 20,
-    borderWidth: 1,
-    padding: 24,
-    gap: 12,
-  },
-  confirmTitle: {
-    fontSize: 18,
-    fontWeight: "700",
-    textAlign: "center",
-  },
-  confirmMessage: {
-    fontSize: 15,
-    textAlign: "center",
-    lineHeight: 22,
-  },
-  confirmButtons: {
-    flexDirection: "row",
-    gap: 12,
-    marginTop: 8,
-  },
-  confirmBtn: {
-    flex: 1,
-    paddingVertical: 12,
-    borderRadius: 12,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  confirmBtnText: {
-    fontSize: 15,
-    fontWeight: "600",
-  },
+  confirmOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.55)", alignItems: "center", justifyContent: "center", padding: 24 },
+  confirmBox: { width: "100%", maxWidth: 360, borderRadius: 20, borderWidth: 1, padding: 24, gap: 12 },
+  confirmTitle: { fontSize: 18, fontWeight: "700", textAlign: "center" },
+  confirmMessage: { fontSize: 15, textAlign: "center", lineHeight: 22 },
+  confirmButtons: { flexDirection: "row", gap: 12, marginTop: 8 },
+  confirmBtn: { flex: 1, paddingVertical: 12, borderRadius: 12, alignItems: "center", justifyContent: "center" },
+  confirmBtnText: { fontSize: 15, fontWeight: "600" },
 });
