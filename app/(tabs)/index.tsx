@@ -10,7 +10,6 @@ import { useMemo, useState } from "react";
 import {
   Alert,
   Dimensions,
-  FlatList,
   Platform,
   Pressable,
   ScrollView,
@@ -59,17 +58,16 @@ export default function HomeScreen() {
     { date: todayISO },
     { enabled: isReady && isManager }
   );
-  const { data: unacknowledgedAlerts } = trpc.geoAlerts.list.useQuery(
-    { acknowledged: false, limit: 50 },
+  const { data: brands } = trpc.brands.list.useQuery(
+    undefined,
     { enabled: isReady && isManager }
   );
-  const { data: brands } = trpc.brands.list.useQuery(undefined, { enabled: isReady && isManager });
 
   const [selectedBrandId, setSelectedBrandId] = useState<number | undefined>();
   const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
   const endOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59).toISOString();
 
-  // FIX: limit reduzido de 30 → 9. O grid da home exibe no máximo 9 fotos.
+  // FIX: limit reduzido de 30 → 9. O grid exibe no máximo 9 fotos na home.
   // Todas as fotos continuam acessíveis via "Ver todas" → manager-photos.
   const { data: todayPhotos } = trpc.photos.listAll.useQuery(
     { brandId: selectedBrandId, startDate: startOfDay, endDate: endOfDay, limit: 9 },
@@ -82,8 +80,6 @@ export default function HomeScreen() {
       (a, b) => new Date(b.photoTimestamp ?? 0).getTime() - new Date(a.photoTimestamp ?? 0).getTime()
     );
   }, [todayPhotos]);
-
-  const alertCount = unacknowledgedAlerts?.length ?? 0;
 
   const formatHours = (minutes: number) => {
     const h = Math.floor(minutes / 60);
@@ -132,11 +128,6 @@ export default function HomeScreen() {
               activeOpacity={0.8}
             >
               <Ionicons name="notifications-outline" size={26} color="#fff" />
-              {alertCount > 0 && (
-                <View style={styles.bellBadge}>
-                  <Text style={styles.bellBadgeText}>{alertCount > 99 ? "99+" : alertCount}</Text>
-                </View>
-              )}
             </TouchableOpacity>
 
             <View style={styles.managerGreeting}>
@@ -157,7 +148,6 @@ export default function HomeScreen() {
               { label: "Registros Hoje", value: dailyReport?.totalEntries ?? 0, icon: "time-outline", color: "#3B82F6" },
               { label: "Fotos Enviadas", value: dailyReport?.totalPhotos ?? 0, icon: "camera-outline", color: "#10B981" },
               { label: "Solicitações", value: dailyReport?.totalRequests ?? 0, icon: "cube-outline", color: "#F59E0B" },
-              { label: "Alertas Ativos", value: alertCount, icon: "warning-outline", color: "#EF4444" },
             ].map((stat) => (
               <View
                 key={stat.label}
@@ -181,25 +171,13 @@ export default function HomeScreen() {
           </View>
 
           {/* Brand Selector */}
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.brandScroll}
-          >
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.brandScroll}>
             <TouchableOpacity
-              style={[
-                styles.brandChip,
-                {
-                  backgroundColor: !selectedBrandId ? accentColor : colors.surface,
-                  borderColor: !selectedBrandId ? accentColor : colors.border,
-                },
-              ]}
+              style={[styles.brandChip, { backgroundColor: !selectedBrandId ? accentColor : colors.surface, borderColor: !selectedBrandId ? accentColor : colors.border }]}
               onPress={() => setSelectedBrandId(undefined)}
               activeOpacity={0.75}
             >
-              <Text style={[styles.brandChipText, { color: !selectedBrandId ? "#fff" : colors.foreground }]}>
-                Todas
-              </Text>
+              <Text style={[styles.brandChipText, { color: !selectedBrandId ? "#fff" : colors.foreground }]}>Todas</Text>
             </TouchableOpacity>
             {brands?.map((brand) => {
               const active = selectedBrandId === brand.id;
@@ -207,20 +185,12 @@ export default function HomeScreen() {
               return (
                 <TouchableOpacity
                   key={brand.id}
-                  style={[
-                    styles.brandChip,
-                    {
-                      backgroundColor: active ? brandColor : colors.surface,
-                      borderColor: active ? brandColor : colors.border,
-                    },
-                  ]}
+                  style={[styles.brandChip, { backgroundColor: active ? brandColor : colors.surface, borderColor: active ? brandColor : colors.border }]}
                   onPress={() => setSelectedBrandId(brand.id)}
                   activeOpacity={0.75}
                 >
                   <View style={[styles.brandDot, { backgroundColor: active ? "#fff" : brandColor }]} />
-                  <Text style={[styles.brandChipText, { color: active ? "#fff" : colors.foreground }]}>
-                    {brand.name}
-                  </Text>
+                  <Text style={[styles.brandChipText, { color: active ? "#fff" : colors.foreground }]}>{brand.name}</Text>
                 </TouchableOpacity>
               );
             })}
@@ -230,9 +200,7 @@ export default function HomeScreen() {
           {sortedPhotos.length === 0 ? (
             <View style={[styles.emptyPhotos, { backgroundColor: colors.surface, borderColor: colors.border }]}>
               <Ionicons name="images-outline" size={40} color={colors.muted} />
-              <Text style={[styles.emptyPhotosText, { color: colors.muted }]}>
-                Nenhuma foto enviada hoje
-              </Text>
+              <Text style={[styles.emptyPhotosText, { color: colors.muted }]}>Nenhuma foto enviada hoje</Text>
             </View>
           ) : (
             <View style={styles.photoGrid}>
@@ -243,22 +211,9 @@ export default function HomeScreen() {
                   onPress={() => router.push("/(tabs)/manager-photos" as any)}
                   activeOpacity={0.85}
                 >
-                  <Image
-                    source={{ uri: photo.photoUrl }}
-                    style={styles.photoImage}
-                    contentFit="cover"
-                    transition={200}
-                  />
+                  <Image source={{ uri: photo.photoUrl }} style={styles.photoImage} contentFit="cover" transition={200} />
                 </TouchableOpacity>
               ))}
-              {sortedPhotos.length > 9 && (
-                <TouchableOpacity
-                  style={[styles.photoCell, styles.moreCell, { width: PHOTO_SIZE, height: PHOTO_SIZE, backgroundColor: accentColor + "20" }]}
-                  onPress={() => router.push("/(tabs)/manager-photos" as any)}
-                >
-                  <Text style={[styles.moreCellText, { color: accentColor }]}>+{sortedPhotos.length - 9}</Text>
-                </TouchableOpacity>
-              )}
             </View>
           )}
 
@@ -293,7 +248,6 @@ export default function HomeScreen() {
   return (
     <ScreenContainer>
       <ScrollView showsVerticalScrollIndicator={false}>
-        {/* Header */}
         <View style={[styles.promoterHeader, { backgroundColor: colors.primary }]}>
           <View style={{ flex: 1 }}>
             <Text style={styles.promoterGreeting}>{greeting}, {firstName}!</Text>
@@ -306,7 +260,6 @@ export default function HomeScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* Today's Summary */}
         <View style={[styles.summaryCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
           <Text style={[styles.summaryTitle, { color: colors.foreground }]}>Resumo de Hoje</Text>
           <View style={styles.summaryRow}>
@@ -336,7 +289,6 @@ export default function HomeScreen() {
           </View>
         </View>
 
-        {/* Clock In/Out CTA */}
         <Pressable
           style={({ pressed }) => [
             styles.clockCta,
@@ -355,7 +307,6 @@ export default function HomeScreen() {
           </Text>
         </Pressable>
 
-        {/* Quick Actions */}
         <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Ações Rápidas</Text>
         <View style={styles.quickActions}>
           {[
@@ -381,7 +332,6 @@ export default function HomeScreen() {
           ))}
         </View>
 
-        {/* My Stores */}
         <Text style={[styles.sectionTitle, { color: colors.foreground, marginTop: 8 }]}>Minhas Lojas</Text>
         {!myStores || myStores.length === 0 ? (
           <View style={[styles.emptyStores, { backgroundColor: colors.surface, borderColor: colors.border }]}>
@@ -393,21 +343,14 @@ export default function HomeScreen() {
         ) : (
           <View style={styles.storesList}>
             {myStores.map((store) => (
-              <View
-                key={store.id}
-                style={[styles.storeCard, { backgroundColor: colors.surface, borderColor: colors.border }]}
-              >
+              <View key={store.id} style={[styles.storeCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
                 <View style={[styles.storeIconBg, { backgroundColor: colors.primary + "15" }]}>
                   <Ionicons name="storefront-outline" size={22} color={colors.primary} />
                 </View>
                 <View style={{ flex: 1 }}>
-                  <Text style={[styles.storeName, { color: colors.foreground }]} numberOfLines={1}>
-                    {store.name}
-                  </Text>
+                  <Text style={[styles.storeName, { color: colors.foreground }]} numberOfLines={1}>{store.name}</Text>
                   {store.city && (
-                    <Text style={[styles.storeCity, { color: colors.muted }]} numberOfLines={1}>
-                      {store.city}
-                    </Text>
+                    <Text style={[styles.storeCity, { color: colors.muted }]} numberOfLines={1}>{store.city}</Text>
                   )}
                 </View>
                 <Pressable
@@ -427,39 +370,13 @@ export default function HomeScreen() {
 }
 
 const styles = StyleSheet.create({
-  managerHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 16,
-    paddingTop: 16,
-    paddingBottom: 20,
-    gap: 12,
-  },
+  managerHeader: { flexDirection: "row", alignItems: "center", paddingHorizontal: 16, paddingTop: 16, paddingBottom: 20, gap: 12 },
   bellBtn: { position: "relative", padding: 4 },
-  bellBadge: {
-    position: "absolute",
-    top: 0,
-    right: 0,
-    backgroundColor: "#EF4444",
-    borderRadius: 8,
-    minWidth: 16,
-    height: 16,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: 3,
-  },
-  bellBadgeText: { color: "#fff", fontSize: 9, fontWeight: "800" },
   managerGreeting: { flex: 1, alignItems: "center" },
   managerGreetingText: { fontSize: 20, fontWeight: "800", color: "#fff" },
   managerSubtitle: { fontSize: 13, color: "rgba(255,255,255,0.8)", marginTop: 2 },
   logoutBtn: { padding: 4 },
-  promoterHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 20,
-    paddingTop: 16,
-    paddingBottom: 24,
-  },
+  promoterHeader: { flexDirection: "row", alignItems: "center", paddingHorizontal: 20, paddingTop: 16, paddingBottom: 24 },
   promoterGreeting: { fontSize: 22, fontWeight: "700", color: "#fff" },
   promoterSubtitle: { fontSize: 14, color: "rgba(255,255,255,0.8)", marginTop: 4 },
   statsGrid: { flexDirection: "row", flexWrap: "wrap", padding: 16, gap: 12 },
@@ -477,8 +394,6 @@ const styles = StyleSheet.create({
   photoGrid: { flexDirection: "row", flexWrap: "wrap", paddingHorizontal: 16, gap: 4, marginBottom: 8 },
   photoCell: { borderRadius: 8, overflow: "hidden" },
   photoImage: { width: "100%", height: "100%" },
-  moreCell: { alignItems: "center", justifyContent: "center", borderRadius: 8 },
-  moreCellText: { fontSize: 18, fontWeight: "800" },
   emptyPhotos: { marginHorizontal: 16, borderRadius: 16, borderWidth: 1, padding: 32, alignItems: "center", gap: 10, marginBottom: 8 },
   emptyPhotosText: { fontSize: 14, textAlign: "center" },
   summaryCard: { margin: 16, borderRadius: 20, padding: 20, borderWidth: 1 },
