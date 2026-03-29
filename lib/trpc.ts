@@ -12,37 +12,59 @@ import * as Auth from "@/lib/_core/auth";
  */
 export const trpc = createTRPCReact<AppRouter>();
 
+// ── Token cache ────────────────────────────────────────────────────────────────
+// Ao invés de ler o token do storage a cada requisição, guardamos em memória.
+// Só busca do storage novamente após 5 minutos ou quando limpo manualmente (logout).
+let _cachedToken: string | null = null;
+let _tokenFetchedAt: number = 0;
+const TOKEN_CACHE_MS = 5 * 60 * 1000; // 5 minutos
+
+async function getCachedToken(): Promise<string | null> {
+  const now = Date.now();
+  if (_cachedToken && now - _tokenFetchedAt < TOKEN_CACHE_MS) {
+    return _cachedToken;
+  }
+  _cachedToken = await Auth.getSessionToken();
+  _tokenFetchedAt = now;
+  return _cachedToken;
+}
+
+/** Chame isso no logout para limpar o cache do token */
+export function clearTokenCache() {
+  _cachedToken = null;
+  _tokenFetchedAt = 0;
+}
+
+// ── Dynamic fetch ──────────────────────────────────────────────────────────────
 /**
- * A custom fetch wrapper that dynamically resolves the API base URL on every request.
- *
- * This is necessary because on native (iOS/Android), Constants.expoConfig.hostUri
- * may not be available at app initialization time, so we must resolve the URL
- * at request time rather than at client creation time.
+ * Custom fetch que resolve a URL base dinamicamente a cada requisição.
+ * Necessário para native (iOS/Android) onde a URL pode não estar disponível
+ * no momento de inicialização do app.
  */
 function createDynamicFetch(): typeof fetch {
   return async (input, init) => {
     const apiBase = getApiBaseUrl();
-    // Replace the placeholder base URL with the dynamically resolved one
-    let url = typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url;
+    let url =
+      typeof input === "string"
+        ? input
+        : input instanceof URL
+        ? input.toString()
+        : input.url;
 
-    // If the URL starts with "/api/trpc" (relative), prepend the base
     if (url.startsWith("/api/trpc")) {
       url = `${apiBase}${url}`;
     } else if (url.includes("__DYNAMIC_BASE__")) {
-      // Replace our placeholder with the real base
       url = url.replace("__DYNAMIC_BASE__", apiBase);
     }
 
-    return fetch(url, {
-      ...init,
-      credentials: "include",
-    });
+    return fetch(url, { ...init, credentials: "include" });
   };
 }
 
+// ── Client factory ─────────────────────────────────────────────────────────────
 /**
- * Creates the tRPC client with proper configuration.
- * Call this once in your app's root layout.
+ * Cria o cliente tRPC com configuração otimizada.
+ * Chame uma vez no layout raiz do app.
  */
 export function createTRPCClient() {
   const dynamicFetch = createDynamicFetch();
@@ -50,12 +72,11 @@ export function createTRPCClient() {
   return trpc.createClient({
     links: [
       httpLink({
-        // Use a relative URL — the custom fetch will prepend the base dynamically
         url: "/api/trpc",
-        // tRPC v11: transformer MUST be inside httpLink, not at root
         transformer: superjson,
+        // FIX: token agora vem do cache em memória — não lê o storage a cada requisição
         async headers() {
-          const token = await Auth.getSessionToken();
+          const token = await getCachedToken();
           return token ? { Authorization: `Bearer ${token}` } : {};
         },
         fetch: dynamicFetch,
