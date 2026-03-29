@@ -143,7 +143,6 @@ export default function FilesScreen() {
     }
   };
 
-  // Opens the custom delete confirm modal (replaces Alert.alert with buttons, which doesn't work reliably on web)
   const handleDeleteFile = (id: number, fileName: string) => {
     setDeleteTargetId(id);
     setDeleteTargetName(fileName);
@@ -200,102 +199,110 @@ export default function FilesScreen() {
 
   return (
     <ScreenContainer>
-      {/* Header */}
-      <View style={[styles.header, { backgroundColor: colors.primary }]}>
-        <Text style={styles.headerTitle}>Arquivos</Text>
-        {isManager && (
-          <TouchableOpacity
-            style={styles.addBtn}
-            onPress={() => setShowUploadModal(true)}
-            activeOpacity={0.7}
-          >
-            <Ionicons name="cloud-upload-outline" size={22} color="#FFFFFF" />
-          </TouchableOpacity>
-        )}
-      </View>
+      {/* Wrapper que ocupa toda a tela com layout fixo */}
+      <View style={styles.screenWrapper}>
 
-      {/* Brand Filter */}
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={[styles.brandFilter, { borderBottomColor: colors.border }]}>
-        <TouchableOpacity
-          style={[styles.brandTab, !selectedBrandId && { borderBottomColor: colors.primary, borderBottomWidth: 2 }]}
-          onPress={() => setSelectedBrandId(null)}
-          activeOpacity={0.7}
-        >
-          <Text style={[styles.brandTabText, { color: !selectedBrandId ? colors.primary : colors.muted }]}>Todos</Text>
-        </TouchableOpacity>
-        {brands?.map((brand) => (
-          <TouchableOpacity
-            key={brand.id}
-            style={[styles.brandTab, selectedBrandId === brand.id && { borderBottomColor: brand.colorHex ?? colors.primary, borderBottomWidth: 2 }]}
-            onPress={() => setSelectedBrandId(brand.id)}
-            activeOpacity={0.7}
-          >
-            <View style={[styles.brandDot, { backgroundColor: brand.colorHex ?? colors.primary }]} />
-            <Text style={[styles.brandTabText, { color: selectedBrandId === brand.id ? (brand.colorHex ?? colors.primary) : colors.muted }]}>{brand.name}</Text>
-          </TouchableOpacity>
-        ))}
-      </ScrollView>
+        {/* Header — fixo no topo */}
+        <View style={[styles.header, { backgroundColor: colors.primary }]}>
+          <Text style={styles.headerTitle}>Arquivos</Text>
+          {isManager && (
+            <TouchableOpacity
+              style={styles.addBtn}
+              onPress={() => setShowUploadModal(true)}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="cloud-upload-outline" size={22} color="#FFFFFF" />
+            </TouchableOpacity>
+          )}
+        </View>
 
-      {/* Files List */}
-      <FlatList
-        data={files}
-        keyExtractor={(item) => item.id.toString()}
-        contentContainerStyle={styles.list}
-        ListEmptyComponent={
-          <View style={styles.emptyState}>
-            <Ionicons name="folder-open-outline" size={56} color={colors.muted} />
-            <Text style={[styles.emptyTitle, { color: colors.foreground }]}>Nenhum arquivo</Text>
-            <Text style={[styles.emptyDesc, { color: colors.muted }]}>
-              {isManager ? "Envie arquivos para os promotores" : "Nenhum arquivo disponível ainda"}
-            </Text>
-          </View>
-        }
-        renderItem={({ item }) => {
-          const brand = brands?.find((b) => b.id === item.brandId);
-          const iconColor = getFileIconColor(item.fileType ?? "");
-          return (
-            <View style={[styles.fileCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+        {/* Brand Filter — fixo abaixo do header, nunca se move */}
+        <View style={[styles.brandFilterWrapper, { borderBottomColor: colors.border }]}>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.brandFilter}>
+            <TouchableOpacity
+              style={[styles.brandTab, !selectedBrandId && { borderBottomColor: colors.primary, borderBottomWidth: 2 }]}
+              onPress={() => setSelectedBrandId(null)}
+              activeOpacity={0.7}
+            >
+              <Text style={[styles.brandTabText, { color: !selectedBrandId ? colors.primary : colors.muted }]}>Todos</Text>
+            </TouchableOpacity>
+            {brands?.map((brand) => (
               <TouchableOpacity
-                style={styles.fileCardInner}
-                onPress={() => handleOpenFile(item.fileUrl)}
-                activeOpacity={0.8}
+                key={brand.id}
+                style={[styles.brandTab, selectedBrandId === brand.id && { borderBottomColor: brand.colorHex ?? colors.primary, borderBottomWidth: 2 }]}
+                onPress={() => setSelectedBrandId(brand.id)}
+                activeOpacity={0.7}
               >
-                <View style={[styles.fileIcon, { backgroundColor: iconColor + "15" }]}>
-                  <Ionicons name={getFileIcon(item.fileType ?? "") as any} size={28} color={iconColor} />
-                </View>
-                <View style={styles.fileInfo}>
-                  <Text style={[styles.fileName, { color: colors.foreground }]} numberOfLines={2}>{item.fileName}</Text>
-                  {item.description && (
-                    <Text style={[styles.fileDesc, { color: colors.muted }]} numberOfLines={1}>{item.description}</Text>
-                  )}
-                  <View style={styles.fileMeta}>
-                    {brand && (
-                      <View style={[styles.brandBadge, { backgroundColor: (brand.colorHex ?? "#3B82F6") + "20" }]}>
-                        <Text style={[styles.brandBadgeText, { color: brand.colorHex ?? "#3B82F6" }]}>{brand.name}</Text>
-                      </View>
-                    )}
-                    <Text style={[styles.fileSize, { color: colors.muted }]}>{formatFileSize(item.fileSize ?? 0)}</Text>
-                    <Text style={[styles.fileDate, { color: colors.muted }]}>
-                      {new Date(item.createdAt).toLocaleDateString("pt-BR")}
-                    </Text>
-                  </View>
-                </View>
-                <Ionicons name="open-outline" size={20} color={colors.muted} />
+                <View style={[styles.brandDot, { backgroundColor: brand.colorHex ?? colors.primary }]} />
+                <Text style={[styles.brandTabText, { color: selectedBrandId === brand.id ? (brand.colorHex ?? colors.primary) : colors.muted }]}>{brand.name}</Text>
               </TouchableOpacity>
-              {isManager && (
-                <TouchableOpacity
-                  style={[styles.deleteBtn, { borderTopColor: colors.border }]}
-                  onPress={() => handleDeleteFile(item.id, item.fileName)}
-                  activeOpacity={0.7}
-                >
-                  <Ionicons name="trash-outline" size={18} color="#EF4444" />
-                  <Text style={styles.deleteBtnText}>Excluir</Text>
-                </TouchableOpacity>
-              )}
+            ))}
+          </ScrollView>
+        </View>
+
+        {/* Files List — ocupa o espaço restante e rola sozinha */}
+        <FlatList
+          data={files}
+          keyExtractor={(item) => item.id.toString()}
+          contentContainerStyle={styles.list}
+          style={styles.flatList}
+          ListEmptyComponent={
+            <View style={styles.emptyState}>
+              <Ionicons name="folder-open-outline" size={56} color={colors.muted} />
+              <Text style={[styles.emptyTitle, { color: colors.foreground }]}>Nenhum arquivo</Text>
+              <Text style={[styles.emptyDesc, { color: colors.muted }]}>
+                {isManager ? "Envie arquivos para os promotores" : "Nenhum arquivo disponível ainda"}
+              </Text>
             </View>
-          );
-        }}
-      />
+          }
+          renderItem={({ item }) => {
+            const brand = brands?.find((b) => b.id === item.brandId);
+            const iconColor = getFileIconColor(item.fileType ?? "");
+            return (
+              <View style={[styles.fileCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+                <TouchableOpacity
+                  style={styles.fileCardInner}
+                  onPress={() => handleOpenFile(item.fileUrl)}
+                  activeOpacity={0.8}
+                >
+                  <View style={[styles.fileIcon, { backgroundColor: iconColor + "15" }]}>
+                    <Ionicons name={getFileIcon(item.fileType ?? "") as any} size={28} color={iconColor} />
+                  </View>
+                  <View style={styles.fileInfo}>
+                    <Text style={[styles.fileName, { color: colors.foreground }]} numberOfLines={2}>{item.fileName}</Text>
+                    {item.description && (
+                      <Text style={[styles.fileDesc, { color: colors.muted }]} numberOfLines={1}>{item.description}</Text>
+                    )}
+                    <View style={styles.fileMeta}>
+                      {brand && (
+                        <View style={[styles.brandBadge, { backgroundColor: (brand.colorHex ?? "#3B82F6") + "20" }]}>
+                          <Text style={[styles.brandBadgeText, { color: brand.colorHex ?? "#3B82F6" }]}>{brand.name}</Text>
+                        </View>
+                      )}
+                      <Text style={[styles.fileSize, { color: colors.muted }]}>{formatFileSize(item.fileSize ?? 0)}</Text>
+                      <Text style={[styles.fileDate, { color: colors.muted }]}>
+                        {new Date(item.createdAt).toLocaleDateString("pt-BR")}
+                      </Text>
+                    </View>
+                  </View>
+                  <Ionicons name="open-outline" size={20} color={colors.muted} />
+                </TouchableOpacity>
+                {isManager && (
+                  <TouchableOpacity
+                    style={[styles.deleteBtn, { borderTopColor: colors.border }]}
+                    onPress={() => handleDeleteFile(item.id, item.fileName)}
+                    activeOpacity={0.7}
+                  >
+                    <Ionicons name="trash-outline" size={18} color="#EF4444" />
+                    <Text style={styles.deleteBtnText}>Excluir</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+            );
+          }}
+        />
+
+      </View>
 
       {/* ── Delete Confirm Modal ── */}
       <Modal visible={showDeleteModal} transparent animationType="fade">
@@ -411,13 +418,24 @@ export default function FilesScreen() {
 }
 
 const styles = StyleSheet.create({
+  // ── NOVO: wrapper que garante layout fixo em coluna ──
+  screenWrapper: { flex: 1, flexDirection: "column" },
+
   header: { paddingTop: 16, paddingBottom: 16, paddingHorizontal: 20, flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
   headerTitle: { fontSize: 20, fontWeight: "700", color: "#FFFFFF" },
   addBtn: { padding: 8 },
-  brandFilter: { borderBottomWidth: 1, paddingHorizontal: 8 },
+
+  // ── NOVO: wrapper fixo para o filtro — não empurra nem sobe ──
+  brandFilterWrapper: { borderBottomWidth: 1, paddingHorizontal: 8 },
+  brandFilter: {},
+
   brandTab: { paddingHorizontal: 16, paddingVertical: 12, flexDirection: "row", alignItems: "center", gap: 6 },
   brandTabText: { fontSize: 14, fontWeight: "600" },
   brandDot: { width: 8, height: 8, borderRadius: 4 },
+
+  // ── NOVO: FlatList com flex:1 rola internamente sem afetar o filtro ──
+  flatList: { flex: 1 },
+
   list: { padding: 16, gap: 12 },
   fileCard: { borderRadius: 16, borderWidth: 1, overflow: "hidden" },
   fileCardInner: { flexDirection: "row", alignItems: "center", padding: 14, gap: 14 },
