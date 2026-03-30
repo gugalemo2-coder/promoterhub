@@ -12,30 +12,15 @@ import * as Auth from "@/lib/_core/auth";
  */
 export const trpc = createTRPCReact<AppRouter>();
 
-// ── Token cache ────────────────────────────────────────────────────────────────
-// Ao invés de ler o token do storage a cada requisição, guardamos em memória.
-// Só busca do storage novamente após 5 minutos ou quando limpo manualmente (logout).
-let _cachedToken: string | null = null;
-let _tokenFetchedAt: number = 0;
-const TOKEN_CACHE_MS = 5 * 60 * 1000; // 5 minutos
-
-async function getCachedToken(): Promise<string | null> {
-  const now = Date.now();
-  if (_cachedToken && now - _tokenFetchedAt < TOKEN_CACHE_MS) {
-    return _cachedToken;
-  }
-  _cachedToken = await Auth.getSessionToken();
-  _tokenFetchedAt = now;
-  return _cachedToken;
-}
-
-/** Chame isso no logout para limpar o cache do token */
+/**
+ * Exportado para compatibilidade com use-auth.ts.
+ * Não há mais cache, então esta função não faz nada —
+ * mas existe para evitar erros de importação.
+ */
 export function clearTokenCache() {
-  _cachedToken = null;
-  _tokenFetchedAt = 0;
+  // sem cache para limpar — segurança em primeiro lugar
 }
 
-// ── Dynamic fetch ──────────────────────────────────────────────────────────────
 /**
  * Custom fetch que resolve a URL base dinamicamente a cada requisição.
  * Necessário para native (iOS/Android) onde a URL pode não estar disponível
@@ -61,10 +46,10 @@ function createDynamicFetch(): typeof fetch {
   };
 }
 
-// ── Client factory ─────────────────────────────────────────────────────────────
 /**
- * Cria o cliente tRPC com configuração otimizada.
- * Chame uma vez no layout raiz do app.
+ * Cria o cliente tRPC com configuração segura.
+ * O token é buscado a cada requisição para garantir que
+ * nunca haja mistura de dados entre contas diferentes.
  */
 export function createTRPCClient() {
   const dynamicFetch = createDynamicFetch();
@@ -74,9 +59,8 @@ export function createTRPCClient() {
       httpLink({
         url: "/api/trpc",
         transformer: superjson,
-        // FIX: token agora vem do cache em memória — não lê o storage a cada requisição
         async headers() {
-          const token = await getCachedToken();
+          const token = await Auth.getSessionToken();
           return token ? { Authorization: `Bearer ${token}` } : {};
         },
         fetch: dynamicFetch,
