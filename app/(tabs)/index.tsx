@@ -26,15 +26,17 @@ const PHOTO_SIZE = (SCREEN_WIDTH - 48 - 8) / 3;
 export default function HomeScreen() {
   const colors = useColors();
   const { user, logout } = useAuth();
-  const { appRole, clearRole } = useRole();
+  const { appRole, isRoleLoading, clearRole } = useRole();
   const router = useRouter();
 
   const isManager = appRole === "manager" || appRole === "master";
+  const isPromoter = appRole === "promoter";
   const isMaster = appRole === "master";
   const isSupervisor = appRole === "supervisor";
   const accentColor = isMaster ? "#7C3AED" : isSupervisor ? "#D97706" : colors.primary;
 
-  const isReady = !!user;
+  const isReady = !!user && !isRoleLoading && !!appRole;
+
   const now = new Date();
   const greeting = now.getHours() < 12 ? "Bom dia" : now.getHours() < 18 ? "Boa tarde" : "Boa noite";
   const firstName = user?.name?.split(" ")[0] ?? "Usuário";
@@ -44,25 +46,26 @@ export default function HomeScreen() {
   const [previewPhoto, setPreviewPhoto] = useState<{ uri: string } | null>(null);
 
   // ── Promoter queries ──────────────────────────────────────────────────────
+  // FIX: enabled agora depende de isPromoter explicitamente (não de !isManager)
+  // Isso garante que a query SÓ roda quando o appRole já foi carregado como "promoter"
   const { data: dailySummary } = trpc.timeEntries.dailySummary.useQuery(
     { date: todayISO },
     {
-      enabled: isReady && !isManager,
-      // FIX: revalida ao focar na tela para manter o resumo atualizado
+      enabled: isReady && isPromoter,
       refetchOnWindowFocus: true,
-      refetchInterval: 30000, // atualiza a cada 30s enquanto a tela está aberta
+      refetchInterval: 30000,
     }
   );
   const { data: pendingRequests } = trpc.materialRequests.list.useQuery(
     { status: "pending" },
     {
-      enabled: isReady && !isManager,
+      enabled: isReady && isPromoter,
       refetchOnWindowFocus: true,
     }
   );
   const { data: myStores } = trpc.stores.listForPromoter.useQuery(
     undefined,
-    { enabled: isReady && !isManager }
+    { enabled: isReady && isPromoter }
   );
 
   // ── Manager/Master queries ────────────────────────────────────────────────
@@ -163,7 +166,6 @@ export default function HomeScreen() {
           {/* Fotos do Dia */}
           <View style={styles.sectionRow}>
             <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Fotos de Hoje</Text>
-            {/* FIX: "Ver todas" vai para manager-photos */}
             <TouchableOpacity onPress={() => router.push("/(tabs)/manager-photos" as any)}>
               <Text style={[styles.seeAll, { color: accentColor }]}>Ver todas</Text>
             </TouchableOpacity>
@@ -207,7 +209,6 @@ export default function HomeScreen() {
                 <TouchableOpacity
                   key={photo.id}
                   style={[styles.photoCell, { width: PHOTO_SIZE, height: PHOTO_SIZE }]}
-                  // FIX: abre preview inline da foto clicada, em vez de ir para manager-photos
                   onPress={() => setPreviewPhoto({ uri: photo.photoUrl ?? "" })}
                   activeOpacity={0.85}
                 >
@@ -241,18 +242,14 @@ export default function HomeScreen() {
           </View>
         </ScrollView>
 
-        {/* ── FIX: Modal de preview inline da foto ── */}
+        {/* Modal de preview inline da foto */}
         <Modal visible={!!previewPhoto} transparent animationType="fade" onRequestClose={() => setPreviewPhoto(null)}>
           <View style={styles.photoPreviewOverlay}>
             <TouchableOpacity style={styles.photoPreviewClose} onPress={() => setPreviewPhoto(null)}>
               <Ionicons name="close-circle" size={36} color="#fff" />
             </TouchableOpacity>
             {previewPhoto && (
-              <Image
-                source={{ uri: previewPhoto.uri }}
-                style={styles.photoPreviewImage}
-                contentFit="contain"
-              />
+              <Image source={{ uri: previewPhoto.uri }} style={styles.photoPreviewImage} contentFit="contain" />
             )}
             <TouchableOpacity
               style={[styles.photoPreviewAllBtn, { backgroundColor: accentColor }]}
@@ -420,13 +417,11 @@ const styles = StyleSheet.create({
   photoImage: { width: "100%", height: "100%" },
   emptyPhotos: { marginHorizontal: 16, borderRadius: 16, borderWidth: 1, padding: 32, alignItems: "center", gap: 10, marginBottom: 8 },
   emptyPhotosText: { fontSize: 14, textAlign: "center" },
-  // Photo preview modal (home do gestor)
   photoPreviewOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.95)", alignItems: "center", justifyContent: "center" },
   photoPreviewClose: { position: "absolute", top: 50, right: 16, zIndex: 20 },
   photoPreviewImage: { width: SCREEN_WIDTH, height: SCREEN_HEIGHT * 0.7 },
   photoPreviewAllBtn: { position: "absolute", bottom: 40, flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 24, paddingVertical: 14, borderRadius: 16 },
   photoPreviewAllText: { color: "#fff", fontSize: 15, fontWeight: "700" },
-  // Promoter
   summaryCard: { margin: 16, borderRadius: 20, padding: 20, borderWidth: 1 },
   summaryTitle: { fontSize: 16, fontWeight: "700", marginBottom: 16 },
   summaryRow: { flexDirection: "row", alignItems: "center" },
