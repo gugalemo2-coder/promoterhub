@@ -727,10 +727,10 @@ export default function ManagerPhotosScreen() {
             </View>
           )}
 
-          {/* Action buttons */}
+          {/* Action buttons — 4 em linha com texto menor */}
           <View style={styles.previewActions}>
             <TouchableOpacity style={[styles.actionBtn, { backgroundColor: "rgba(255,255,255,0.15)", opacity: downloading ? 0.5 : 1 }]} onPress={handleDownloadSingle} disabled={downloading} activeOpacity={0.8}>
-              {downloading ? <ActivityIndicator size="small" color="#fff" /> : <><Ionicons name="download-outline" size={22} color="#fff" /><Text style={styles.actionBtnText}>Salvar</Text></>}
+              {downloading ? <ActivityIndicator size="small" color="#fff" /> : <><Ionicons name="download-outline" size={16} color="#fff" /><Text style={styles.actionBtnText}>Salvar</Text></>}
             </TouchableOpacity>
 
             {/* Botão de Comentário — só para gestores/master */}
@@ -740,17 +740,17 @@ export default function ManagerPhotosScreen() {
                 onPress={() => { closePreview(); setTimeout(() => openCommentModal(currentPhoto.id), 300); }}
                 activeOpacity={0.8}
               >
-                <Ionicons name="chatbubble-outline" size={22} color="#fff" />
+                <Ionicons name="chatbubble-outline" size={16} color="#fff" />
                 <Text style={styles.actionBtnText}>Comentar</Text>
               </TouchableOpacity>
             )}
 
             <TouchableOpacity style={[styles.actionBtn, styles.rejectBtn, currentStatus === "rejected" && styles.actionBtnActive, approving && styles.actionBtnDisabled]} onPress={handleReject} disabled={approving || currentStatus === "rejected"} activeOpacity={0.8}>
-              {approving ? <ActivityIndicator size="small" color="#fff" /> : <><Ionicons name="close-circle-outline" size={22} color="#fff" /><Text style={styles.actionBtnText}>Rejeitar</Text></>}
+              {approving ? <ActivityIndicator size="small" color="#fff" /> : <><Ionicons name="close-circle-outline" size={16} color="#fff" /><Text style={styles.actionBtnText}>Rejeitar</Text></>}
             </TouchableOpacity>
 
             <TouchableOpacity style={[styles.actionBtn, styles.approveBtn, currentStatus === "approved" && styles.actionBtnActive, approving && styles.actionBtnDisabled]} onPress={handleApprove} disabled={approving || currentStatus === "approved"} activeOpacity={0.8}>
-              {approving ? <ActivityIndicator size="small" color="#fff" /> : <><Ionicons name="checkmark-circle-outline" size={22} color="#fff" /><Text style={styles.actionBtnText}>Aprovar</Text></>}
+              {approving ? <ActivityIndicator size="small" color="#fff" /> : <><Ionicons name="checkmark-circle-outline" size={16} color="#fff" /><Text style={styles.actionBtnText}>Aprovar</Text></>}
             </TouchableOpacity>
           </View>
         </View>
@@ -888,20 +888,20 @@ const styles = StyleSheet.create({
   previewStatusText: { color: "#fff", fontSize: 12, fontWeight: "600" },
   navArrowLeft: { position: "absolute", left: 8, top: "45%", marginTop: -22, width: 44, height: 44, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(0,0,0,0.35)", borderRadius: 22, zIndex: 20 },
   navArrowRight: { position: "absolute", right: 8, top: "45%", marginTop: -22, width: 44, height: 44, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(0,0,0,0.35)", borderRadius: 22, zIndex: 20 },
-  infoStrip: { position: "absolute", bottom: 110, left: 0, right: 0, backgroundColor: "rgba(0,0,0,0.72)", paddingHorizontal: 16, paddingTop: 12, paddingBottom: 10, zIndex: 20, borderTopWidth: 0.5, borderTopColor: "rgba(255,255,255,0.12)" },
+  infoStrip: { position: "absolute", bottom: 90, left: 0, right: 0, backgroundColor: "rgba(0,0,0,0.72)", paddingHorizontal: 16, paddingTop: 12, paddingBottom: 10, zIndex: 20, borderTopWidth: 0.5, borderTopColor: "rgba(255,255,255,0.12)" },
   infoStripRow: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 6 },
   infoStripItem: { flex: 1, alignItems: "center", gap: 2 },
   infoStripDivider: { width: 0.5, height: 36, backgroundColor: "rgba(255,255,255,0.2)", alignSelf: "center" },
   infoStripLabel: { color: "rgba(255,255,255,0.55)", fontSize: 10, fontWeight: "500", textTransform: "uppercase", letterSpacing: 0.5, marginTop: 2 },
   infoStripValue: { color: "#fff", fontSize: 13, fontWeight: "700", textAlign: "center", paddingHorizontal: 4 },
   infoStripDate: { color: "rgba(255,255,255,0.5)", fontSize: 11, textAlign: "center", marginTop: 2 },
-  previewActions: { position: "absolute", bottom: 28, left: 0, right: 0, flexDirection: "row", paddingHorizontal: 16, gap: 8, justifyContent: "center", zIndex: 20 },
-  actionBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 12, borderRadius: 14, maxWidth: 160 },
+  previewActions: { position: "absolute", bottom: 28, left: 0, right: 0, flexDirection: "row", paddingHorizontal: 10, gap: 6, justifyContent: "center", zIndex: 20 },
+  actionBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 4, paddingVertical: 11, borderRadius: 14 },
   rejectBtn: { backgroundColor: "#E02424" },
   approveBtn: { backgroundColor: "#0E9F6E" },
   actionBtnActive: { opacity: 0.5 },
   actionBtnDisabled: { opacity: 0.6 },
-  actionBtnText: { color: "#fff", fontSize: 14, fontWeight: "700" },
+  actionBtnText: { color: "#fff", fontSize: 12, fontWeight: "700" },
   // Comment modal
   commentOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "flex-end" },
   commentSheet: { borderTopLeftRadius: 24, borderTopRightRadius: 24, maxHeight: SCREEN_HEIGHT * 0.75, minHeight: 300 },
