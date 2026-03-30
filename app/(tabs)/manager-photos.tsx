@@ -706,19 +706,19 @@ export default function ManagerPhotosScreen() {
             <View style={styles.infoStrip}>
               <View style={styles.infoStripRow}>
                 <View style={styles.infoStripItem}>
-                  <Ionicons name="person" size={13} color="rgba(255,255,255,0.7)" />
+                  <Ionicons name="person" size={10} color="rgba(255,255,255,0.7)" />
                   <Text style={styles.infoStripLabel}>Promotor</Text>
                   <Text style={styles.infoStripValue} numberOfLines={1}>{currentPhoto.userName ?? "—"}</Text>
                 </View>
                 <View style={styles.infoStripDivider} />
                 <View style={styles.infoStripItem}>
-                  <Ionicons name="storefront" size={13} color="rgba(255,255,255,0.7)" />
+                  <Ionicons name="storefront" size={10} color="rgba(255,255,255,0.7)" />
                   <Text style={styles.infoStripLabel}>Loja</Text>
                   <Text style={styles.infoStripValue} numberOfLines={1}>{currentPhoto.storeName ?? "—"}</Text>
                 </View>
                 <View style={styles.infoStripDivider} />
                 <View style={styles.infoStripItem}>
-                  <Ionicons name="pricetag" size={13} color="rgba(255,255,255,0.7)" />
+                  <Ionicons name="pricetag" size={10} color="rgba(255,255,255,0.7)" />
                   <Text style={styles.infoStripLabel}>Marca</Text>
                   <Text style={styles.infoStripValue} numberOfLines={1}>{currentPhoto.brandName ?? "—"}</Text>
                 </View>
@@ -888,13 +888,13 @@ const styles = StyleSheet.create({
   previewStatusText: { color: "#fff", fontSize: 12, fontWeight: "600" },
   navArrowLeft: { position: "absolute", left: 8, top: "45%", marginTop: -22, width: 44, height: 44, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(0,0,0,0.35)", borderRadius: 22, zIndex: 20 },
   navArrowRight: { position: "absolute", right: 8, top: "45%", marginTop: -22, width: 44, height: 44, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(0,0,0,0.35)", borderRadius: 22, zIndex: 20 },
-  infoStrip: { position: "absolute", bottom: 90, left: 0, right: 0, backgroundColor: "rgba(0,0,0,0.72)", paddingHorizontal: 16, paddingTop: 12, paddingBottom: 10, zIndex: 20, borderTopWidth: 0.5, borderTopColor: "rgba(255,255,255,0.12)" },
-  infoStripRow: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 6 },
-  infoStripItem: { flex: 1, alignItems: "center", gap: 2 },
-  infoStripDivider: { width: 0.5, height: 36, backgroundColor: "rgba(255,255,255,0.2)", alignSelf: "center" },
-  infoStripLabel: { color: "rgba(255,255,255,0.55)", fontSize: 10, fontWeight: "500", textTransform: "uppercase", letterSpacing: 0.5, marginTop: 2 },
-  infoStripValue: { color: "#fff", fontSize: 13, fontWeight: "700", textAlign: "center", paddingHorizontal: 4 },
-  infoStripDate: { color: "rgba(255,255,255,0.5)", fontSize: 11, textAlign: "center", marginTop: 2 },
+  infoStrip: { position: "absolute", bottom: 90, left: 0, right: 0, backgroundColor: "rgba(0,0,0,0.72)", paddingHorizontal: 12, paddingTop: 6, paddingBottom: 6, zIndex: 20, borderTopWidth: 0.5, borderTopColor: "rgba(255,255,255,0.12)" },
+  infoStripRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 2 },
+  infoStripItem: { flex: 1, alignItems: "center", gap: 1 },
+  infoStripDivider: { width: 0.5, height: 24, backgroundColor: "rgba(255,255,255,0.2)", alignSelf: "center" },
+  infoStripLabel: { color: "rgba(255,255,255,0.55)", fontSize: 8, fontWeight: "500", textTransform: "uppercase", letterSpacing: 0.5 },
+  infoStripValue: { color: "#fff", fontSize: 11, fontWeight: "700", textAlign: "center", paddingHorizontal: 2 },
+  infoStripDate: { color: "rgba(255,255,255,0.5)", fontSize: 9, textAlign: "center", marginTop: 1 },
   previewActions: { position: "absolute", bottom: 28, left: 0, right: 0, flexDirection: "row", paddingHorizontal: 10, gap: 6, justifyContent: "center", zIndex: 20 },
   actionBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 4, paddingVertical: 11, borderRadius: 14 },
   rejectBtn: { backgroundColor: "#E02424" },
