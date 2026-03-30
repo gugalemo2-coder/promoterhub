@@ -70,7 +70,6 @@ export const appRouter = router({
       .mutation(async ({ ctx, input }) => {
         const store = await db.getStoreById(input.storeId);
         if (!store) throw new Error("Store not found");
-        // Upload photo if provided
         let photoUrl: string | undefined;
         if (input.photoBase64) {
           const buffer = Buffer.from(input.photoBase64, "base64");
@@ -98,7 +97,6 @@ export const appRouter = router({
         const fileKey = `photos/${getAppUserId(ctx.user)}/${Date.now()}-${input.fileName}`;
         const { url } = await storagePut(fileKey, buffer, input.fileType);
         const id = await db.createPhoto({ userId: getAppUserId(ctx.user), brandId: input.brandId, storeId: input.storeId, photoUrl: url, photoTimestamp: new Date(), fileSize: buffer.length, fileType: input.fileType, description: input.description });
-        // Notify managers and masters about the new photo (fire-and-forget)
         Promise.all([
           db.getUserById(getAppUserId(ctx.user)),
           db.getBrandById(input.brandId),
@@ -116,6 +114,58 @@ export const appRouter = router({
     updateStatusBatch: protectedProcedure.input(z.object({ ids: z.array(z.number()), status: z.enum(["pending", "approved", "rejected"]), managerNotes: z.string().optional() })).mutation(async ({ input }) => { await Promise.all(input.ids.map((id) => db.updatePhoto(id, { status: input.status, managerNotes: input.managerNotes }))); return { success: true, count: input.ids.length }; }),
     listAllWithDetails: protectedProcedure.input(z.object({ brandId: z.number().optional(), storeId: z.number().optional(), userId: z.number().optional(), startDate: z.string().optional(), endDate: z.string().optional(), status: z.enum(["pending", "approved", "rejected"]).optional(), limit: z.number().default(100), offset: z.number().default(0) })).query(({ input }) => db.getPhotosWithDetails({ ...input, startDate: input.startDate ? new Date(input.startDate) : undefined, endDate: input.endDate ? new Date(input.endDate) : undefined })),
     countPending: protectedProcedure.query(() => db.countPendingPhotos()),
+
+    // ── Comentários de fotos ───────────────────────────────────────────────────
+    // Busca comentários de uma foto (visível para gestor e para o promotor dono da foto)
+    listComments: protectedProcedure
+      .input(z.object({ photoId: z.number().int().positive() }))
+      .query(({ input }) => db.getPhotoComments(input.photoId)),
+
+    // Adiciona um comentário em uma foto (apenas gestor/master)
+    addComment: protectedProcedure
+      .input(z.object({
+        photoId: z.number().int().positive(),
+        comment: z.string().min(1).max(1000),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const appUserId = getAppUserId(ctx.user);
+        const appUser = await db.getAppUserById(appUserId);
+        if (!appUser || appUser.appRole === "promoter") {
+          throw new TRPCError({ code: "FORBIDDEN", message: "Apenas gestores e masters podem comentar." });
+        }
+        const id = await db.createPhotoComment({
+          photoId: input.photoId,
+          userId: appUserId,
+          userName: appUser.name ?? ctx.user.name ?? "Gestor",
+          comment: input.comment,
+        });
+        // Notifica o promotor dono da foto
+        try {
+          const photoList = await db.getPhotos({ limit: 200 });
+          const photo = photoList.find((p) => p.id === input.photoId);
+          if (photo) {
+            push.notifyNewPhotoForReview(
+              appUser.name ?? "Gestor",
+              "Novo comentário na sua foto",
+              [photo.userId]
+            ).catch(() => {});
+          }
+        } catch {}
+        return { id };
+      }),
+
+    // Remove um comentário (apenas gestor/master)
+    deleteComment: protectedProcedure
+      .input(z.object({ id: z.number().int().positive() }))
+      .mutation(async ({ ctx, input }) => {
+        const appUserId = getAppUserId(ctx.user);
+        const appUser = await db.getAppUserById(appUserId);
+        if (!appUser || appUser.appRole === "promoter") {
+          throw new TRPCError({ code: "FORBIDDEN", message: "Apenas gestores e masters podem excluir comentários." });
+        }
+        await db.deletePhotoComment(input.id);
+        return { success: true };
+      }),
   }),
   materials: router({
     list: protectedProcedure.input(z.object({ brandId: z.number().optional() })).query(({ input }) => db.getMaterials(input.brandId)),
@@ -125,7 +175,6 @@ export const appRouter = router({
     delete: protectedProcedure
       .input(z.object({ id: z.number() }))
       .mutation(async ({ input }) => {
-        // Soft-delete: mark as discontinued so promoters can't see it
         await db.updateMaterial(input.id, { status: "discontinued" });
         return { success: true };
       }),
@@ -178,7 +227,6 @@ export const appRouter = router({
     upload: protectedProcedure
       .input(z.object({ brandId: z.number(), description: z.string().optional(), fileBase64: z.string(), fileType: z.string().default("application/pdf"), fileName: z.string(), visibility: z.enum(["all_promoters", "specific_stores", "specific_users"]).default("all_promoters") }))
       .mutation(async ({ ctx, input }) => {
-        // Only managers and masters can upload files
         const appUserId = getAppUserId(ctx.user);
         const appUser = await db.getAppUserById(appUserId);
         if (!appUser || appUser.appRole === "promoter") {
@@ -188,7 +236,6 @@ export const appRouter = router({
         const fileKey = `stock-files/${input.brandId}/${Date.now()}-${input.fileName}`;
         const { url } = await storagePut(fileKey, buffer, input.fileType);
         const id = await db.createStockFile({ brandId: input.brandId, fileUrl: url, fileName: input.fileName, fileType: input.fileType, fileSize: buffer.length, description: input.description, uploadedBy: appUserId, visibility: input.visibility });
-        // Notify all promoters about the new file
         try {
           const brand = await db.getBrandById(input.brandId);
           const promoterIds = await db.getAllPromoterUserIds();
@@ -202,7 +249,6 @@ export const appRouter = router({
     delete: protectedProcedure
       .input(z.object({ id: z.number() }))
       .mutation(async ({ ctx, input }) => {
-        // Only managers and masters can delete files
         const appUserId = getAppUserId(ctx.user);
         const appUser = await db.getAppUserById(appUserId);
         if (!appUser || appUser.appRole === "promoter") {
@@ -212,8 +258,7 @@ export const appRouter = router({
         return { success: true };
       }),
   }),
-  
-geoAlerts: router({
+  geoAlerts: router({
     list: protectedProcedure.input(z.object({ acknowledged: z.boolean().optional(), limit: z.number().default(50) })).query(({ input }) => db.getGeoAlerts(input)),
     acknowledge: protectedProcedure.input(z.object({ id: z.number(), notes: z.string().optional() })).mutation(({ ctx, input }) => db.acknowledgeGeoAlert(input.id, ctx.user.id, input.notes)),
     createAlert: protectedProcedure.input(z.object({ storeId: z.number(), alertType: z.enum(["left_radius", "suspicious_movement", "gps_spoofing_suspected", "low_hours", "no_entry"]), latitude: z.number().optional(), longitude: z.number().optional(), distanceFromStore: z.number().optional(), notes: z.string().optional() })).mutation(async ({ ctx, input }) => {
@@ -263,7 +308,7 @@ geoAlerts: router({
       .input(z.object({ fileBase64: z.string(), fileType: z.string().default("image/png"), fileName: z.string().default("logo.png") }))
       .mutation(async ({ input }) => { const buffer = Buffer.from(input.fileBase64, "base64"); const fileKey = `brands/${Date.now()}-${input.fileName}`; const { url } = await storagePut(fileKey, buffer, input.fileType); return { url }; }),
   }),
-   signedReports: router({
+  signedReports: router({
     create: protectedProcedure
       .input(z.object({ promoterId: z.number().optional(), month: z.number().int().min(1).max(12), year: z.number().int().min(2020).max(2100), signatureData: z.string().min(10), reportHash: z.string() }))
       .mutation(async ({ ctx, input }) => {
@@ -371,7 +416,6 @@ geoAlerts: router({
       }),
   }),
   productExpirations: router({
-    // Promotor: cria um novo registro de vencimento com fotos
     create: protectedProcedure
       .input(z.object({
         brandId: z.number().int().positive(),
@@ -385,14 +429,12 @@ geoAlerts: router({
       }))
       .mutation(async ({ ctx, input }) => {
         const userId = getAppUserId(ctx.user);
-        // Create the expiration record
         const id = await db.createProductExpiration({
           userId,
           brandId: input.brandId,
           storeId: input.storeId,
           description: input.description,
         });
-        // Upload and save each photo
         for (let i = 0; i < input.photos.length; i++) {
           const p = input.photos[i];
           const buffer = Buffer.from(p.fileBase64, "base64");
@@ -402,7 +444,6 @@ geoAlerts: router({
         }
         return { id };
       }),
-    // Promotor: lista seus próprios registros
     list: protectedProcedure
       .input(z.object({
         status: z.enum(["pending", "approved", "rejected"]).optional(),
@@ -410,7 +451,6 @@ geoAlerts: router({
         offset: z.number().default(0),
       }))
       .query(({ ctx, input }) => db.getProductExpirations({ ...input, userId: getAppUserId(ctx.user) })),
-    // Gestor/Master: lista todos os registros com filtros
     listAll: protectedProcedure
       .input(z.object({
         brandId: z.number().optional(),
@@ -427,7 +467,6 @@ geoAlerts: router({
         startDate: input.startDate ? new Date(input.startDate) : undefined,
         endDate: input.endDate ? new Date(input.endDate) : undefined,
       })),
-    // Gestor/Master: aprova ou recusa
     updateStatus: protectedProcedure
       .input(z.object({
         id: z.number().int().positive(),
@@ -435,7 +474,6 @@ geoAlerts: router({
         managerNotes: z.string().optional(),
       }))
       .mutation(({ input }) => db.updateProductExpirationStatus(input.id, input.status, input.managerNotes)),
-    // Contagem de pendentes
     countPending: protectedProcedure
       .query(() => db.countPendingProductExpirations()),
   }),
