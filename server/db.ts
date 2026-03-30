@@ -1982,4 +1982,71 @@ export async function countPendingProductExpirations(): Promise<number> {
     .from(productExpirations)
     .where(eq(productExpirations.status, "pending"));
   return Number(row?.count ?? 0);
+
+export async function createPhotoComment(data: {
+  photoId: number;
+  userId: number;
+  userName: string | null;
+  comment: string;
+}): Promise<number> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.execute(
+    sql`INSERT INTO photo_comments (photoId, userId, userName, comment) VALUES (${data.photoId}, ${data.userId}, ${data.userName}, ${data.comment})`
+  );
+  return (result[0] as any).insertId as number;
+}
+
+export async function getPhotoComments(photoId: number): Promise<{
+  id: number;
+  photoId: number;
+  userId: number;
+  userName: string | null;
+  comment: string;
+  createdAt: Date;
+}[]> {
+  const db = await getDb();
+  if (!db) return [];
+  const rows = await db.execute(
+    sql`SELECT id, photoId, userId, userName, comment, createdAt FROM photo_comments WHERE photoId = ${photoId} ORDER BY createdAt ASC`
+  );
+  return (rows[0] as any[]).map((r: any) => ({
+    id: r.id,
+    photoId: r.photoId,
+    userId: r.userId,
+    userName: r.userName,
+    comment: r.comment,
+    createdAt: new Date(r.createdAt),
+  }));
+}
+
+export async function getPhotoCommentsForPhotos(photoIds: number[]): Promise<{
+  id: number;
+  photoId: number;
+  userId: number;
+  userName: string | null;
+  comment: string;
+  createdAt: Date;
+}[]> {
+  if (photoIds.length === 0) return [];
+  const db = await getDb();
+  if (!db) return [];
+  const placeholders = photoIds.map(() => "?").join(", ");
+  const rows = await db.execute(
+    sql`SELECT id, photoId, userId, userName, comment, createdAt FROM photo_comments WHERE photoId IN (${sql.join(photoIds.map((id) => sql`${id}`), sql`, `)}) ORDER BY createdAt ASC`
+  );
+  return (rows[0] as any[]).map((r: any) => ({
+    id: r.id,
+    photoId: r.photoId,
+    userId: r.userId,
+    userName: r.userName,
+    comment: r.comment,
+    createdAt: new Date(r.createdAt),
+  }));
+}
+
+export async function deletePhotoComment(id: number): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.execute(sql`DELETE FROM photo_comments WHERE id = ${id}`);
 }
