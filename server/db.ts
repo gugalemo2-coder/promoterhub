@@ -1982,6 +1982,7 @@ export async function countPendingProductExpirations(): Promise<number> {
     .from(productExpirations)
     .where(eq(productExpirations.status, "pending"));
   return Number(row?.count ?? 0);
+}
 
 export async function createPhotoComment(data: {
   photoId: number;
