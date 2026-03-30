@@ -10,6 +10,7 @@ import { useMemo, useState } from "react";
 import {
   Alert,
   Dimensions,
+  Modal,
   Platform,
   Pressable,
   ScrollView,
@@ -19,7 +20,7 @@ import {
   View,
 } from "react-native";
 
-const { width: SCREEN_WIDTH } = Dimensions.get("window");
+const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
 const PHOTO_SIZE = (SCREEN_WIDTH - 48 - 8) / 3;
 
 export default function HomeScreen() {
@@ -39,14 +40,25 @@ export default function HomeScreen() {
   const firstName = user?.name?.split(" ")[0] ?? "Usuário";
   const todayISO = now.toISOString();
 
+  // ── Preview de foto inline (home do gestor) ───────────────────────────────
+  const [previewPhoto, setPreviewPhoto] = useState<{ uri: string } | null>(null);
+
   // ── Promoter queries ──────────────────────────────────────────────────────
   const { data: dailySummary } = trpc.timeEntries.dailySummary.useQuery(
     { date: todayISO },
-    { enabled: isReady && !isManager }
+    {
+      enabled: isReady && !isManager,
+      // FIX: revalida ao focar na tela para manter o resumo atualizado
+      refetchOnWindowFocus: true,
+      refetchInterval: 30000, // atualiza a cada 30s enquanto a tela está aberta
+    }
   );
   const { data: pendingRequests } = trpc.materialRequests.list.useQuery(
     { status: "pending" },
-    { enabled: isReady && !isManager }
+    {
+      enabled: isReady && !isManager,
+      refetchOnWindowFocus: true,
+    }
   );
   const { data: myStores } = trpc.stores.listForPromoter.useQuery(
     undefined,
@@ -67,8 +79,6 @@ export default function HomeScreen() {
   const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
   const endOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59).toISOString();
 
-  // FIX: limit reduzido de 30 → 9. O grid exibe no máximo 9 fotos na home.
-  // Todas as fotos continuam acessíveis via "Ver todas" → manager-photos.
   const { data: todayPhotos } = trpc.photos.listAll.useQuery(
     { brandId: selectedBrandId, startDate: startOfDay, endDate: endOfDay, limit: 9 },
     { enabled: isReady && isManager }
@@ -109,7 +119,6 @@ export default function HomeScreen() {
     }
   };
 
-  // ── SUPERVISOR: redirect para a tela de fotos ──────────────────────────────
   if (isSupervisor) {
     return <Redirect href="/(tabs)/supervisor-photos" />;
   }
@@ -120,39 +129,28 @@ export default function HomeScreen() {
       <ScreenContainer>
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 32 }}>
 
-          {/* ── Header ── */}
+          {/* Header */}
           <View style={[styles.managerHeader, { backgroundColor: accentColor }]}>
-            <TouchableOpacity
-              style={styles.bellBtn}
-              onPress={() => router.push("/(tabs)/alerts" as any)}
-              activeOpacity={0.8}
-            >
+            <TouchableOpacity style={styles.bellBtn} onPress={() => router.push("/(tabs)/alerts" as any)} activeOpacity={0.8}>
               <Ionicons name="notifications-outline" size={26} color="#fff" />
             </TouchableOpacity>
-
             <View style={styles.managerGreeting}>
               <Text style={styles.managerGreetingText}>{greeting}, {firstName}!</Text>
-              <Text style={styles.managerSubtitle}>
-                {isMaster ? "Conta Master" : "Painel do Gestor"}
-              </Text>
+              <Text style={styles.managerSubtitle}>{isMaster ? "Conta Master" : "Painel do Gestor"}</Text>
             </View>
-
             <TouchableOpacity onPress={handleLogout} style={styles.logoutBtn} activeOpacity={0.8}>
               <Ionicons name="log-out-outline" size={24} color="rgba(255,255,255,0.85)" />
             </TouchableOpacity>
           </View>
 
-          {/* ── Stats Cards ── */}
+          {/* Stats Cards */}
           <View style={styles.statsGrid}>
             {[
               { label: "Registros Hoje", value: dailyReport?.totalEntries ?? 0, icon: "time-outline", color: "#3B82F6" },
               { label: "Fotos Enviadas", value: dailyReport?.totalPhotos ?? 0, icon: "camera-outline", color: "#10B981" },
               { label: "Solicitações", value: dailyReport?.totalRequests ?? 0, icon: "cube-outline", color: "#F59E0B" },
             ].map((stat) => (
-              <View
-                key={stat.label}
-                style={[styles.statCard, { backgroundColor: colors.surface, borderColor: colors.border }]}
-              >
+              <View key={stat.label} style={[styles.statCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
                 <View style={[styles.statIcon, { backgroundColor: stat.color + "20" }]}>
                   <Ionicons name={stat.icon as any} size={22} color={stat.color} />
                 </View>
@@ -162,9 +160,10 @@ export default function HomeScreen() {
             ))}
           </View>
 
-          {/* ── Fotos do Dia ── */}
+          {/* Fotos do Dia */}
           <View style={styles.sectionRow}>
             <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Fotos de Hoje</Text>
+            {/* FIX: "Ver todas" vai para manager-photos */}
             <TouchableOpacity onPress={() => router.push("/(tabs)/manager-photos" as any)}>
               <Text style={[styles.seeAll, { color: accentColor }]}>Ver todas</Text>
             </TouchableOpacity>
@@ -208,7 +207,8 @@ export default function HomeScreen() {
                 <TouchableOpacity
                   key={photo.id}
                   style={[styles.photoCell, { width: PHOTO_SIZE, height: PHOTO_SIZE }]}
-                  onPress={() => router.push("/(tabs)/manager-photos" as any)}
+                  // FIX: abre preview inline da foto clicada, em vez de ir para manager-photos
+                  onPress={() => setPreviewPhoto({ uri: photo.photoUrl ?? "" })}
                   activeOpacity={0.85}
                 >
                   <Image source={{ uri: photo.photoUrl }} style={styles.photoImage} contentFit="cover" transition={200} />
@@ -217,7 +217,7 @@ export default function HomeScreen() {
             </View>
           )}
 
-          {/* ── Quick Actions ── */}
+          {/* Quick Actions */}
           <Text style={[styles.sectionTitle, { color: colors.foreground, marginTop: 8 }]}>Acesso Rápido</Text>
           <View style={styles.quickActions}>
             {[
@@ -240,6 +240,30 @@ export default function HomeScreen() {
             ))}
           </View>
         </ScrollView>
+
+        {/* ── FIX: Modal de preview inline da foto ── */}
+        <Modal visible={!!previewPhoto} transparent animationType="fade" onRequestClose={() => setPreviewPhoto(null)}>
+          <View style={styles.photoPreviewOverlay}>
+            <TouchableOpacity style={styles.photoPreviewClose} onPress={() => setPreviewPhoto(null)}>
+              <Ionicons name="close-circle" size={36} color="#fff" />
+            </TouchableOpacity>
+            {previewPhoto && (
+              <Image
+                source={{ uri: previewPhoto.uri }}
+                style={styles.photoPreviewImage}
+                contentFit="contain"
+              />
+            )}
+            <TouchableOpacity
+              style={[styles.photoPreviewAllBtn, { backgroundColor: accentColor }]}
+              onPress={() => { setPreviewPhoto(null); router.push("/(tabs)/manager-photos" as any); }}
+              activeOpacity={0.85}
+            >
+              <Ionicons name="images-outline" size={18} color="#fff" />
+              <Text style={styles.photoPreviewAllText}>Ver todas as fotos</Text>
+            </TouchableOpacity>
+          </View>
+        </Modal>
       </ScreenContainer>
     );
   }
@@ -396,6 +420,13 @@ const styles = StyleSheet.create({
   photoImage: { width: "100%", height: "100%" },
   emptyPhotos: { marginHorizontal: 16, borderRadius: 16, borderWidth: 1, padding: 32, alignItems: "center", gap: 10, marginBottom: 8 },
   emptyPhotosText: { fontSize: 14, textAlign: "center" },
+  // Photo preview modal (home do gestor)
+  photoPreviewOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.95)", alignItems: "center", justifyContent: "center" },
+  photoPreviewClose: { position: "absolute", top: 50, right: 16, zIndex: 20 },
+  photoPreviewImage: { width: SCREEN_WIDTH, height: SCREEN_HEIGHT * 0.7 },
+  photoPreviewAllBtn: { position: "absolute", bottom: 40, flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 24, paddingVertical: 14, borderRadius: 16 },
+  photoPreviewAllText: { color: "#fff", fontSize: 15, fontWeight: "700" },
+  // Promoter
   summaryCard: { margin: 16, borderRadius: 20, padding: 20, borderWidth: 1 },
   summaryTitle: { fontSize: 16, fontWeight: "700", marginBottom: 16 },
   summaryRow: { flexDirection: "row", alignItems: "center" },
