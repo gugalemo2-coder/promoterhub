@@ -77,7 +77,6 @@ function ClockEntryModal({
   const isEntry = entryType === "entry";
   const accentColor = isEntry ? "#0E9F6E" : "#EF4444";
 
-  // Reset state every time the modal opens so previous data never bleeds into the next session
   useEffect(() => {
     if (visible) {
       setSelectedStore(null);
@@ -118,7 +117,6 @@ function ClockEntryModal({
   return (
     <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={handleClose}>
       <View style={[styles.modal, { backgroundColor: colors.background }]}>
-        {/* Modal Header */}
         <View style={[styles.modalHeader, { borderBottomColor: colors.border }]}>
           <Pressable onPress={handleClose} style={({ pressed }) => [{ opacity: pressed ? 0.6 : 1 }]}>
             <Ionicons name="close" size={24} color={colors.foreground} />
@@ -130,7 +128,6 @@ function ClockEntryModal({
         </View>
 
         <ScrollView contentContainerStyle={styles.modalContent} showsVerticalScrollIndicator={false}>
-          {/* Step 1: Store Selection (only for entry) */}
           {isEntry && (
             <View style={styles.section}>
               <View style={styles.sectionHeader}>
@@ -161,11 +158,7 @@ function ClockEntryModal({
                       ]}
                       onPress={() => setSelectedStore(store)}
                     >
-                      <Ionicons
-                        name="storefront-outline"
-                        size={20}
-                        color={selectedStore?.id === store.id ? accentColor : colors.muted}
-                      />
+                      <Ionicons name="storefront-outline" size={20} color={selectedStore?.id === store.id ? accentColor : colors.muted} />
                       <View style={{ flex: 1 }}>
                         <Text style={[styles.storeName, { color: colors.foreground }]}>{store.name}</Text>
                         {store.address && (
@@ -184,7 +177,6 @@ function ClockEntryModal({
             </View>
           )}
 
-          {/* Exit: show store info */}
           {!isEntry && stores.length > 0 && (
             <View style={styles.section}>
               <View style={styles.sectionHeader}>
@@ -208,11 +200,10 @@ function ClockEntryModal({
             </View>
           )}
 
-          {/* Step 2: Photo */}
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
               <View style={[styles.stepBadge, { backgroundColor: accentColor }]}>
-                <Text style={styles.stepBadgeText}>{isEntry ? "2" : "2"}</Text>
+                <Text style={styles.stepBadgeText}>2</Text>
               </View>
               <Text style={[styles.sectionTitle, { color: colors.foreground }]}>
                 Foto do Ponto Eletrônico
@@ -233,26 +224,15 @@ function ClockEntryModal({
             ) : (
               <View style={styles.photoButtons}>
                 <Pressable
-                  style={({ pressed }) => [
-                    styles.photoBtn,
-                    { backgroundColor: accentColor, opacity: pressed || pickingPhoto ? 0.8 : 1 },
-                  ]}
+                  style={({ pressed }) => [styles.photoBtn, { backgroundColor: accentColor, opacity: pressed || pickingPhoto ? 0.8 : 1 }]}
                   onPress={() => handlePickPhoto("camera")}
                   disabled={pickingPhoto}
                 >
-                  {pickingPhoto ? (
-                    <ActivityIndicator size="small" color="#FFFFFF" />
-                  ) : (
-                    <Ionicons name="camera-outline" size={22} color="#FFFFFF" />
-                  )}
+                  {pickingPhoto ? <ActivityIndicator size="small" color="#FFFFFF" /> : <Ionicons name="camera-outline" size={22} color="#FFFFFF" />}
                   <Text style={styles.photoBtnText}>Tirar Foto</Text>
                 </Pressable>
                 <Pressable
-                  style={({ pressed }) => [
-                    styles.photoBtn,
-                    styles.photoBtnOutline,
-                    { borderColor: accentColor, opacity: pressed || pickingPhoto ? 0.8 : 1 },
-                  ]}
+                  style={({ pressed }) => [styles.photoBtn, styles.photoBtnOutline, { borderColor: accentColor, opacity: pressed || pickingPhoto ? 0.8 : 1 }]}
                   onPress={() => handlePickPhoto("gallery")}
                   disabled={pickingPhoto}
                 >
@@ -264,13 +244,9 @@ function ClockEntryModal({
           </View>
         </ScrollView>
 
-        {/* Confirm Button */}
         <View style={[styles.modalFooter, { borderTopColor: colors.border }]}>
           <Pressable
-            style={({ pressed }) => [
-              styles.confirmBtn,
-              { backgroundColor: accentColor, opacity: pressed ? 0.85 : 1 },
-            ]}
+            style={({ pressed }) => [styles.confirmBtn, { backgroundColor: accentColor, opacity: pressed ? 0.85 : 1 }]}
             onPress={handleConfirm}
           >
             <Ionicons name={isEntry ? "log-in-outline" : "log-out-outline"} size={22} color="#FFFFFF" />
@@ -294,11 +270,8 @@ export default function ClockScreen() {
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [modalVisible, setModalVisible] = useState(false);
   const [modalEntryType, setModalEntryType] = useState<"entry" | "exit">("entry");
-
-  // Duplicate entry warning modal
   const [dupWarningVisible, setDupWarningVisible] = useState(false);
 
-  // Toast notification state
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
   const toastOpacity = useRef(new Animated.Value(0)).current;
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -315,20 +288,43 @@ export default function ClockScreen() {
     toastTimer.current = setTimeout(() => setToast(null), 3200);
   };
 
+  // ── FIX: calcular startDate e endDate cobrindo o dia inteiro ──────────────
+  const dayStart = new Date(selectedDate);
+  dayStart.setHours(0, 0, 0, 0);
+  const dayEnd = new Date(selectedDate);
+  dayEnd.setHours(23, 59, 59, 999);
+
   const utils = trpc.useUtils();
   const { data: lastEntry } = trpc.timeEntries.lastOpenEntry.useQuery();
-  const { data: dailySummary, refetch: refetchSummary } = trpc.timeEntries.dailySummary.useQuery({ date: selectedDate.toISOString() });
-  const { data: allEntries } = trpc.timeEntries.allForDate.useQuery({ date: selectedDate.toISOString() }, { enabled: isManager });
-  const { data: myEntries, refetch: refetchMy } = trpc.timeEntries.list.useQuery({ startDate: selectedDate.toISOString(), endDate: selectedDate.toISOString() }, { enabled: !isManager });
+  const { data: dailySummary, refetch: refetchSummary } = trpc.timeEntries.dailySummary.useQuery(
+    { date: selectedDate.toISOString() },
+    // FIX: revalida automaticamente ao focar na tela
+    { refetchOnWindowFocus: true }
+  );
+  const { data: allEntries } = trpc.timeEntries.allForDate.useQuery(
+    { date: selectedDate.toISOString() },
+    { enabled: isManager }
+  );
 
-  // Promoters see only their assigned stores; managers see all stores
+  // FIX: usa dayStart e dayEnd para cobrir o dia inteiro — antes usava o mesmo valor para os dois
+  const { data: myEntries, refetch: refetchMy } = trpc.timeEntries.list.useQuery(
+    {
+      startDate: dayStart.toISOString(),
+      endDate: dayEnd.toISOString(),
+    },
+    {
+      enabled: !isManager,
+      // FIX: revalida automaticamente ao focar na tela
+      refetchOnWindowFocus: true,
+    }
+  );
+
   const { data: promoterStores } = trpc.stores.listForPromoter.useQuery(undefined, { enabled: !isManager });
   const { data: allStores } = trpc.stores.list.useQuery(undefined, { enabled: isManager });
   const stores = (isManager ? allStores : promoterStores) ?? [];
 
   const createEntryMutation = trpc.timeEntries.create.useMutation();
 
-  // Persist open entry state locally so it survives app restarts
   const [localHasOpenEntry, setLocalHasOpenEntry] = useState<boolean | null>(null);
 
   useEffect(() => {
@@ -345,12 +341,10 @@ export default function ClockScreen() {
     }
   }, [lastEntry]);
 
-  // Use server data when available, fall back to local cache
   const hasOpenEntry = lastEntry !== undefined ? !!lastEntry : (localHasOpenEntry ?? false);
   const displayEntries = isManager ? allEntries : myEntries;
 
   const openModal = (type: "entry" | "exit") => {
-    // If promoter tries to register a new entry while one is already open, show warning
     if (type === "entry" && hasOpenEntry) {
       setDupWarningVisible(true);
       return;
@@ -375,20 +369,18 @@ export default function ClockScreen() {
 
       if (Platform.OS !== "web") await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 
-      // Update local state IMMEDIATELY so button switches without waiting for server refetch
       const newHasOpen = entryType === "entry";
       setLocalHasOpenEntry(newHasOpen);
       await AsyncStorage.setItem(OPEN_ENTRY_KEY, String(newHasOpen));
 
-      // Then sync with server
+      // FIX: invalida todas as queries relevantes para atualizar o histórico e resumo
       await utils.timeEntries.lastOpenEntry.invalidate();
       await utils.timeEntries.dailySummary.invalidate();
       await utils.timeEntries.list.invalidate();
+      await utils.timeEntries.allForDate.invalidate();
 
       showToast(
-        entryType === "entry"
-          ? "✅ Entrada registrada com sucesso!"
-          : "✅ Saída registrada com sucesso!",
+        entryType === "entry" ? "✅ Entrada registrada com sucesso!" : "✅ Saída registrada com sucesso!",
         "success"
       );
     } catch (err: any) {
@@ -400,7 +392,6 @@ export default function ClockScreen() {
     }
   };
 
-  // For exit: use the store from the last open entry
   const exitStore = stores.find((s) => s.id === lastEntry?.storeId) ?? (stores.length > 0 ? stores[0] : null);
 
   const formatTime = (date: Date | string) => new Date(date).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
@@ -421,7 +412,6 @@ export default function ClockScreen() {
 
   return (
     <ScreenContainer>
-      {/* Toast Notification */}
       {toast && (
         <Animated.View
           style={[
@@ -438,12 +428,10 @@ export default function ClockScreen() {
         </Animated.View>
       )}
 
-      {/* Header */}
       <View style={[styles.header, { backgroundColor: colors.primary }]}>
         <Text style={styles.headerTitle}>{isManager ? "Controle de Ponto" : "Registro de Ponto"}</Text>
       </View>
 
-      {/* Date Navigation */}
       <View style={[styles.dateNav, { backgroundColor: colors.surface, borderBottomColor: colors.border }]}>
         <Pressable style={({ pressed }) => [styles.dateNavBtn, pressed && { opacity: 0.6 }]} onPress={() => changeDate(-1)}>
           <Ionicons name="chevron-back" size={20} color={colors.primary} />
@@ -458,7 +446,6 @@ export default function ClockScreen() {
         </Pressable>
       </View>
 
-      {/* Promoter Clock In/Out Buttons */}
       {!isManager && isToday && (
         <View style={styles.clockSection}>
           {registering ? (
@@ -468,26 +455,15 @@ export default function ClockScreen() {
             </View>
           ) : (
             <View style={styles.clockButtons}>
-              {/* Entry Button — always visible */}
               <Pressable
-                style={({ pressed }) => [
-                  styles.clockBtn,
-                  { backgroundColor: "#0E9F6E" },
-                  pressed && { transform: [{ scale: 0.97 }], opacity: 0.9 },
-                ]}
+                style={({ pressed }) => [styles.clockBtn, { backgroundColor: "#0E9F6E" }, pressed && { transform: [{ scale: 0.97 }], opacity: 0.9 }]}
                 onPress={() => openModal("entry")}
               >
                 <Ionicons name="log-in-outline" size={28} color="#FFFFFF" />
                 <Text style={styles.clockBtnText}>Registrar Entrada</Text>
               </Pressable>
-
-              {/* Exit Button — always visible */}
               <Pressable
-                style={({ pressed }) => [
-                  styles.clockBtn,
-                  { backgroundColor: "#EF4444" },
-                  pressed && { transform: [{ scale: 0.97 }], opacity: 0.9 },
-                ]}
+                style={({ pressed }) => [styles.clockBtn, { backgroundColor: "#EF4444" }, pressed && { transform: [{ scale: 0.97 }], opacity: 0.9 }]}
                 onPress={() => openModal("exit")}
               >
                 <Ionicons name="log-out-outline" size={28} color="#FFFFFF" />
@@ -496,7 +472,6 @@ export default function ClockScreen() {
             </View>
           )}
 
-          {/* Daily Summary */}
           {dailySummary && (
             <View style={[styles.summaryCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
               <View style={styles.summaryItem}>
@@ -527,7 +502,6 @@ export default function ClockScreen() {
         </View>
       )}
 
-      {/* Entries List */}
       <FlatList
         data={displayEntries}
         keyExtractor={(item) => item.id.toString()}
@@ -564,17 +538,12 @@ export default function ClockScreen() {
               )}
             </View>
             {(item as any).photoUrl && (
-              <Image
-                source={{ uri: (item as any).photoUrl }}
-                style={styles.entryPhoto}
-                contentFit="cover"
-              />
+              <Image source={{ uri: (item as any).photoUrl }} style={styles.entryPhoto} contentFit="cover" />
             )}
           </View>
         )}
       />
 
-      {/* Entry Modal */}
       <ClockEntryModal
         visible={modalVisible && modalEntryType === "entry"}
         entryType="entry"
@@ -583,7 +552,6 @@ export default function ClockScreen() {
         onConfirm={handleConfirmEntry}
       />
 
-      {/* Exit Modal — auto-fills store from last open entry */}
       <ClockEntryModal
         visible={modalVisible && modalEntryType === "exit"}
         entryType="exit"
@@ -592,13 +560,7 @@ export default function ClockScreen() {
         onConfirm={handleConfirmEntry}
       />
 
-      {/* Duplicate Entry Warning Modal */}
-      <Modal
-        visible={dupWarningVisible}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setDupWarningVisible(false)}
-      >
+      <Modal visible={dupWarningVisible} transparent animationType="fade" onRequestClose={() => setDupWarningVisible(false)}>
         <View style={styles.dupOverlay}>
           <View style={[styles.dupCard, { backgroundColor: colors.background, borderColor: colors.border }]}>
             <View style={styles.dupIconWrap}>
@@ -616,13 +578,9 @@ export default function ClockScreen() {
             )}
             <View style={styles.dupActions}>
               <Pressable
-                style={({ pressed }) => [
-                  styles.dupBtn,
-                  { backgroundColor: "#EF4444", opacity: pressed ? 0.85 : 1 },
-                ]}
+                style={({ pressed }) => [styles.dupBtn, { backgroundColor: "#EF4444", opacity: pressed ? 0.85 : 1 }]}
                 onPress={() => {
                   setDupWarningVisible(false);
-                  // Open exit modal so they can register the exit first
                   setModalEntryType("exit");
                   setModalVisible(true);
                 }}
@@ -631,10 +589,7 @@ export default function ClockScreen() {
                 <Text style={styles.dupBtnText}>Registrar Saída</Text>
               </Pressable>
               <Pressable
-                style={({ pressed }) => [
-                  styles.dupBtnOutline,
-                  { borderColor: colors.border, opacity: pressed ? 0.7 : 1 },
-                ]}
+                style={({ pressed }) => [styles.dupBtnOutline, { borderColor: colors.border, opacity: pressed ? 0.7 : 1 }]}
                 onPress={() => setDupWarningVisible(false)}
               >
                 <Text style={[styles.dupBtnOutlineText, { color: colors.muted }]}>Cancelar</Text>
@@ -677,7 +632,6 @@ const styles = StyleSheet.create({
   emptyDesc: { fontSize: 14, textAlign: "center", lineHeight: 21 },
   toast: { position: "absolute", top: 16, left: 20, right: 20, zIndex: 999, borderRadius: 14, paddingVertical: 16, paddingHorizontal: 20, shadowColor: "#000", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.25, shadowRadius: 10, elevation: 10, alignItems: "center" },
   toastText: { color: "#FFFFFF", fontSize: 16, fontWeight: "700", textAlign: "center", lineHeight: 22 },
-  // Modal
   modal: { flex: 1 },
   modalHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 20, paddingVertical: 16, borderBottomWidth: 1 },
   modalTitle: { fontSize: 18, fontWeight: "700" },
@@ -704,7 +658,6 @@ const styles = StyleSheet.create({
   retakeBtnText: { fontSize: 14, fontWeight: "500" },
   confirmBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 10, paddingVertical: 18, borderRadius: 18 },
   confirmBtnText: { fontSize: 17, fontWeight: "700", color: "#FFFFFF" },
-  // Duplicate entry warning
   dupOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.55)", alignItems: "center", justifyContent: "center", padding: 24 },
   dupCard: { width: "100%", maxWidth: 360, borderRadius: 20, borderWidth: 1, padding: 24, gap: 16, alignItems: "center" },
   dupIconWrap: { width: 72, height: 72, borderRadius: 36, backgroundColor: "#F59E0B20", alignItems: "center", justifyContent: "center" },
