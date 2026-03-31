@@ -2,8 +2,10 @@ import { Image } from "expo-image";
 import { useState, useMemo } from "react";
 import {
   ActivityIndicator,
+  Alert,
   FlatList,
   Modal,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -49,6 +51,7 @@ function ReviewModal({
   onClose,
   onApprove,
   onReject,
+  onDelete,
   loading,
   colors,
 }: {
@@ -67,6 +70,7 @@ function ReviewModal({
   onClose: () => void;
   onApprove: (notes: string) => void;
   onReject: (notes: string) => void;
+  onDelete: () => void;
   loading: boolean;
   colors: ReturnType<typeof useColors>;
 }) {
@@ -90,8 +94,17 @@ function ReviewModal({
             <Ionicons name="close" size={24} color={colors.foreground} />
           </Pressable>
           <Text style={[rStyles.title, { color: colors.foreground }]}>Revisar Registro</Text>
-          <View style={[rStyles.statusPill, { backgroundColor: statusColor(item.status) + "20" }]}>
-            <Text style={[rStyles.statusPillText, { color: statusColor(item.status) }]}>{statusLabel(item.status)}</Text>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+            <View style={[rStyles.statusPill, { backgroundColor: statusColor(item.status) + "20" }]}>
+              <Text style={[rStyles.statusPillText, { color: statusColor(item.status) }]}>{statusLabel(item.status)}</Text>
+            </View>
+            {/* Botão de apagar */}
+            <Pressable
+              onPress={onDelete}
+              style={({ pressed }) => [rStyles.deleteBtn, { opacity: pressed ? 0.7 : 1 }]}
+            >
+              <Ionicons name="trash-outline" size={18} color="#E02424" />
+            </Pressable>
           </View>
         </View>
 
@@ -254,7 +267,6 @@ export default function ManagerProductExpirationScreen() {
   const colors = useColors();
   const now = new Date();
 
-  // ── filter state ──────────────────────────────────────────────────────────
   const [filterBrandId, setFilterBrandId] = useState<number | null>(null);
   const [filterStoreId, setFilterStoreId] = useState<number | null>(null);
   const [filterUserId, setFilterUserId] = useState<number | null>(null);
@@ -262,18 +274,15 @@ export default function ManagerProductExpirationScreen() {
   const [selectedYear, setSelectedYear] = useState<number | null>(null);
   const [selectedMonth, setSelectedMonth] = useState<number | null>(null);
 
-  // ── picker modals ─────────────────────────────────────────────────────────
   const [showBrandPicker, setShowBrandPicker] = useState(false);
   const [showStorePicker, setShowStorePicker] = useState(false);
   const [showPromoterPicker, setShowPromoterPicker] = useState(false);
   const [showMonthPicker, setShowMonthPicker] = useState(false);
 
-  // ── review modal ──────────────────────────────────────────────────────────
   const [reviewItem, setReviewItem] = useState<ExpirationItem | null>(null);
   const [reviewVisible, setReviewVisible] = useState(false);
   const [reviewLoading, setReviewLoading] = useState(false);
 
-  // ── data ──────────────────────────────────────────────────────────────────
   const { data: brands = [] } = trpc.brands.list.useQuery();
   const { data: stores = [] } = trpc.stores.list.useQuery();
   const { data: promoters = [] } = trpc.stores.listPromoterUsers.useQuery();
@@ -297,6 +306,7 @@ export default function ManagerProductExpirationScreen() {
   });
 
   const updateStatusMutation = trpc.productExpirations.updateStatus.useMutation();
+  const deleteMutation = trpc.productExpirations.delete.useMutation();
 
   const handleApprove = async (notes: string) => {
     if (!reviewItem) return;
@@ -324,8 +334,36 @@ export default function ManagerProductExpirationScreen() {
     }
   };
 
-  const pendingCount = expirations.filter((e) => e.status === "pending").length;
+  const handleDelete = (item: ExpirationItem) => {
+    const doDelete = async () => {
+      setReviewLoading(true);
+      try {
+        await deleteMutation.mutateAsync({ id: item.id });
+        setReviewVisible(false);
+        setReviewItem(null);
+        refetch();
+      } finally {
+        setReviewLoading(false);
+      }
+    };
 
+    if (Platform.OS === "web") {
+      if (window.confirm("Deseja apagar este registro de vencimento? Esta ação não pode ser desfeita.")) {
+        doDelete();
+      }
+    } else {
+      Alert.alert(
+        "Apagar registro",
+        "Deseja apagar este registro de vencimento? Esta ação não pode ser desfeita.",
+        [
+          { text: "Cancelar", style: "cancel" },
+          { text: "Apagar", style: "destructive", onPress: doDelete },
+        ]
+      );
+    }
+  };
+
+  const pendingCount = expirations.filter((e) => e.status === "pending").length;
   const years = Array.from({ length: 3 }, (_, i) => now.getFullYear() - i);
 
   const selectedBrandName = filterBrandId ? (brands.find((b) => b.id === filterBrandId)?.name ?? "Marca") : "Marca";
@@ -350,7 +388,6 @@ export default function ManagerProductExpirationScreen() {
       {/* Filters */}
       <View style={[styles.filterContainer, { borderBottomColor: colors.border }]}>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterRow}>
-          {/* Brand */}
           <Pressable
             style={({ pressed }) => [styles.filterChip, { backgroundColor: filterBrandId ? colors.primary + "20" : colors.surface, borderColor: filterBrandId ? colors.primary : colors.border }, pressed && { opacity: 0.8 }]}
             onPress={() => setShowBrandPicker(true)}
@@ -360,7 +397,6 @@ export default function ManagerProductExpirationScreen() {
             <Ionicons name="chevron-down" size={12} color={filterBrandId ? colors.primary : colors.muted} />
           </Pressable>
 
-          {/* Store */}
           <Pressable
             style={({ pressed }) => [styles.filterChip, { backgroundColor: filterStoreId ? colors.primary + "20" : colors.surface, borderColor: filterStoreId ? colors.primary : colors.border }, pressed && { opacity: 0.8 }]}
             onPress={() => setShowStorePicker(true)}
@@ -370,7 +406,6 @@ export default function ManagerProductExpirationScreen() {
             <Ionicons name="chevron-down" size={12} color={filterStoreId ? colors.primary : colors.muted} />
           </Pressable>
 
-          {/* Promoter */}
           <Pressable
             style={({ pressed }) => [styles.filterChip, { backgroundColor: filterUserId ? colors.primary + "20" : colors.surface, borderColor: filterUserId ? colors.primary : colors.border }, pressed && { opacity: 0.8 }]}
             onPress={() => setShowPromoterPicker(true)}
@@ -380,7 +415,6 @@ export default function ManagerProductExpirationScreen() {
             <Ionicons name="chevron-down" size={12} color={filterUserId ? colors.primary : colors.muted} />
           </Pressable>
 
-          {/* Status */}
           {(["pending", "approved", "rejected"] as const).map((s) => (
             <Pressable
               key={s}
@@ -391,7 +425,6 @@ export default function ManagerProductExpirationScreen() {
             </Pressable>
           ))}
 
-          {/* Date */}
           <Pressable
             style={({ pressed }) => [styles.filterChip, { backgroundColor: selectedYear !== null ? colors.primary + "20" : colors.surface, borderColor: selectedYear !== null ? colors.primary : colors.border }, pressed && { opacity: 0.8 }]}
             onPress={() => setShowMonthPicker(true)}
@@ -432,25 +465,32 @@ export default function ManagerProductExpirationScreen() {
                 style={({ pressed }) => [styles.card, { backgroundColor: colors.surface, borderColor: colors.border, opacity: pressed ? 0.9 : 1 }]}
                 onPress={() => { setReviewItem(item as any); setReviewVisible(true); }}
               >
-                {/* Card Header */}
                 <View style={styles.cardHeader}>
                   <View style={{ flex: 1, gap: 2 }}>
                     <Text style={[styles.cardBrand, { color: colors.foreground }]}>{item.brandName ?? "—"}</Text>
                     <Text style={[styles.cardMeta, { color: colors.muted }]}>{item.promoterName ?? "—"} · {item.storeName ?? "—"}</Text>
                   </View>
-                  <View style={[styles.statusBadge, { backgroundColor: statusColor(item.status) + "20" }]}>
-                    <Ionicons name={statusIcon(item.status)} size={13} color={statusColor(item.status)} />
-                    <Text style={[styles.statusText, { color: statusColor(item.status) }]}>{statusLabel(item.status)}</Text>
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                    <View style={[styles.statusBadge, { backgroundColor: statusColor(item.status) + "20" }]}>
+                      <Ionicons name={statusIcon(item.status)} size={13} color={statusColor(item.status)} />
+                      <Text style={[styles.statusText, { color: statusColor(item.status) }]}>{statusLabel(item.status)}</Text>
+                    </View>
+                    {/* Botão apagar no card */}
+                    <Pressable
+                      onPress={() => handleDelete(item as any)}
+                      style={({ pressed }) => [styles.deleteCardBtn, { opacity: pressed ? 0.7 : 1 }]}
+                      hitSlop={8}
+                    >
+                      <Ionicons name="trash-outline" size={16} color="#E02424" />
+                    </Pressable>
                   </View>
                 </View>
 
-                {/* Date */}
                 <View style={styles.cardDateRow}>
                   <Ionicons name="calendar-outline" size={12} color={colors.muted} />
                   <Text style={[styles.cardDate, { color: colors.muted }]}>{dateStr} às {timeStr}</Text>
                 </View>
 
-                {/* Photos thumbnails */}
                 {item.photos.length > 0 && (
                   <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 6 }}>
                     {item.photos.map((p) => (
@@ -459,12 +499,10 @@ export default function ManagerProductExpirationScreen() {
                   </ScrollView>
                 )}
 
-                {/* Description */}
                 {item.description ? (
                   <Text style={[styles.cardDesc, { color: colors.foreground }]} numberOfLines={2}>{item.description}</Text>
                 ) : null}
 
-                {/* Tap hint for pending */}
                 {item.status === "pending" && (
                   <View style={styles.tapHint}>
                     <Text style={[styles.tapHintText, { color: colors.primary }]}>Toque para revisar</Text>
@@ -477,7 +515,7 @@ export default function ManagerProductExpirationScreen() {
         />
       )}
 
-      {/* ── Brand Picker ─────────────────────────────────────────────────── */}
+      {/* Pickers */}
       <Modal visible={showBrandPicker} transparent animationType="slide" onRequestClose={() => setShowBrandPicker(false)}>
         <Pressable style={styles.sheetOverlay} onPress={() => setShowBrandPicker(false)}>
           <View style={[styles.sheet, { backgroundColor: colors.background }]}>
@@ -496,7 +534,6 @@ export default function ManagerProductExpirationScreen() {
         </Pressable>
       </Modal>
 
-      {/* ── Store Picker ──────────────────────────────────────────────────── */}
       <Modal visible={showStorePicker} transparent animationType="slide" onRequestClose={() => setShowStorePicker(false)}>
         <Pressable style={styles.sheetOverlay} onPress={() => setShowStorePicker(false)}>
           <View style={[styles.sheet, { backgroundColor: colors.background }]}>
@@ -517,7 +554,6 @@ export default function ManagerProductExpirationScreen() {
         </Pressable>
       </Modal>
 
-      {/* ── Promoter Picker ───────────────────────────────────────────────── */}
       <Modal visible={showPromoterPicker} transparent animationType="slide" onRequestClose={() => setShowPromoterPicker(false)}>
         <Pressable style={styles.sheetOverlay} onPress={() => setShowPromoterPicker(false)}>
           <View style={[styles.sheet, { backgroundColor: colors.background }]}>
@@ -538,7 +574,6 @@ export default function ManagerProductExpirationScreen() {
         </Pressable>
       </Modal>
 
-      {/* ── Month Picker ──────────────────────────────────────────────────── */}
       <Modal visible={showMonthPicker} transparent animationType="slide" onRequestClose={() => setShowMonthPicker(false)}>
         <Pressable style={styles.sheetOverlay} onPress={() => setShowMonthPicker(false)}>
           <View style={[styles.sheet, { backgroundColor: colors.background }]}>
@@ -563,13 +598,13 @@ export default function ManagerProductExpirationScreen() {
         </Pressable>
       </Modal>
 
-      {/* ── Review Modal ──────────────────────────────────────────────────── */}
       <ReviewModal
         item={reviewItem as any}
         visible={reviewVisible}
         onClose={() => { setReviewVisible(false); setReviewItem(null); }}
         onApprove={handleApprove}
         onReject={handleReject}
+        onDelete={() => reviewItem && handleDelete(reviewItem)}
         loading={reviewLoading}
         colors={colors}
       />
@@ -577,7 +612,6 @@ export default function ManagerProductExpirationScreen() {
   );
 }
 
-// ─── Styles ───────────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
   header: { paddingHorizontal: 16, paddingTop: 16, paddingBottom: 12, borderBottomWidth: 0.5 },
   title: { fontSize: 20, fontWeight: "700" },
@@ -601,7 +635,7 @@ const styles = StyleSheet.create({
   cardDesc: { fontSize: 13, lineHeight: 18 },
   tapHint: { flexDirection: "row", alignItems: "center", gap: 4, alignSelf: "flex-end" },
   tapHintText: { fontSize: 12, fontWeight: "500" },
-  // Sheet
+  deleteCardBtn: { padding: 4 },
   sheetOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.4)", justifyContent: "flex-end" },
   sheet: { borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, maxHeight: "70%" },
   sheetTitle: { fontSize: 16, fontWeight: "700", marginBottom: 12 },
@@ -615,6 +649,7 @@ const rStyles = StyleSheet.create({
   title: { fontSize: 17, fontWeight: "700", flex: 1, marginLeft: 12 },
   statusPill: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 10 },
   statusPillText: { fontSize: 12, fontWeight: "600" },
+  deleteBtn: { padding: 6, borderRadius: 8, backgroundColor: "#E0242420" },
   content: { padding: 16, gap: 16, paddingBottom: 40 },
   infoCard: { borderRadius: 12, borderWidth: 1, padding: 14, gap: 10 },
   infoRow: { flexDirection: "row", alignItems: "center", gap: 8 },
