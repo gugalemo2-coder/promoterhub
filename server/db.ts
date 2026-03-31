@@ -2044,7 +2044,7 @@ export async function getPhotoComments(photoId: number): Promise<{
   const rows = await db.execute(
     sql`SELECT id, photoId, userId, userName, comment, createdAt FROM photo_comments WHERE photoId = ${photoId} ORDER BY createdAt ASC`
   );
-  return (rows[0] as any[]).map((r: any) => ({
+  return (rows[0] as unknown as any[]).map((r: any) => ({
     id: r.id,
     photoId: r.photoId,
     userId: r.userId,
@@ -2069,7 +2069,7 @@ export async function getPhotoCommentsForPhotos(photoIds: number[]): Promise<{
   const rows = await db.execute(
     sql`SELECT id, photoId, userId, userName, comment, createdAt FROM photo_comments WHERE photoId IN (${sql.join(photoIds.map((id) => sql`${id}`), sql`, `)}) ORDER BY createdAt ASC`
   );
-  return (rows[0] as any[]).map((r: any) => ({
+  return (rows[0] as unknown as any[]).map((r: any) => ({
     id: r.id,
     photoId: r.photoId,
     userId: r.userId,
