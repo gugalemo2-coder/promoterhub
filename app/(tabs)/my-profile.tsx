@@ -86,9 +86,13 @@ export default function MyProfileScreen() {
 
   const MONTHS = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
 
+  // FIX fuso horário: calcula início e fim do mês no fuso local
+  const monthStart = new Date(year, month - 1, 1, 0, 0, 0, 0);
+  const monthEnd = new Date(year, month, 0, 23, 59, 59, 999);
+
   // FIX: refetchOnWindowFocus para atualizar ao voltar para a tela
   const { data: stats, isLoading: statsLoading } = trpc.promoterProfile.myStats.useQuery(
-    { year, month },
+    { year, month, startDate: monthStart.toISOString(), endDate: monthEnd.toISOString() },
     {
       enabled: !!user,
       refetchOnWindowFocus: true,
