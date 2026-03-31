@@ -81,7 +81,14 @@ export const appRouter = router({
         return { id, photoUrl };
       }),
     list: protectedProcedure.input(z.object({ startDate: z.string().optional(), endDate: z.string().optional() })).query(({ ctx, input }) => db.getTimeEntriesByUser(getAppUserId(ctx.user), input.startDate ? new Date(input.startDate) : undefined, input.endDate ? new Date(input.endDate) : undefined)),
-    dailySummary: protectedProcedure.input(z.object({ date: z.string().optional() })).query(({ ctx, input }) => db.getDailySummary(getAppUserId(ctx.user), input.date ? new Date(input.date) : new Date())),
+    dailySummary: protectedProcedure.input(z.object({ date: z.string().optional(), startDate: z.string().optional(), endDate: z.string().optional() })).query(async ({ ctx, input }) => {
+      const userId = getAppUserId(ctx.user);
+      // FIX: se o cliente mandar startDate+endDate já no fuso local, usa direto (sem setHours no servidor)
+      if (input.startDate && input.endDate) {
+        return db.getDailySummaryRange(userId, new Date(input.startDate), new Date(input.endDate));
+      }
+      return db.getDailySummary(userId, input.date ? new Date(input.date) : new Date());
+    }),
     lastOpenEntry: protectedProcedure.query(({ ctx }) => db.getLastOpenEntry(getAppUserId(ctx.user))),
     allForDate: protectedProcedure.input(z.object({ date: z.string().optional() })).query(({ input }) => db.getAllTimeEntriesForDate(input.date ? new Date(input.date) : new Date())),
     allForRange: protectedProcedure.input(z.object({ startDate: z.string(), endDate: z.string() })).query(({ input }) => db.getAllTimeEntriesForRange(new Date(input.startDate), new Date(input.endDate))),
@@ -280,7 +287,12 @@ export const appRouter = router({
       }),
   }),
   reports: router({
-    daily: protectedProcedure.input(z.object({ date: z.string().optional() })).query(({ input }) => db.getDailyReport(input.date ? new Date(input.date) : new Date())),
+    daily: protectedProcedure.input(z.object({ date: z.string().optional(), startDate: z.string().optional(), endDate: z.string().optional() })).query(({ input }) => {
+      if (input.startDate && input.endDate) {
+        return db.getDailyReportRange(new Date(input.startDate), new Date(input.endDate));
+      }
+      return db.getDailyReport(input.date ? new Date(input.date) : new Date());
+    }),
     promoterSummary: protectedProcedure.input(z.object({ userId: z.number().optional(), date: z.string().optional() })).query(async ({ ctx, input }) => db.getDailySummary(input.userId ?? ctx.user.id, input.date ? new Date(input.date) : new Date())),
     allPromoters: protectedProcedure.query(() => db.getAllPromoterUsersWithProfile()),
     monthly: protectedProcedure
