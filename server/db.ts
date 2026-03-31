@@ -1088,6 +1088,55 @@ export async function getPromoterMonthlyStats(
   };
 }
 
+// FIX fuso horário: versão com startDate/endDate já no fuso local do cliente (Brasil UTC-3)
+export async function getPromoterMonthlyStatsRange(userId: number, startDate: Date, endDate: Date) {
+  const db = await getDb();
+  if (!db) return { totalApprovedPhotos: 0, totalRejectedPhotos: 0, totalMaterialRequests: 0, totalHoursWorked: 0, totalVisits: 0, avgScoreStores: 0, avgDailyHours: 0, workedDays: 0, brandBreakdown: [] };
+
+  const approvedPhotos = await db.select().from(photos).where(and(eq(photos.userId, userId), eq(photos.status, "approved"), gte(photos.photoTimestamp, startDate), lte(photos.photoTimestamp, endDate)));
+  const rejectedPhotos = await db.select().from(photos).where(and(eq(photos.userId, userId), eq(photos.status, "rejected"), gte(photos.photoTimestamp, startDate), lte(photos.photoTimestamp, endDate)));
+  const matReqs = await db.select().from(materialRequests).where(and(eq(materialRequests.userId, userId), gte(materialRequests.requestedAt, startDate), lte(materialRequests.requestedAt, endDate)));
+  const entries = await db.select().from(timeEntries).where(and(eq(timeEntries.userId, userId), gte(timeEntries.entryTime, startDate), lte(timeEntries.entryTime, endDate)));
+
+  const sortedEntries = [...entries].sort((a, b) => new Date(a.entryTime).getTime() - new Date(b.entryTime).getTime());
+  let totalMinutes = 0;
+  let lastEntryTime: Date | null = null;
+  const dailyHoursMap: Record<string, number> = {};
+  for (const e of sortedEntries) {
+    if (e.entryType === "entry") {
+      lastEntryTime = new Date(e.entryTime);
+    } else if (e.entryType === "exit" && lastEntryTime) {
+      const diff = (new Date(e.entryTime).getTime() - lastEntryTime.getTime()) / 60000;
+      if (diff > 0 && diff < 720) {
+        totalMinutes += diff;
+        const dayKey = lastEntryTime.toISOString().slice(0, 10);
+        const dow = lastEntryTime.getDay();
+        if (dow >= 1 && dow <= 5) dailyHoursMap[dayKey] = (dailyHoursMap[dayKey] ?? 0) + diff / 60;
+      }
+      lastEntryTime = null;
+    }
+  }
+  const totalVisits = entries.filter((e) => e.entryType === "entry").length;
+  const workedDays = Object.keys(dailyHoursMap).length;
+  const totalWorkedHours = Object.values(dailyHoursMap).reduce((s, h) => s + h, 0);
+  const avgDailyHours = workedDays > 0 ? Math.round((totalWorkedHours / workedDays) * 10) / 10 : 0;
+
+  const allBrands = await db.select().from(brands).where(eq(brands.status, "active"));
+  const brandBreakdown = allBrands.map((b) => ({ brandId: b.id, brandName: b.name, approvedPhotos: approvedPhotos.filter((p) => p.brandId === b.id).length })).filter((b) => b.approvedPhotos > 0);
+
+  return {
+    totalApprovedPhotos: approvedPhotos.length,
+    totalRejectedPhotos: rejectedPhotos.length,
+    totalMaterialRequests: matReqs.length,
+    totalHoursWorked: Math.round((totalMinutes / 60) * 10) / 10,
+    totalVisits,
+    avgScoreStores: 0,
+    avgDailyHours,
+    workedDays,
+    brandBreakdown,
+  };
+}
+
 export interface WeeklyTrendPoint {
   weekLabel: string;
   approvedPhotos: number;
