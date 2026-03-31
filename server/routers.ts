@@ -498,6 +498,9 @@ export const appRouter = router({
         managerNotes: z.string().optional(),
       }))
       .mutation(({ input }) => db.updateProductExpirationStatus(input.id, input.status, input.managerNotes)),
+    delete: protectedProcedure
+      .input(z.object({ id: z.number().int().positive() }))
+      .mutation(({ input }) => db.deleteProductExpiration(input.id)),
     countPending: protectedProcedure
       .query(() => db.countPendingProductExpirations()),
   }),
