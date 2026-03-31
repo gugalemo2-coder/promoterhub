@@ -45,15 +45,18 @@ export default function HomeScreen() {
   // ── Preview de foto inline (home do gestor) ───────────────────────────────
   const [previewPhoto, setPreviewPhoto] = useState<{ uri: string } | null>(null);
 
+  // FIX fuso horário: calcula início e fim do dia no fuso local do dispositivo
+  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
+  const todayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+
   // ── Promoter queries ──────────────────────────────────────────────────────
-  // FIX: enabled agora depende de isPromoter explicitamente (não de !isManager)
-  // Isso garante que a query SÓ roda quando o appRole já foi carregado como "promoter"
+  // FIX: usa startDate/endDate locais em vez de todayISO (que causava busca no dia errado por fuso UTC)
   const { data: dailySummary } = trpc.timeEntries.dailySummary.useQuery(
-    { date: todayISO },
+    { startDate: todayStart.toISOString(), endDate: todayEnd.toISOString() },
     {
       enabled: isReady && isPromoter,
       refetchOnWindowFocus: true,
-      refetchInterval: 30000,
+      refetchInterval: 60000,
     }
   );
   const { data: pendingRequests } = trpc.materialRequests.list.useQuery(
@@ -70,7 +73,7 @@ export default function HomeScreen() {
 
   // ── Manager/Master queries ────────────────────────────────────────────────
   const { data: dailyReport } = trpc.reports.daily.useQuery(
-    { date: todayISO },
+    { startDate: todayStart.toISOString(), endDate: todayEnd.toISOString() },
     { enabled: isReady && isManager }
   );
   const { data: brands } = trpc.brands.list.useQuery(
