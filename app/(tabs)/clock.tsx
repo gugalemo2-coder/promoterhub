@@ -472,33 +472,7 @@ export default function ClockScreen() {
             </View>
           )}
 
-          {dailySummary && (
-            <View style={[styles.summaryCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-              <View style={styles.summaryItem}>
-                <Ionicons name="time-outline" size={20} color={colors.primary} />
-                <Text style={[styles.summaryValue, { color: colors.foreground }]}>
-                  {formatHours(dailySummary.totalMinutes)}
-                </Text>
-                <Text style={[styles.summaryLabel, { color: colors.muted }]}>Total hoje</Text>
-              </View>
-              <View style={[styles.summaryDivider, { backgroundColor: colors.border }]} />
-              <View style={styles.summaryItem}>
-                <Ionicons name={hasOpenEntry ? "radio-button-on" : "radio-button-off"} size={20} color={hasOpenEntry ? "#0E9F6E" : colors.muted} />
-                <Text style={[styles.summaryValue, { color: hasOpenEntry ? "#0E9F6E" : colors.muted }]}>
-                  {hasOpenEntry ? "Ativo" : "Inativo"}
-                </Text>
-                <Text style={[styles.summaryLabel, { color: colors.muted }]}>Status</Text>
-              </View>
-              <View style={[styles.summaryDivider, { backgroundColor: colors.border }]} />
-              <View style={styles.summaryItem}>
-                <Ionicons name="list-outline" size={20} color={colors.primary} />
-                <Text style={[styles.summaryValue, { color: colors.foreground }]}>
-                  {dailySummary.entries.length}
-                </Text>
-                <Text style={[styles.summaryLabel, { color: colors.muted }]}>Registros</Text>
-              </View>
-            </View>
-          )}
+
         </View>
       )}
 
