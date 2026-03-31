@@ -2056,6 +2056,15 @@ export async function updateProductExpirationStatus(
     .where(eq(productExpirations.id, id));
 }
 
+export async function deleteProductExpiration(id: number): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  // Remove fotos associadas primeiro
+  await db.delete(productExpirationPhotos).where(eq(productExpirationPhotos.expirationId, id));
+  // Remove o registro
+  await db.delete(productExpirations).where(eq(productExpirations.id, id));
+}
+
 export async function countPendingProductExpirations(): Promise<number> {
   const db = await getDb();
   if (!db) return 0;
