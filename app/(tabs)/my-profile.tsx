@@ -5,7 +5,6 @@ import { trpc } from "@/lib/trpc";
 import { Ionicons } from "@expo/vector-icons";
 import {
   ActivityIndicator,
-  FlatList,
   ScrollView,
   StyleSheet,
   Text,
@@ -14,53 +13,6 @@ import {
 } from "react-native";
 import { ScreenContainer } from "@/components/screen-container";
 import { useState } from "react";
-
-// ─── Weekly bar chart ─────────────────────────────────────────────────────────
-function WeeklyBarChart({
-  data,
-  metric,
-  color,
-  label,
-}: {
-  data: { weekLabel: string; approvedPhotos: number; materialRequests: number; hoursWorked: number }[];
-  metric: "approvedPhotos" | "materialRequests" | "hoursWorked";
-  color: string;
-  label: string;
-}) {
-  const values = data.map((d) => d[metric] as number);
-  const maxVal = Math.max(...values, 1);
-
-  return (
-    <View style={styles.chartContainer}>
-      <Text style={styles.chartLabel}>{label}</Text>
-      <View style={styles.barsRow}>
-        {data.map((d, i) => {
-          const val = d[metric] as number;
-          const pct = maxVal > 0 ? val / maxVal : 0;
-          return (
-            <View key={i} style={styles.barCol}>
-              <Text style={[styles.barValue, { color }]}>
-                {metric === "hoursWorked" ? `${val}h` : val}
-              </Text>
-              <View style={styles.barBg}>
-                <View
-                  style={[
-                    styles.barFill,
-                    {
-                      height: `${Math.round(pct * 100)}%` as unknown as number,
-                      backgroundColor: color,
-                    },
-                  ]}
-                />
-              </View>
-              <Text style={styles.barWeek}>{d.weekLabel}</Text>
-            </View>
-          );
-        })}
-      </View>
-    </View>
-  );
-}
 
 // ─── Stat card ────────────────────────────────────────────────────────────────
 function StatCard({
@@ -131,18 +83,16 @@ export default function MyProfileScreen() {
   const now = new Date();
   const [year, setYear] = useState(now.getFullYear());
   const [month, setMonth] = useState(now.getMonth() + 1);
-  const [activeMetric, setActiveMetric] = useState<"approvedPhotos" | "materialRequests" | "hoursWorked">("approvedPhotos");
 
   const MONTHS = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
 
+  // FIX: refetchOnWindowFocus para atualizar ao voltar para a tela
   const { data: stats, isLoading: statsLoading } = trpc.promoterProfile.myStats.useQuery(
     { year, month },
-    { enabled: !!user }
-  );
-
-  const { data: trend, isLoading: trendLoading } = trpc.promoterProfile.weeklyTrend.useQuery(
-    undefined,
-    { enabled: !!user }
+    {
+      enabled: !!user,
+      refetchOnWindowFocus: true,
+    }
   );
 
   const prevMonth = () => {
@@ -154,15 +104,7 @@ export default function MyProfileScreen() {
     else setMonth(m => m + 1);
   };
 
-  const isLoading = statsLoading || trendLoading;
-  const trendData = trend ?? [];
   const maxBrand = Math.max(...(stats?.brandBreakdown ?? []).map((b) => b.approvedPhotos), 1);
-
-  const metricOptions: { key: "approvedPhotos" | "materialRequests" | "hoursWorked"; label: string; color: string }[] = [
-    { key: "approvedPhotos", label: "Fotos aprovadas", color: "#8B5CF6" },
-    { key: "materialRequests", label: "Materiais", color: colors.warning },
-    { key: "hoursWorked", label: "Horas", color: colors.success },
-  ];
 
   return (
     <ScreenContainer>
@@ -184,7 +126,7 @@ export default function MyProfileScreen() {
         </Pressable>
       </View>
 
-      {isLoading ? (
+      {statsLoading ? (
         <View style={styles.loading}>
           <ActivityIndicator size="large" color={colors.primary} />
           <Text style={[styles.loadingText, { color: colors.muted }]}>Carregando seu desempenho...</Text>
@@ -231,47 +173,6 @@ export default function MyProfileScreen() {
               />
             )}
           </View>
-
-          {/* Weekly trend chart */}
-          {trendData.length > 0 && (
-            <View style={[styles.section, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-              <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Evolução semanal</Text>
-
-              {/* Metric selector */}
-              <View style={styles.metricSelector}>
-                {metricOptions.map((opt) => (
-                  <Pressable
-                    key={opt.key}
-                    onPress={() => setActiveMetric(opt.key)}
-                    style={({ pressed }) => [
-                      styles.metricBtn,
-                      {
-                        backgroundColor: activeMetric === opt.key ? opt.color : colors.background,
-                        borderColor: opt.color,
-                        opacity: pressed ? 0.8 : 1,
-                      },
-                    ]}
-                  >
-                    <Text
-                      style={[
-                        styles.metricBtnText,
-                        { color: activeMetric === opt.key ? "#fff" : opt.color },
-                      ]}
-                    >
-                      {opt.label}
-                    </Text>
-                  </Pressable>
-                ))}
-              </View>
-
-              <WeeklyBarChart
-                data={trendData}
-                metric={activeMetric}
-                color={metricOptions.find((o) => o.key === activeMetric)?.color ?? colors.primary}
-                label={metricOptions.find((o) => o.key === activeMetric)?.label ?? ""}
-              />
-            </View>
-          )}
 
           {/* Brand breakdown — only approved photos */}
           {(stats?.brandBreakdown ?? []).length > 0 && (
@@ -377,64 +278,6 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 16,
     fontWeight: "700",
-  },
-  metricSelector: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 8,
-  },
-  metricBtn: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 20,
-    borderWidth: 1.5,
-  },
-  metricBtnText: {
-    fontSize: 12,
-    fontWeight: "600",
-  },
-  chartContainer: {
-    gap: 8,
-  },
-  chartLabel: {
-    fontSize: 12,
-    color: "#6B7280",
-    fontWeight: "500",
-  },
-  barsRow: {
-    flexDirection: "row",
-    alignItems: "flex-end",
-    height: 100,
-    gap: 8,
-  },
-  barCol: {
-    flex: 1,
-    alignItems: "center",
-    gap: 4,
-    height: "100%",
-    justifyContent: "flex-end",
-  },
-  barValue: {
-    fontSize: 10,
-    fontWeight: "700",
-  },
-  barBg: {
-    width: "100%",
-    height: 60,
-    backgroundColor: "#F3F4F6",
-    borderRadius: 6,
-    overflow: "hidden",
-    justifyContent: "flex-end",
-  },
-  barFill: {
-    width: "100%",
-    borderRadius: 6,
-    minHeight: 4,
-  },
-  barWeek: {
-    fontSize: 9,
-    color: "#9CA3AF",
-    textAlign: "center",
   },
   brandRow: {
     flexDirection: "row",
