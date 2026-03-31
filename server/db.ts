@@ -249,6 +249,20 @@ export async function getDailySummary(userId: number, date: Date) {
   return { date, entries, totalMinutes, totalHours: totalMinutes / 60, hasOpenEntry: lastEntry !== null };
 }
 
+// FIX fuso horário: recebe startDate/endDate já no fuso local do cliente (Brasil UTC-3)
+// sem fazer setHours no servidor (que usaria UTC e buscaria o dia errado)
+export async function getDailySummaryRange(userId: number, startDate: Date, endDate: Date) {
+  const db = await getDb();
+  if (!db) return null;
+  const entries = await db.select().from(timeEntries).where(and(eq(timeEntries.userId, userId), gte(timeEntries.entryTime, startDate), lte(timeEntries.entryTime, endDate))).orderBy(timeEntries.entryTime);
+  let totalMinutes = 0; let lastEntry: TimeEntry | null = null;
+  for (const entry of entries) {
+    if (entry.entryType === "entry") { lastEntry = entry; }
+    else if (entry.entryType === "exit" && lastEntry) { totalMinutes += (entry.entryTime.getTime() - lastEntry.entryTime.getTime()) / 60000; lastEntry = null; }
+  }
+  return { date: startDate, entries, totalMinutes, totalHours: totalMinutes / 60, hasOpenEntry: lastEntry !== null };
+}
+
 export async function getAllTimeEntriesForDate(date: Date): Promise<TimeEntry[]> {
   const db = await getDb();
   if (!db) return [];
@@ -498,6 +512,25 @@ export async function getDailyReport(date: Date) {
   ]);
   return {
     date,
+    totalEntries: Number(entriesCount[0]?.count ?? 0),
+    totalPhotos: Number(photosCount[0]?.count ?? 0),
+    totalRequests: Number(requestsCount[0]?.count ?? 0),
+    totalAlerts: Number(alertsCount[0]?.count ?? 0),
+  };
+}
+
+// FIX fuso horário: recebe startDate/endDate já no fuso local do cliente (Brasil UTC-3)
+export async function getDailyReportRange(startDate: Date, endDate: Date) {
+  const db = await getDb();
+  if (!db) return null;
+  const [entriesCount, photosCount, requestsCount, alertsCount] = await Promise.all([
+    db.select({ count: sql<number>`count(*)` }).from(timeEntries).where(and(gte(timeEntries.entryTime, startDate), lte(timeEntries.entryTime, endDate))),
+    db.select({ count: sql<number>`count(*)` }).from(photos).where(and(gte(photos.photoTimestamp, startDate), lte(photos.photoTimestamp, endDate))),
+    db.select({ count: sql<number>`count(*)` }).from(materialRequests).where(and(gte(materialRequests.requestedAt, startDate), lte(materialRequests.requestedAt, endDate))),
+    db.select({ count: sql<number>`count(*)` }).from(geoAlerts).where(and(gte(geoAlerts.alertTimestamp, startDate), lte(geoAlerts.alertTimestamp, endDate))),
+  ]);
+  return {
+    date: startDate,
     totalEntries: Number(entriesCount[0]?.count ?? 0),
     totalPhotos: Number(photosCount[0]?.count ?? 0),
     totalRequests: Number(requestsCount[0]?.count ?? 0),
