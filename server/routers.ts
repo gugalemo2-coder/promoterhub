@@ -344,10 +344,22 @@ export const appRouter = router({
   }),
   promoterProfile: router({
     myStats: protectedProcedure
-      .input(z.object({ year: z.number().int().min(2020).max(2100), month: z.number().int().min(1).max(12) }))
-      .query(({ ctx, input }) => db.getPromoterMonthlyStats(ctx.user.id, input.year, input.month)),
+      .input(z.object({
+        year: z.number().int().min(2020).max(2100),
+        month: z.number().int().min(1).max(12),
+        startDate: z.string().optional(),
+        endDate: z.string().optional(),
+      }))
+      .query(({ ctx, input }) => {
+        const userId = getAppUserId(ctx.user);
+        // FIX: usa startDate/endDate locais se fornecidos, para respeitar fuso horário do Brasil
+        if (input.startDate && input.endDate) {
+          return db.getPromoterMonthlyStatsRange(userId, new Date(input.startDate), new Date(input.endDate));
+        }
+        return db.getPromoterMonthlyStats(userId, input.year, input.month);
+      }),
     weeklyTrend: protectedProcedure
-      .query(({ ctx }) => db.getPromoterWeeklyTrend(ctx.user.id)),
+      .query(({ ctx }) => db.getPromoterWeeklyTrend(getAppUserId(ctx.user))),
   }),
   promoterRanking: router({
     monthly: protectedProcedure
