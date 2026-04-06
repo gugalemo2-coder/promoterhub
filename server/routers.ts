@@ -89,7 +89,9 @@ export const appRouter = router({
       }
       return db.getDailySummary(userId, input.date ? new Date(input.date) : new Date());
     }),
-    lastOpenEntry: protectedProcedure.query(({ ctx }) => db.getLastOpenEntry(getAppUserId(ctx.user))),
+    lastOpenEntry: protectedProcedure
+      .input(z.object({ dayStart: z.string().optional() }))
+      .query(({ ctx, input }) => db.getLastOpenEntry(getAppUserId(ctx.user), input.dayStart)),
     allForDate: protectedProcedure.input(z.object({ date: z.string().optional() })).query(({ input }) => db.getAllTimeEntriesForDate(input.date ? new Date(input.date) : new Date())),
     allForRange: protectedProcedure.input(z.object({ startDate: z.string(), endDate: z.string() })).query(({ input }) => db.getAllTimeEntriesForRange(new Date(input.startDate), new Date(input.endDate))),
     forUser: protectedProcedure.input(z.object({ userId: z.number(), startDate: z.string().optional(), endDate: z.string().optional() })).query(({ input }) => db.getTimeEntriesByUser(input.userId, input.startDate ? new Date(input.startDate) : undefined, input.endDate ? new Date(input.endDate) : undefined)),
@@ -267,12 +269,12 @@ export const appRouter = router({
   }),
   geoAlerts: router({
     list: protectedProcedure.input(z.object({ acknowledged: z.boolean().optional(), limit: z.number().default(50) })).query(({ input }) => db.getGeoAlerts(input)),
-    acknowledge: protectedProcedure.input(z.object({ id: z.number(), notes: z.string().optional() })).mutation(({ ctx, input }) => db.acknowledgeGeoAlert(input.id, ctx.user.id, input.notes)),
+    acknowledge: protectedProcedure.input(z.object({ id: z.number(), notes: z.string().optional() })).mutation(({ ctx, input }) => db.acknowledgeGeoAlert(input.id, getAppUserId(ctx.user), input.notes)),
     createAlert: protectedProcedure.input(z.object({ storeId: z.number(), alertType: z.enum(["left_radius", "suspicious_movement", "gps_spoofing_suspected", "low_hours", "no_entry"]), latitude: z.number().optional(), longitude: z.number().optional(), distanceFromStore: z.number().optional(), notes: z.string().optional() })).mutation(async ({ ctx, input }) => {
-      const id = await db.createGeoAlert({ userId: ctx.user.id, storeId: input.storeId, alertType: input.alertType, latitude: input.latitude?.toString(), longitude: input.longitude?.toString(), distanceFromStore: input.distanceFromStore?.toString(), notes: input.notes });
+      const id = await db.createGeoAlert({ userId: getAppUserId(ctx.user), storeId: input.storeId, alertType: input.alertType, latitude: input.latitude?.toString(), longitude: input.longitude?.toString(), distanceFromStore: input.distanceFromStore?.toString(), notes: input.notes });
       if (input.alertType === "left_radius") {
         const store = await db.getStoreById(input.storeId);
-        const promoterName = ctx.user.name ?? `Promotor ${ctx.user.id}`;
+        const promoterName = ctx.user.name ?? `Promotor ${getAppUserId(ctx.user)}`;
         push.notifyPromoterLeftRadius(promoterName, store?.name ?? `Loja ${input.storeId}`).catch(() => {});
       }
       return { id };
@@ -282,7 +284,7 @@ export const appRouter = router({
     register: protectedProcedure
       .input(z.object({ token: z.string().min(1), platform: z.enum(["ios", "android", "web"]), deviceId: z.string().optional() }))
       .mutation(async ({ ctx, input }) => {
-        await db.upsertPushToken({ userId: ctx.user.id, token: input.token, platform: input.platform, deviceId: input.deviceId });
+        await db.upsertPushToken({ userId: getAppUserId(ctx.user), token: input.token, platform: input.platform, deviceId: input.deviceId });
         return { success: true };
       }),
   }),
@@ -300,10 +302,10 @@ export const appRouter = router({
       .query(({ input }) => db.getMonthlyReport(input.year, input.month, input.userId)),
   }),
   notifications: router({
-    list: protectedProcedure.input(z.object({ limit: z.number().default(50) })).query(({ ctx, input }) => db.getNotificationsByUser(ctx.user.id, input.limit)),
-    unreadCount: protectedProcedure.query(({ ctx }) => db.getUnreadNotificationCount(ctx.user.id)),
+    list: protectedProcedure.input(z.object({ limit: z.number().default(50) })).query(({ ctx, input }) => db.getNotificationsByUser(getAppUserId(ctx.user), input.limit)),
+    unreadCount: protectedProcedure.query(({ ctx }) => db.getUnreadNotificationCount(getAppUserId(ctx.user))),
     markRead: protectedProcedure.input(z.object({ id: z.number() })).mutation(({ input }) => db.markNotificationRead(input.id)),
-    markAllRead: protectedProcedure.mutation(({ ctx }) => db.markAllNotificationsRead(ctx.user.id)),
+    markAllRead: protectedProcedure.mutation(({ ctx }) => db.markAllNotificationsRead(getAppUserId(ctx.user))),
   }),
   brandsAdmin: router({
     listAll: protectedProcedure.query(() => db.getAllBrands()),
@@ -324,12 +326,13 @@ export const appRouter = router({
     create: protectedProcedure
       .input(z.object({ promoterId: z.number().optional(), month: z.number().int().min(1).max(12), year: z.number().int().min(2020).max(2100), signatureData: z.string().min(10), reportHash: z.string() }))
       .mutation(async ({ ctx, input }) => {
-        const reportId = `RPT-${ctx.user.id}-${input.year}${String(input.month).padStart(2, "0")}-${Date.now()}`;
-        const id = await db.createSignedReport({ ...input, managerId: ctx.user.id, reportId, signedAt: new Date() });
+        const appUserId = getAppUserId(ctx.user);
+        const reportId = `RPT-${appUserId}-${input.year}${String(input.month).padStart(2, "0")}-${Date.now()}`;
+        const id = await db.createSignedReport({ ...input, managerId: appUserId, reportId, signedAt: new Date() });
         return { id, reportId };
       }),
     verify: publicProcedure.input(z.object({ reportId: z.string() })).query(({ input }) => db.getSignedReportById(input.reportId)),
-    listByManager: protectedProcedure.query(({ ctx }) => db.getSignedReportsByManager(ctx.user.id)),
+    listByManager: protectedProcedure.query(({ ctx }) => db.getSignedReportsByManager(getAppUserId(ctx.user))),
   }),
   storePerformance: router({
     ranking: protectedProcedure
@@ -359,7 +362,8 @@ export const appRouter = router({
         return db.getPromoterMonthlyStats(userId, input.year, input.month);
       }),
     weeklyTrend: protectedProcedure
-      .query(({ ctx }) => db.getPromoterWeeklyTrend(getAppUserId(ctx.user))),
+      .input(z.object({ tzOffsetMinutes: z.number().optional() }))
+      .query(({ ctx, input }) => db.getPromoterWeeklyTrend(getAppUserId(ctx.user), input.tzOffsetMinutes ?? -180)),
   }),
   promoterRanking: router({
     monthly: protectedProcedure
@@ -416,7 +420,7 @@ export const appRouter = router({
   }),
   settings: router({
     get: protectedProcedure
-      .query(({ ctx }) => db.getAppSettings(ctx.user.id)),
+      .query(({ ctx }) => db.getAppSettings(getAppUserId(ctx.user))),
     save: protectedProcedure
       .input(z.object({
         geoRadiusKm: z.string().optional(),
@@ -432,7 +436,7 @@ export const appRouter = router({
         notifyMaterialRequest: z.boolean().optional(),
         notifyPhotoRejected: z.boolean().optional(),
       }))
-      .mutation(({ ctx, input }) => db.upsertAppSettings(ctx.user.id, input)),
+      .mutation(({ ctx, input }) => db.upsertAppSettings(getAppUserId(ctx.user), input)),
     checkLowHours: protectedProcedure
       .mutation(async ({ ctx }) => {
         const appUserId = getAppUserId(ctx.user);
