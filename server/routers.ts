@@ -78,6 +78,16 @@ export const appRouter = router({
           photoUrl = url;
         }
         const id = await db.createTimeEntry({ userId: getAppUserId(ctx.user), storeId: input.storeId, entryType: input.entryType, entryTime: new Date(), latitude: "0", longitude: "0", distanceFromStore: "0", isWithinRadius: true, deviceId: input.deviceId, notes: input.notes, photoUrl });
+        // Notifica gestores sobre o registro de ponto
+        Promise.all([
+          db.getAppUserById(getAppUserId(ctx.user)),
+          db.getStoreById(input.storeId),
+        ]).then(([promoter, store]) => {
+          const promoterName = promoter?.name ?? ctx.user.name ?? "Promotor";
+          const storeName = store?.name ?? `Loja ${input.storeId}`;
+          const time = new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+          push.notifyClockEntry(promoterName, input.entryType, storeName, time).catch(() => {});
+        }).catch(() => {});
         return { id, photoUrl };
       }),
     list: protectedProcedure.input(z.object({ startDate: z.string().optional(), endDate: z.string().optional() })).query(({ ctx, input }) => db.getTimeEntriesByUser(getAppUserId(ctx.user), input.startDate ? new Date(input.startDate) : undefined, input.endDate ? new Date(input.endDate) : undefined)),
@@ -119,8 +129,47 @@ export const appRouter = router({
       }),
     list: protectedProcedure.input(z.object({ brandId: z.number().optional(), storeId: z.number().optional(), startDate: z.string().optional(), endDate: z.string().optional(), status: z.enum(["pending", "approved", "rejected"]).optional(), limit: z.number().default(50), offset: z.number().default(0) })).query(({ ctx, input }) => db.getPhotos({ ...input, userId: getAppUserId(ctx.user), startDate: input.startDate ? new Date(input.startDate) : undefined, endDate: input.endDate ? new Date(input.endDate) : undefined })),
     listAll: protectedProcedure.input(z.object({ brandId: z.number().optional(), storeId: z.number().optional(), userId: z.number().optional(), startDate: z.string().optional(), endDate: z.string().optional(), status: z.enum(["pending", "approved", "rejected"]).optional(), limit: z.number().default(50), offset: z.number().default(0) })).query(({ input }) => db.getPhotos({ ...input, startDate: input.startDate ? new Date(input.startDate) : undefined, endDate: input.endDate ? new Date(input.endDate) : undefined })),
-    updateStatus: protectedProcedure.input(z.object({ id: z.number(), status: z.enum(["pending", "approved", "rejected"]), qualityRating: z.number().min(1).max(5).optional(), managerNotes: z.string().optional() })).mutation(({ input }) => db.updatePhoto(input.id, { status: input.status, qualityRating: input.qualityRating, managerNotes: input.managerNotes })),
-    updateStatusBatch: protectedProcedure.input(z.object({ ids: z.array(z.number()), status: z.enum(["pending", "approved", "rejected"]), managerNotes: z.string().optional() })).mutation(async ({ input }) => { await Promise.all(input.ids.map((id) => db.updatePhoto(id, { status: input.status, managerNotes: input.managerNotes }))); return { success: true, count: input.ids.length }; }),
+    updateStatus: protectedProcedure.input(z.object({ id: z.number(), status: z.enum(["pending", "approved", "rejected"]), qualityRating: z.number().min(1).max(5).optional(), managerNotes: z.string().optional() })).mutation(async ({ input }) => {
+      await db.updatePhoto(input.id, { status: input.status, qualityRating: input.qualityRating, managerNotes: input.managerNotes });
+      // Notifica o promotor sobre aprovação ou rejeição
+      if (input.status === "approved" || input.status === "rejected") {
+        try {
+          const photoList = await db.getPhotos({ limit: 500 });
+          const photo = photoList.find((p) => p.id === input.id);
+          if (photo) {
+            const brand = await db.getBrandById(photo.brandId);
+            const brandName = brand?.name ?? "Marca";
+            if (input.status === "approved") {
+              push.notifyPhotoApproved(photo.userId, brandName, input.managerNotes).catch(() => {});
+            } else {
+              push.notifyPhotoRejected(photo.userId, brandName, input.managerNotes).catch(() => {});
+            }
+          }
+        } catch {}
+      }
+    }),
+    updateStatusBatch: protectedProcedure.input(z.object({ ids: z.array(z.number()), status: z.enum(["pending", "approved", "rejected"]), managerNotes: z.string().optional() })).mutation(async ({ input }) => {
+      await Promise.all(input.ids.map((id) => db.updatePhoto(id, { status: input.status, managerNotes: input.managerNotes })));
+      // Notifica cada promotor das fotos aprovadas/rejeitadas em lote
+      if (input.status === "approved" || input.status === "rejected") {
+        try {
+          const photoList = await db.getPhotos({ limit: 500 });
+          for (const id of input.ids) {
+            const photo = photoList.find((p) => p.id === id);
+            if (photo) {
+              const brand = await db.getBrandById(photo.brandId);
+              const brandName = brand?.name ?? "Marca";
+              if (input.status === "approved") {
+                push.notifyPhotoApproved(photo.userId, brandName, input.managerNotes).catch(() => {});
+              } else {
+                push.notifyPhotoRejected(photo.userId, brandName, input.managerNotes).catch(() => {});
+              }
+            }
+          }
+        } catch {}
+      }
+      return { success: true, count: input.ids.length };
+    }),
     listAllWithDetails: protectedProcedure.input(z.object({ brandId: z.number().optional(), storeId: z.number().optional(), userId: z.number().optional(), startDate: z.string().optional(), endDate: z.string().optional(), status: z.enum(["pending", "approved", "rejected"]).optional(), limit: z.number().default(100), offset: z.number().default(0) })).query(({ input }) => db.getPhotosWithDetails({ ...input, startDate: input.startDate ? new Date(input.startDate) : undefined, endDate: input.endDate ? new Date(input.endDate) : undefined })),
     countPending: protectedProcedure.query(() => db.countPendingPhotos()),
 
@@ -255,6 +304,15 @@ export const appRouter = router({
         return { id, fileUrl: url };
       }),
     list: protectedProcedure.input(z.object({ brandId: z.number().optional() })).query(({ input }) => db.getStockFiles(input.brandId)),
+    markRead: protectedProcedure
+      .input(z.object({ fileId: z.number().int().positive() }))
+      .mutation(({ ctx, input }) => db.markFileRead(getAppUserId(ctx.user), input.fileId)),
+    getReadStatus: protectedProcedure
+      .input(z.object({ fileId: z.number().int().positive() }))
+      .query(({ ctx, input }) => db.hasUserReadFile(getAppUserId(ctx.user), input.fileId)),
+    listReadStatus: protectedProcedure
+      .input(z.object({ fileId: z.number().int().positive() }))
+      .query(({ input }) => db.getFileReadStatus(input.fileId)),
     delete: protectedProcedure
       .input(z.object({ id: z.number() }))
       .mutation(async ({ ctx, input }) => {
