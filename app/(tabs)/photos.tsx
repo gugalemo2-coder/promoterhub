@@ -23,6 +23,83 @@ import {
 } from "react-native";
 
 type PickedPhoto = { base64: string; fileType: string; uri: string };
+type ActiveTab = "photos" | "comments";
+
+// ─── Aba de comentários recebidos (promotor) ──────────────────────────────────
+function CommentsTab({
+  photos,
+  colors,
+  brands,
+}: {
+  photos: Array<{ id: number; photoUrl: string; brandId: number; photoTimestamp: Date | string }>;
+  colors: ReturnType<typeof useColors>;
+  brands: Array<{ id: number; name: string; colorHex?: string | null }>;
+}) {
+  const photoIds = photos.map((p) => p.id);
+
+  // Busca comentários de todas as fotos em paralelo (limite de 20 fotos mais recentes)
+  const recentPhotoIds = photoIds.slice(0, 20);
+
+  const commentQueries = recentPhotoIds.map((photoId) =>
+    trpc.photos.listComments.useQuery({ photoId }, { enabled: recentPhotoIds.length > 0 })
+  );
+
+  // Montar lista flat de comentários com info da foto
+  const allComments = commentQueries.flatMap((q, i) => {
+    const photo = photos[i];
+    const brand = brands.find((b) => b.id === photo?.brandId);
+    return (q.data ?? []).map((c) => ({
+      ...c,
+      photoId: photo?.id,
+      photoUrl: photo?.photoUrl,
+      brandName: brand?.name ?? "Marca",
+      brandColor: brand?.colorHex ?? "#8B5CF6",
+      photoTimestamp: photo?.photoTimestamp,
+    }));
+  }).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+  if (allComments.length === 0) {
+    return (
+      <View style={{ flex: 1, alignItems: "center", justifyContent: "center", gap: 12, padding: 40 }}>
+        <Ionicons name="chatbubble-outline" size={56} color={colors.muted} />
+        <Text style={{ fontSize: 18, fontWeight: "700", color: colors.foreground }}>Nenhum comentário ainda</Text>
+        <Text style={{ fontSize: 14, color: colors.muted, textAlign: "center", lineHeight: 21 }}>
+          Quando o gestor comentar em suas fotos, os comentários aparecerão aqui.
+        </Text>
+      </View>
+    );
+  }
+
+  return (
+    <FlatList
+      data={allComments}
+      keyExtractor={(item, i) => `${item.id}-${i}`}
+      contentContainerStyle={{ padding: 16, gap: 12 }}
+      renderItem={({ item }) => (
+        <View style={[{ borderRadius: 14, padding: 14, borderWidth: 1, gap: 10, flexDirection: "row" }, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+          {item.photoUrl && (
+            <Image source={{ uri: item.photoUrl }} style={{ width: 56, height: 56, borderRadius: 10 }} contentFit="cover" cachePolicy="memory-disk" />
+          )}
+          <View style={{ flex: 1, gap: 4 }}>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+              <View style={[{ paddingHorizontal: 8, paddingVertical: 2, borderRadius: 8 }, { backgroundColor: item.brandColor + "20" }]}>
+                <Text style={{ fontSize: 11, fontWeight: "700", color: item.brandColor }}>{item.brandName}</Text>
+              </View>
+              <Text style={{ fontSize: 11, color: colors.muted }}>
+                {new Date(item.createdAt).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}
+              </Text>
+            </View>
+            <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 6 }}>
+              <Ionicons name="person-circle-outline" size={16} color={colors.muted} />
+              <Text style={{ fontSize: 12, color: colors.muted, fontWeight: "600" }}>{item.userName}</Text>
+            </View>
+            <Text style={{ fontSize: 14, color: colors.foreground, lineHeight: 20 }}>{item.comment}</Text>
+          </View>
+        </View>
+      )}
+    />
+  );
+}
 
 // ─── Upload Modal ─────────────────────────────────────────────────────────────
 function UploadModal({
@@ -313,7 +390,15 @@ export default function PhotosScreen() {
   const [downloadingAll, setDownloadingAll] = useState(false);
   const [mediaPermission, requestMediaPermission] = MediaLibrary.usePermissions();
 
+  // Aba ativa (apenas para promotor)
+  const [activeTab, setActiveTab] = useState<ActiveTab>("photos");
+
   const { data: brands } = trpc.brands.list.useQuery();
+  // Query de comentários recebidos (só para promotor)
+  const { data: myPhotosForComments } = trpc.photos.list.useQuery(
+    { limit: 100 },
+    { enabled: !isManager }
+  );
   // Promoters see only their assigned stores; managers see all
   const { data: promoterStores } = trpc.stores.listForPromoter.useQuery(undefined, { enabled: !isManager });
   const { data: allStores } = trpc.stores.list.useQuery(undefined, { enabled: isManager });
@@ -512,6 +597,34 @@ export default function PhotosScreen() {
         )}
       </View>
 
+      {/* Abas Fotos / Comentários (apenas promotor) */}
+      {!isManager && (
+        <View style={[styles.tabBar, { borderBottomColor: colors.border }]}>
+          <Pressable
+            style={[styles.tab, activeTab === "photos" && { borderBottomColor: colors.primary, borderBottomWidth: 2 }]}
+            onPress={() => setActiveTab("photos")}
+          >
+            <Ionicons name="camera-outline" size={18} color={activeTab === "photos" ? colors.primary : colors.muted} />
+            <Text style={[styles.tabText, { color: activeTab === "photos" ? colors.primary : colors.muted }]}>Minhas Fotos</Text>
+          </Pressable>
+          <Pressable
+            style={[styles.tab, activeTab === "comments" && { borderBottomColor: colors.primary, borderBottomWidth: 2 }]}
+            onPress={() => setActiveTab("comments")}
+          >
+            <Ionicons name="chatbubble-outline" size={18} color={activeTab === "comments" ? colors.primary : colors.muted} />
+            <Text style={[styles.tabText, { color: activeTab === "comments" ? colors.primary : colors.muted }]}>Comentários</Text>
+          </Pressable>
+        </View>
+      )}
+
+      {/* Seção de comentários recebidos (promotor) */}
+      {!isManager && activeTab === "comments" && (
+        <CommentsTab photos={myPhotosForComments ?? []} colors={colors} brands={brands ?? []} />
+      )}
+
+      {/* Conteúdo de fotos (gestor sempre, promotor quando na aba fotos) */}
+      {(isManager || activeTab === "photos") && (
+        <>
       {/* Filters Container */}
       <View style={styles.filtersContainer}>
       {/* Status Filter */}
@@ -671,6 +784,8 @@ export default function PhotosScreen() {
           )}
         />
       )}
+        </> // fim do bloco (isManager || activeTab === "photos")
+      )}
 
       {/* Upload Modal */}
       <UploadModal
@@ -690,6 +805,9 @@ const styles = StyleSheet.create({
   header: { paddingTop: 16, paddingBottom: 16, paddingHorizontal: 20, flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
   headerTitle: { fontSize: 20, fontWeight: "700", color: "#FFFFFF" },
   headerBtn: { padding: 8, borderRadius: 10 },
+  tabBar: { flexDirection: "row", borderBottomWidth: 0.5 },
+  tab: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 12 },
+  tabText: { fontSize: 14, fontWeight: "600" },
   filtersContainer: { flexShrink: 0 },
   filterBar: { borderBottomWidth: 0.5 },
   filterContent: { paddingHorizontal: 14, paddingVertical: 8, gap: 8, alignItems: "center", flexDirection: "row" },
