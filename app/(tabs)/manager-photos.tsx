@@ -137,7 +137,7 @@ function ZoomableImage({ uri }: { uri: string }) {
         <Image
           source={{ uri }}
           style={{ width: "100%", height: "100%" }}
-          contentFit="contain"
+          contentFit="contain" cachePolicy="memory-disk"
         />
       </Reanimated.View>
     </GestureDetector>
@@ -652,7 +652,7 @@ export default function ManagerPhotosScreen() {
                 onLongPress={() => { if (!selectionMode) { setSelectionMode(true); setSelectedIds(new Set([item.id])); } }}
                 activeOpacity={0.85}
               >
-                <Image source={{ uri: item.photoUrl }} style={styles.photoImage} contentFit="cover" transition={200} />
+                <Image source={{ uri: item.photoUrl }} style={styles.photoImage} contentFit="cover" cachePolicy="memory-disk" transition={200} />
                 {item.status === "approved" && <View style={[styles.statusBadge, { backgroundColor: "#0E9F6E" }]}><Ionicons name="checkmark" size={10} color="#fff" /></View>}
                 {item.status === "rejected" && <View style={[styles.statusBadge, { backgroundColor: "#E02424" }]}><Ionicons name="close" size={10} color="#fff" /></View>}
                 {(!item.status || item.status === "pending") && <View style={[styles.statusBadge, { backgroundColor: "#F59E0B" }]}><Ionicons name="time" size={10} color="#fff" /></View>}
