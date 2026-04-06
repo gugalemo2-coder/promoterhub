@@ -226,10 +226,12 @@ export async function getTimeEntriesByUser(userId: number, startDate?: Date, end
   return db.select().from(timeEntries).where(and(...conditions)).orderBy(desc(timeEntries.entryTime));
 }
 
-export async function getLastOpenEntry(userId: number): Promise<TimeEntry | undefined> {
+export async function getLastOpenEntry(userId: number, dayStartISO?: string): Promise<TimeEntry | undefined> {
   const db = await getDb();
   if (!db) return undefined;
-  const today = new Date(); today.setHours(0, 0, 0, 0);
+  // FIX fuso horário: usa dayStart enviado pelo cliente (fuso local) se disponível
+  // senão cai para o comportamento antigo com setHours no servidor (UTC)
+  const today = dayStartISO ? new Date(dayStartISO) : (() => { const d = new Date(); d.setHours(0, 0, 0, 0); return d; })();
   const result = await db.select().from(timeEntries).where(and(eq(timeEntries.userId, userId), gte(timeEntries.entryTime, today))).orderBy(desc(timeEntries.entryTime)).limit(1);
   if (result.length === 0) return undefined;
   return result[0].entryType === "entry" ? result[0] : undefined;
@@ -1144,25 +1146,31 @@ export interface WeeklyTrendPoint {
   hoursWorked: number;
 }
 
-export async function getPromoterWeeklyTrend(userId: number): Promise<WeeklyTrendPoint[]> {
+export async function getPromoterWeeklyTrend(userId: number, tzOffsetMinutes = -180): Promise<WeeklyTrendPoint[]> {
   const db = await getDb();
   if (!db) return [];
 
-  const now = new Date();
+  // FIX fuso horário: ajusta "agora" para o fuso do cliente antes de calcular semanas
+  // tzOffsetMinutes = -180 equivale a UTC-3 (Brasil)
+  const nowUTC = new Date();
+  const nowLocal = new Date(nowUTC.getTime() + tzOffsetMinutes * 60 * 1000);
   const result: WeeklyTrendPoint[] = [];
 
   for (let w = 3; w >= 0; w--) {
-    const weekStart = new Date(now);
-    weekStart.setDate(now.getDate() - now.getDay() - w * 7);
+    const weekStart = new Date(nowLocal);
+    weekStart.setDate(nowLocal.getDate() - nowLocal.getDay() - w * 7);
     weekStart.setHours(0, 0, 0, 0);
+    // Converter de volta para UTC para a query no banco
+    const weekStartUTC = new Date(weekStart.getTime() - tzOffsetMinutes * 60 * 1000);
     const weekEnd = new Date(weekStart);
     weekEnd.setDate(weekStart.getDate() + 6);
     weekEnd.setHours(23, 59, 59, 999);
+    const weekEndUTC = new Date(weekEnd.getTime() - tzOffsetMinutes * 60 * 1000);
 
     const [weekPhotos, weekMat, weekEntries] = await Promise.all([
-      db.select().from(photos).where(and(eq(photos.userId, userId), eq(photos.status, "approved"), gte(photos.photoTimestamp, weekStart), lte(photos.photoTimestamp, weekEnd))),
-      db.select().from(materialRequests).where(and(eq(materialRequests.userId, userId), gte(materialRequests.requestedAt, weekStart), lte(materialRequests.requestedAt, weekEnd))),
-      db.select().from(timeEntries).where(and(eq(timeEntries.userId, userId), gte(timeEntries.entryTime, weekStart), lte(timeEntries.entryTime, weekEnd))),
+      db.select().from(photos).where(and(eq(photos.userId, userId), eq(photos.status, "approved"), gte(photos.photoTimestamp, weekStartUTC), lte(photos.photoTimestamp, weekEndUTC))),
+      db.select().from(materialRequests).where(and(eq(materialRequests.userId, userId), gte(materialRequests.requestedAt, weekStartUTC), lte(materialRequests.requestedAt, weekEndUTC))),
+      db.select().from(timeEntries).where(and(eq(timeEntries.userId, userId), gte(timeEntries.entryTime, weekStartUTC), lte(timeEntries.entryTime, weekEndUTC))),
     ]);
 
     const entryTs = weekEntries.filter((e) => e.entryType === "entry").map((e) => e.entryTime.getTime());
@@ -1174,7 +1182,6 @@ export async function getPromoterWeeklyTrend(userId: number): Promise<WeeklyTren
       if (d > 0 && d < 720) mins += d;
     }
 
-    const dayNames = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
     const weekLabel = w === 0 ? "Esta sem." : `${weekStart.getDate()}/${weekStart.getMonth() + 1}`;
 
     result.push({
