@@ -23,6 +23,75 @@ import {
   ActivityIndicator,
 } from "react-native";
 
+// ─── Componente de status de leitura (gestor) ────────────────────────────────
+function ReadStatusModal({
+  visible,
+  fileId,
+  fileName,
+  onClose,
+  colors,
+}: {
+  visible: boolean;
+  fileId: number | null;
+  fileName: string;
+  onClose: () => void;
+  colors: ReturnType<typeof useColors>;
+}) {
+  const { data: readStatus, isLoading } = trpc.stockFiles.listReadStatus.useQuery(
+    { fileId: fileId! },
+    { enabled: visible && fileId !== null }
+  );
+
+  return (
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+      <View style={styles.deleteModalOverlay}>
+        <View style={[styles.deleteModalContent, { backgroundColor: colors.background }]}>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 8 }}>
+            <Ionicons name="eye-outline" size={24} color={colors.primary} />
+            <Text style={[styles.deleteModalTitle, { color: colors.foreground, flex: 1 }]} numberOfLines={2}>
+              Leituras: {fileName}
+            </Text>
+          </View>
+
+          {isLoading ? (
+            <ActivityIndicator color={colors.primary} style={{ marginVertical: 20 }} />
+          ) : !readStatus || readStatus.length === 0 ? (
+            <View style={{ alignItems: "center", paddingVertical: 20, gap: 8 }}>
+              <Ionicons name="eye-off-outline" size={36} color={colors.muted} />
+              <Text style={[{ color: colors.muted, fontSize: 14, textAlign: "center" }]}>
+                Nenhum promotor abriu este arquivo ainda.
+              </Text>
+            </View>
+          ) : (
+            <ScrollView style={{ maxHeight: 300 }}>
+              {readStatus.map((r, i) => (
+                <View key={i} style={[styles.readItem, { borderBottomColor: colors.border }]}>
+                  <Ionicons name="checkmark-circle" size={18} color="#10B981" />
+                  <View style={{ flex: 1 }}>
+                    <Text style={[{ color: colors.foreground, fontSize: 14, fontWeight: "600" }]}>
+                      {r.userName ?? `Usuário ${r.userId}`}
+                    </Text>
+                    <Text style={[{ color: colors.muted, fontSize: 12 }]}>
+                      {new Date(r.readAt).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" })}
+                    </Text>
+                  </View>
+                </View>
+              ))}
+            </ScrollView>
+          )}
+
+          <TouchableOpacity
+            style={[styles.deleteModalBtn, { backgroundColor: colors.primary, marginTop: 12 }]}
+            onPress={onClose}
+          >
+            <Text style={[styles.deleteModalBtnText, { color: "#FFFFFF" }]}>Fechar</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
 export default function FilesScreen() {
   const colors = useColors();
   const { appRole } = useRole();
@@ -36,16 +105,21 @@ export default function FilesScreen() {
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<string | null>(null);
 
-  // Delete confirm modal state
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deleteTargetId, setDeleteTargetId] = useState<number | null>(null);
   const [deleteTargetName, setDeleteTargetName] = useState("");
   const [deleteLoading, setDeleteLoading] = useState(false);
 
+  // Estado para modal de leituras (gestor)
+  const [showReadModal, setShowReadModal] = useState(false);
+  const [readModalFileId, setReadModalFileId] = useState<number | null>(null);
+  const [readModalFileName, setReadModalFileName] = useState("");
+
   const { data: brands } = trpc.brands.list.useQuery();
   const { data: files, refetch } = trpc.stockFiles.list.useQuery({ brandId: selectedBrandId ?? undefined });
   const uploadMutation = trpc.stockFiles.upload.useMutation();
   const deleteMutation = trpc.stockFiles.delete.useMutation();
+  const markReadMutation = trpc.stockFiles.markRead.useMutation();
 
   const handlePickFile = async () => {
     try {
@@ -168,10 +242,15 @@ export default function FilesScreen() {
     }
   };
 
-  const handleOpenFile = async (url: string) => {
+  // Abre o arquivo e registra leitura (promotor)
+  const handleOpenFile = async (url: string, fileId: number) => {
     const canOpen = await Linking.canOpenURL(url);
     if (canOpen) {
       await Linking.openURL(url);
+      // Registra leitura silenciosamente
+      if (!isManager) {
+        markReadMutation.mutate({ fileId }).catch(() => {});
+      }
     } else {
       Alert.alert("Erro", "Não foi possível abrir o arquivo.");
     }
@@ -199,10 +278,8 @@ export default function FilesScreen() {
 
   return (
     <ScreenContainer>
-      {/* Wrapper que ocupa toda a tela com layout fixo */}
       <View style={styles.screenWrapper}>
 
-        {/* Header — fixo no topo */}
         <View style={[styles.header, { backgroundColor: colors.primary }]}>
           <Text style={styles.headerTitle}>Arquivos</Text>
           {isManager && (
@@ -216,7 +293,6 @@ export default function FilesScreen() {
           )}
         </View>
 
-        {/* Brand Filter — fixo abaixo do header, nunca se move */}
         <View style={[styles.brandFilterWrapper, { borderBottomColor: colors.border }]}>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.brandFilter}>
             <TouchableOpacity
@@ -240,7 +316,6 @@ export default function FilesScreen() {
           </ScrollView>
         </View>
 
-        {/* Files List — ocupa o espaço restante e rola sozinha */}
         <FlatList
           data={files}
           keyExtractor={(item) => item.id.toString()}
@@ -262,7 +337,7 @@ export default function FilesScreen() {
               <View style={[styles.fileCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
                 <TouchableOpacity
                   style={styles.fileCardInner}
-                  onPress={() => handleOpenFile(item.fileUrl)}
+                  onPress={() => handleOpenFile(item.fileUrl, item.id)}
                   activeOpacity={0.8}
                 >
                   <View style={[styles.fileIcon, { backgroundColor: iconColor + "15" }]}>
@@ -288,23 +363,43 @@ export default function FilesScreen() {
                   <Ionicons name="open-outline" size={20} color={colors.muted} />
                 </TouchableOpacity>
                 {isManager && (
-                  <TouchableOpacity
-                    style={[styles.deleteBtn, { borderTopColor: colors.border }]}
-                    onPress={() => handleDeleteFile(item.id, item.fileName)}
-                    activeOpacity={0.7}
-                  >
-                    <Ionicons name="trash-outline" size={18} color="#EF4444" />
-                    <Text style={styles.deleteBtnText}>Excluir</Text>
-                  </TouchableOpacity>
+                  <View style={[styles.managerActions, { borderTopColor: colors.border }]}>
+                    {/* Botão ver quem leu */}
+                    <TouchableOpacity
+                      style={styles.managerActionBtn}
+                      onPress={() => { setReadModalFileId(item.id); setReadModalFileName(item.fileName); setShowReadModal(true); }}
+                      activeOpacity={0.7}
+                    >
+                      <Ionicons name="eye-outline" size={16} color={colors.primary} />
+                      <Text style={[styles.managerActionText, { color: colors.primary }]}>Ver leituras</Text>
+                    </TouchableOpacity>
+                    {/* Botão excluir */}
+                    <TouchableOpacity
+                      style={styles.managerActionBtn}
+                      onPress={() => handleDeleteFile(item.id, item.fileName)}
+                      activeOpacity={0.7}
+                    >
+                      <Ionicons name="trash-outline" size={16} color="#EF4444" />
+                      <Text style={[styles.managerActionText, { color: "#EF4444" }]}>Excluir</Text>
+                    </TouchableOpacity>
+                  </View>
                 )}
               </View>
             );
           }}
         />
-
       </View>
 
-      {/* ── Delete Confirm Modal ── */}
+      {/* Modal de leituras (gestor) */}
+      <ReadStatusModal
+        visible={showReadModal}
+        fileId={readModalFileId}
+        fileName={readModalFileName}
+        onClose={() => setShowReadModal(false)}
+        colors={colors}
+      />
+
+      {/* Delete Confirm Modal */}
       <Modal visible={showDeleteModal} transparent animationType="fade">
         <View style={styles.deleteModalOverlay}>
           <View style={[styles.deleteModalContent, { backgroundColor: colors.background }]}>
@@ -338,7 +433,7 @@ export default function FilesScreen() {
         </View>
       </Modal>
 
-      {/* ── Upload Modal ── */}
+      {/* Upload Modal */}
       <Modal visible={showUploadModal} transparent animationType="slide">
         <View style={styles.modalOverlay}>
           <View style={[styles.modalContent, { backgroundColor: colors.background }]}>
@@ -418,24 +513,16 @@ export default function FilesScreen() {
 }
 
 const styles = StyleSheet.create({
-  // ── NOVO: wrapper que garante layout fixo em coluna ──
   screenWrapper: { flex: 1, flexDirection: "column" },
-
   header: { paddingTop: 16, paddingBottom: 16, paddingHorizontal: 20, flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
   headerTitle: { fontSize: 20, fontWeight: "700", color: "#FFFFFF" },
   addBtn: { padding: 8 },
-
-  // ── NOVO: wrapper fixo para o filtro — não empurra nem sobe ──
   brandFilterWrapper: { borderBottomWidth: 1, paddingHorizontal: 8 },
   brandFilter: {},
-
   brandTab: { paddingHorizontal: 16, paddingVertical: 12, flexDirection: "row", alignItems: "center", gap: 6 },
   brandTabText: { fontSize: 14, fontWeight: "600" },
   brandDot: { width: 8, height: 8, borderRadius: 4 },
-
-  // ── NOVO: FlatList com flex:1 rola internamente sem afetar o filtro ──
   flatList: { flex: 1 },
-
   list: { padding: 16, gap: 12 },
   fileCard: { borderRadius: 16, borderWidth: 1, overflow: "hidden" },
   fileCardInner: { flexDirection: "row", alignItems: "center", padding: 14, gap: 14 },
@@ -448,12 +535,13 @@ const styles = StyleSheet.create({
   brandBadgeText: { fontSize: 11, fontWeight: "700" },
   fileSize: { fontSize: 12 },
   fileDate: { fontSize: 12 },
-  deleteBtn: { borderTopWidth: 1, backgroundColor: "#FFF5F5", paddingVertical: 10, alignItems: "center", flexDirection: "row", justifyContent: "center", gap: 6 },
-  deleteBtnText: { fontSize: 13, fontWeight: "600", color: "#EF4444" },
+  managerActions: { borderTopWidth: 1, flexDirection: "row" },
+  managerActionBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 10 },
+  managerActionText: { fontSize: 13, fontWeight: "600" },
+  readItem: { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 10, borderBottomWidth: 0.5 },
   emptyState: { flex: 1, alignItems: "center", justifyContent: "center", gap: 12, padding: 40, paddingTop: 80 },
   emptyTitle: { fontSize: 18, fontWeight: "700" },
   emptyDesc: { fontSize: 14, textAlign: "center", lineHeight: 21 },
-  // Delete confirm modal
   deleteModalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "center", alignItems: "center", padding: 24 },
   deleteModalContent: { width: "100%", maxWidth: 360, borderRadius: 20, padding: 24, gap: 12, alignItems: "center" },
   deleteIconWrap: { width: 64, height: 64, borderRadius: 32, backgroundColor: "#FEE2E2", alignItems: "center", justifyContent: "center", marginBottom: 4 },
@@ -462,7 +550,6 @@ const styles = StyleSheet.create({
   deleteModalActions: { flexDirection: "row", gap: 12, marginTop: 8, width: "100%" },
   deleteModalBtn: { flex: 1, paddingVertical: 14, borderRadius: 14, alignItems: "center" },
   deleteModalBtnText: { fontSize: 16, fontWeight: "700" },
-  // Upload modal
   modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "flex-end" },
   modalContent: { borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, gap: 8 },
   modalTitle: { fontSize: 20, fontWeight: "700", marginBottom: 8 },
