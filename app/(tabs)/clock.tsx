@@ -2,12 +2,13 @@ import { ScreenContainer } from "@/components/screen-container";
 import { useColors } from "@/hooks/use-colors";
 import { useRole } from "@/lib/role-context";
 import { trpc } from "@/lib/trpc";
+import { useOfflineQueue } from "@/hooks/use-offline-queue";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import * as ImagePicker from "expo-image-picker";
 import { Image } from "expo-image";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { Animated } from "react-native";
 
 import {
@@ -266,17 +267,20 @@ export default function ClockScreen() {
   const { appRole } = useRole();
   const isManager = appRole === "manager" || appRole === "master";
 
+  // FIX Bug 3: fila offline
+  const { enqueue, isOnline, pendingCount } = useOfflineQueue();
+
   const [registering, setRegistering] = useState(false);
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [modalVisible, setModalVisible] = useState(false);
   const [modalEntryType, setModalEntryType] = useState<"entry" | "exit">("entry");
   const [dupWarningVisible, setDupWarningVisible] = useState(false);
 
-  const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
+  const [toast, setToast] = useState<{ message: string; type: "success" | "error" | "offline" } | null>(null);
   const toastOpacity = useRef(new Animated.Value(0)).current;
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const showToast = (message: string, type: "success" | "error" = "success") => {
+  const showToast = (message: string, type: "success" | "error" | "offline" = "success") => {
     if (toastTimer.current) clearTimeout(toastTimer.current);
     setToast({ message, type });
     toastOpacity.setValue(0);
@@ -288,17 +292,24 @@ export default function ClockScreen() {
     toastTimer.current = setTimeout(() => setToast(null), 3200);
   };
 
-  // ── FIX: calcular startDate e endDate cobrindo o dia inteiro ──────────────
-  const dayStart = new Date(selectedDate);
-  dayStart.setHours(0, 0, 0, 0);
-  const dayEnd = new Date(selectedDate);
-  dayEnd.setHours(23, 59, 59, 999);
+  // FIX Bug 1: calcular dayStart no fuso local para passar ao servidor
+  const dayStart = useMemo(() => {
+    const d = new Date(selectedDate);
+    d.setHours(0, 0, 0, 0);
+    return d;
+  }, [selectedDate]);
+
+  const dayEnd = useMemo(() => {
+    const d = new Date(selectedDate);
+    d.setHours(23, 59, 59, 999);
+    return d;
+  }, [selectedDate]);
 
   const utils = trpc.useUtils();
-  const { data: lastEntry } = trpc.timeEntries.lastOpenEntry.useQuery();
+  // FIX Bug 1: passa dayStart local ao servidor para evitar erro de fuso horário
+  const { data: lastEntry } = trpc.timeEntries.lastOpenEntry.useQuery({ dayStart: dayStart.toISOString() });
   const { data: dailySummary, refetch: refetchSummary } = trpc.timeEntries.dailySummary.useQuery(
-    { date: selectedDate.toISOString() },
-    // FIX: revalida automaticamente ao focar na tela
+    { startDate: dayStart.toISOString(), endDate: dayEnd.toISOString() },
     { refetchOnWindowFocus: true }
   );
   const { data: allEntries } = trpc.timeEntries.allForDate.useQuery(
@@ -306,17 +317,9 @@ export default function ClockScreen() {
     { enabled: isManager }
   );
 
-  // FIX: usa dayStart e dayEnd para cobrir o dia inteiro — antes usava o mesmo valor para os dois
   const { data: myEntries, refetch: refetchMy } = trpc.timeEntries.list.useQuery(
-    {
-      startDate: dayStart.toISOString(),
-      endDate: dayEnd.toISOString(),
-    },
-    {
-      enabled: !isManager,
-      // FIX: revalida automaticamente ao focar na tela
-      refetchOnWindowFocus: true,
-    }
+    { startDate: dayStart.toISOString(), endDate: dayEnd.toISOString() },
+    { enabled: !isManager, refetchOnWindowFocus: true }
   );
 
   const { data: promoterStores } = trpc.stores.listForPromoter.useQuery(undefined, { enabled: !isManager });
@@ -359,6 +362,21 @@ export default function ClockScreen() {
 
     const entryType = modalEntryType;
 
+    // FIX Bug 3: se offline, enfileira a ação para sincronizar depois
+    if (!isOnline) {
+      await enqueue(entryType === "entry" ? "clock_entry" : "clock_exit", {
+        storeId,
+        entryType,
+        notes: undefined,
+      });
+      const newHasOpen = entryType === "entry";
+      setLocalHasOpenEntry(newHasOpen);
+      await AsyncStorage.setItem(OPEN_ENTRY_KEY, String(newHasOpen));
+      setRegistering(false);
+      showToast("📥 Sem conexão — registro salvo e será enviado quando voltar online.", "offline");
+      return;
+    }
+
     try {
       await createEntryMutation.mutateAsync({
         storeId,
@@ -373,7 +391,6 @@ export default function ClockScreen() {
       setLocalHasOpenEntry(newHasOpen);
       await AsyncStorage.setItem(OPEN_ENTRY_KEY, String(newHasOpen));
 
-      // FIX: invalida todas as queries relevantes para atualizar o histórico e resumo
       await utils.timeEntries.lastOpenEntry.invalidate();
       await utils.timeEntries.dailySummary.invalidate();
       await utils.timeEntries.list.invalidate();
@@ -394,6 +411,7 @@ export default function ClockScreen() {
 
   const exitStore = stores.find((s) => s.id === lastEntry?.storeId) ?? (stores.length > 0 ? stores[0] : null);
 
+  // Otimização: funções de formatação definidas uma vez
   const formatTime = (date: Date | string) => new Date(date).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
   const formatDate = (date: Date) => date.toLocaleDateString("pt-BR", { weekday: "long", day: "2-digit", month: "long" });
   const formatHours = (minutes: number) => {
@@ -410,6 +428,9 @@ export default function ClockScreen() {
 
   const isToday = selectedDate.toDateString() === new Date().toDateString();
 
+  // Cor do toast por tipo
+  const toastColor = toast?.type === "success" ? "#0E9F6E" : toast?.type === "offline" ? "#6366F1" : "#EF4444";
+
   return (
     <ScreenContainer>
       {toast && (
@@ -417,7 +438,7 @@ export default function ClockScreen() {
           style={[
             styles.toast,
             {
-              backgroundColor: toast.type === "success" ? "#0E9F6E" : "#EF4444",
+              backgroundColor: toastColor,
               opacity: toastOpacity,
               transform: [{ translateY: toastOpacity.interpolate({ inputRange: [0, 1], outputRange: [-20, 0] }) }],
             },
@@ -430,6 +451,15 @@ export default function ClockScreen() {
 
       <View style={[styles.header, { backgroundColor: colors.primary }]}>
         <Text style={styles.headerTitle}>{isManager ? "Controle de Ponto" : "Registro de Ponto"}</Text>
+        {/* FIX Bug 3: indicador de fila offline */}
+        {!isOnline && (
+          <View style={styles.offlineBadge}>
+            <Ionicons name="cloud-offline-outline" size={14} color="#FFF" />
+            <Text style={styles.offlineBadgeText}>
+              {pendingCount > 0 ? `Offline · ${pendingCount} pendente${pendingCount > 1 ? "s" : ""}` : "Offline"}
+            </Text>
+          </View>
+        )}
       </View>
 
       <View style={[styles.dateNav, { backgroundColor: colors.surface, borderBottomColor: colors.border }]}>
@@ -579,6 +609,8 @@ export default function ClockScreen() {
 const styles = StyleSheet.create({
   header: { paddingTop: 16, paddingBottom: 16, paddingHorizontal: 20 },
   headerTitle: { fontSize: 20, fontWeight: "700", color: "#FFFFFF" },
+  offlineBadge: { flexDirection: "row", alignItems: "center", gap: 4, marginTop: 6, backgroundColor: "rgba(0,0,0,0.25)", paddingHorizontal: 10, paddingVertical: 4, borderRadius: 10, alignSelf: "flex-start" },
+  offlineBadgeText: { color: "#FFF", fontSize: 11, fontWeight: "600" },
   dateNav: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1 },
   dateNavBtn: { padding: 8 },
   dateNavText: { fontSize: 15, fontWeight: "600", textTransform: "capitalize" },
