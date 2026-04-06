@@ -1850,6 +1850,45 @@ export async function deleteStockFile(id: number): Promise<void> {
   await db.delete(stockFiles).where(eq(stockFiles.id, id));
 }
 
+// ─── FILE READS (confirmação de leitura) ─────────────────────────────────────
+// Usa sql puro pois a tabela file_reads não está no schema Drizzle
+
+export async function markFileRead(userId: number, fileId: number): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.execute(sql`
+    INSERT INTO file_reads (userId, fileId, readAt)
+    VALUES (${userId}, ${fileId}, NOW())
+    ON DUPLICATE KEY UPDATE readAt = NOW()
+  `);
+}
+
+export async function hasUserReadFile(userId: number, fileId: number): Promise<boolean> {
+  const db = await getDb();
+  if (!db) return false;
+  const rows = await db.execute(sql`
+    SELECT id FROM file_reads WHERE userId = ${userId} AND fileId = ${fileId} LIMIT 1
+  `);
+  return (rows[0] as unknown as any[]).length > 0;
+}
+
+export async function getFileReadStatus(fileId: number): Promise<Array<{ userId: number; userName: string | null; readAt: Date }>> {
+  const db = await getDb();
+  if (!db) return [];
+  const rows = await db.execute(sql`
+    SELECT fr.userId, au.name as userName, fr.readAt
+    FROM file_reads fr
+    LEFT JOIN app_users au ON au.id = fr.userId
+    WHERE fr.fileId = ${fileId}
+    ORDER BY fr.readAt DESC
+  `);
+  return (rows[0] as unknown as any[]).map((r: any) => ({
+    userId: r.userId,
+    userName: r.userName,
+    readAt: new Date(r.readAt),
+  }));
+}
+
 // ─── PROMOTER USER IDs (for push notifications) ───────────────────────────────
 export async function getAllPromoterUserIds(): Promise<number[]> {
   const db = await getDb();
