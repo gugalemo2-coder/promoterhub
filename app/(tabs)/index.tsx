@@ -37,26 +37,26 @@ export default function HomeScreen() {
 
   const isReady = !!user && !isRoleLoading && !!appRole;
 
-  const now = new Date();
+  const now = useMemo(() => new Date(), []);
   const greeting = now.getHours() < 12 ? "Bom dia" : now.getHours() < 18 ? "Boa tarde" : "Boa noite";
   const firstName = user?.name?.split(" ")[0] ?? "Usuário";
-  const todayISO = now.toISOString();
 
   // ── Preview de foto inline (home do gestor) ───────────────────────────────
   const [previewPhoto, setPreviewPhoto] = useState<{ uri: string } | null>(null);
 
-  // FIX fuso horário: calcula início e fim do dia no fuso local do dispositivo
-  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
-  const todayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+  // FIX fuso horário + otimização: datas calculadas uma vez com useMemo
+  const todayStart = useMemo(() => new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0), [now]);
+  const todayEnd = useMemo(() => new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999), [now]);
+  const todayStartISO = useMemo(() => todayStart.toISOString(), [todayStart]);
+  const todayEndISO = useMemo(() => todayEnd.toISOString(), [todayEnd]);
 
   // ── Promoter queries ──────────────────────────────────────────────────────
-  // FIX: usa startDate/endDate locais em vez de todayISO (que causava busca no dia errado por fuso UTC)
   const { data: dailySummary } = trpc.timeEntries.dailySummary.useQuery(
-    { startDate: todayStart.toISOString(), endDate: todayEnd.toISOString() },
+    { startDate: todayStartISO, endDate: todayEndISO },
     {
       enabled: isReady && isPromoter,
       refetchOnWindowFocus: true,
-      refetchInterval: 60000,
+      // Otimização: removido refetchInterval de 60s — atualiza ao focar na tela
     }
   );
   const { data: pendingRequests } = trpc.materialRequests.list.useQuery(
@@ -73,7 +73,7 @@ export default function HomeScreen() {
 
   // ── Manager/Master queries ────────────────────────────────────────────────
   const { data: dailyReport } = trpc.reports.daily.useQuery(
-    { startDate: todayStart.toISOString(), endDate: todayEnd.toISOString() },
+    { startDate: todayStartISO, endDate: todayEndISO },
     { enabled: isReady && isManager }
   );
   const { data: brands } = trpc.brands.list.useQuery(
@@ -82,11 +82,9 @@ export default function HomeScreen() {
   );
 
   const [selectedBrandId, setSelectedBrandId] = useState<number | undefined>();
-  const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
-  const endOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59).toISOString();
 
   const { data: todayPhotos } = trpc.photos.listAll.useQuery(
-    { brandId: selectedBrandId, startDate: startOfDay, endDate: endOfDay, limit: 9 },
+    { brandId: selectedBrandId, startDate: todayStartISO, endDate: todayEndISO, limit: 9 },
     { enabled: isReady && isManager }
   );
 
@@ -215,7 +213,7 @@ export default function HomeScreen() {
                   onPress={() => setPreviewPhoto({ uri: photo.photoUrl ?? "" })}
                   activeOpacity={0.85}
                 >
-                  <Image source={{ uri: photo.photoUrl }} style={styles.photoImage} contentFit="cover" transition={200} />
+                  <Image source={{ uri: photo.photoUrl }} style={styles.photoImage} contentFit="cover" cachePolicy="memory-disk" transition={200} />
                 </TouchableOpacity>
               ))}
             </View>
