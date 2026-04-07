@@ -196,3 +196,34 @@ export async function checkAndNotifyLowDailyHours(managerId: number): Promise<{ 
   await db.createNotification({ userId: managerId, title: "⏱️ Média diária baixa", body, type: "geo_alert", isRead: false }).catch(() => {});
   return { notified: low.map((p) => p.userName), threshold };
 }
+
+/** Verifica promotores com entradas em aberto por mais de X horas e notifica. */
+export async function checkAndNotifyPendingExits(thresholdHours: number = 3): Promise<string[]> {
+  const promoters = await db.getAllPromoterUsers();
+  if (promoters.length === 0) return [];
+  const now = new Date();
+  const notified: string[] = [];
+  for (const promoter of promoters) {
+    const openEntry = await db.getLastOpenEntry(promoter.id);
+    if (!openEntry) continue;
+    const hoursElapsed = (now.getTime() - new Date(openEntry.entryTime).getTime()) / (1000 * 60 * 60);
+    if (hoursElapsed >= thresholdHours) {
+      const h = Math.floor(hoursElapsed);
+      const m = Math.floor((hoursElapsed - h) * 60);
+      const timeStr = m > 0 ? `${h}h ${m}min` : `${h}h`;
+      const promoterName = promoter.name ?? promoter.email ?? "Promotor";
+      await sendToUsers([promoter.id], {
+        title: "⏰ Saída pendente",
+        body: `Você está com entrada em aberto há ${timeStr}. Não esqueça de registrar sua saída!`,
+        data: { type: "pending_exit" },
+      });
+      await sendToManagersAndMasters({
+        title: "⚠️ Saída pendente",
+        body: `${promoterName} está com entrada em aberto há ${timeStr} sem registrar saída.`,
+        data: { type: "pending_exit", promoterId: promoter.id },
+      });
+      notified.push(promoterName);
+    }
+  }
+  return notified;
+}
