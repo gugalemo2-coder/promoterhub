@@ -1,6 +1,7 @@
 "use client";
 import { useAuth } from "@/lib/auth-context";
 import { Sidebar } from "@/components/sidebar";
+import { WebPushSetup } from "@/components/web-push-setup";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { Loader2 } from "lucide-react";
@@ -39,6 +40,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   return (
     <div style={{ display: "flex", minHeight: "100vh", background: "#f9fafb" }}>
+      <WebPushSetup />
       <Sidebar collapsed={collapsed} onToggle={() => setCollapsed((c) => !c)} />
       <main
         style={{
