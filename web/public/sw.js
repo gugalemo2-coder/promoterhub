@@ -112,3 +112,47 @@ self.addEventListener("fetch", (event) => {
       })
   );
 });
+
+// ─── Web Push Notifications ───────────────────────────────────────────────────
+
+self.addEventListener("push", (event) => {
+  if (!event.data) return;
+
+  let payload;
+  try {
+    payload = event.data.json();
+  } catch {
+    payload = { title: "PromoterHub", body: event.data.text() };
+  }
+
+  const title = payload.title ?? "PromoterHub";
+  const options = {
+    body: payload.body ?? "",
+    icon: "/icons/icon-192x192.png",
+    badge: "/icons/icon-96x96.png",
+    data: payload.data ?? {},
+    vibrate: [200, 100, 200],
+    requireInteraction: false,
+    tag: payload.data?.type ?? "general",
+  };
+
+  event.waitUntil(self.registration.showNotification(title, options));
+});
+
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  event.waitUntil(
+    clients.matchAll({ type: "window", includeUncontrolled: true }).then((clientList) => {
+      // Se o app já está aberto, foca nele
+      for (const client of clientList) {
+        if (client.url.includes(self.location.origin) && "focus" in client) {
+          return client.focus();
+        }
+      }
+      // Senão, abre uma nova janela
+      if (clients.openWindow) {
+        return clients.openWindow("/");
+      }
+    })
+  );
+});
