@@ -608,6 +608,109 @@ export async function getMonthlyReport(year: number, month: number, userId?: num
   return { year, month, dailyData, photosByBrand, totalHours, totalPhotos, totalRequests, workingDays };
 }
 
+// ─── PRESENCE DASHBOARD ───────────────────────────────────────────────────────
+
+export type PromoterPresenceStatus = "active" | "finished" | "inactive";
+
+export interface PromoterPresenceEntry {
+  userId: number;
+  name: string;
+  status: PromoterPresenceStatus;
+  storeName: string | null;
+  entryTime: Date | null;
+  exitTime: Date | null;
+  totalMinutes: number;
+  timeAgoLabel: string;
+}
+
+export async function getPresenceDashboard(dayStart: Date, dayEnd: Date): Promise<PromoterPresenceEntry[]> {
+  const db = await getDb();
+  if (!db) return [];
+
+  // Busca todos os promotores
+  const promoters = await db.select({ id: appUsers.id, name: appUsers.name })
+    .from(appUsers)
+    .where(and(eq(appUsers.appRole, "promoter"), eq(appUsers.active, true)));
+
+  if (promoters.length === 0) return [];
+
+  const result: PromoterPresenceEntry[] = [];
+  const now = new Date();
+
+  for (const promoter of promoters) {
+    // Busca todos os registros do dia
+    const entries = await db.select().from(timeEntries)
+      .where(and(
+        eq(timeEntries.userId, promoter.id),
+        gte(timeEntries.entryTime, dayStart),
+        lte(timeEntries.entryTime, dayEnd)
+      ))
+      .orderBy(timeEntries.entryTime);
+
+    if (entries.length === 0) {
+      result.push({ userId: promoter.id, name: promoter.name ?? `Promotor ${promoter.id}`, status: "inactive", storeName: null, entryTime: null, exitTime: null, totalMinutes: 0, timeAgoLabel: "" });
+      continue;
+    }
+
+    // Calcula tempo total trabalhado
+    let totalMinutes = 0;
+    let lastEntry: typeof entries[0] | null = null;
+    let firstEntry: typeof entries[0] | null = null;
+    let lastExit: typeof entries[0] | null = null;
+
+    for (const e of entries) {
+      if (e.entryType === "entry") {
+        if (!firstEntry) firstEntry = e;
+        lastEntry = e;
+      } else if (e.entryType === "exit" && lastEntry) {
+        const diff = (e.entryTime.getTime() - lastEntry.entryTime.getTime()) / 60000;
+        if (diff > 0 && diff < 720) totalMinutes += diff;
+        lastExit = e;
+        lastEntry = null;
+      }
+    }
+
+    const hasOpenEntry = lastEntry !== null;
+
+    // Busca nome da loja do último registro
+    let storeName: string | null = null;
+    const lastRecord = entries[entries.length - 1];
+    if (lastRecord?.storeId) {
+      const store = await db.select({ name: stores.name }).from(stores).where(eq(stores.id, lastRecord.storeId)).limit(1);
+      storeName = store[0]?.name ?? null;
+    }
+
+    // Calcula timeAgoLabel
+    const referenceTime = hasOpenEntry ? lastEntry!.entryTime : lastExit?.entryTime;
+    let timeAgoLabel = "";
+    if (referenceTime) {
+      const diffMins = Math.floor((now.getTime() - referenceTime.getTime()) / 60000);
+      const h = Math.floor(diffMins / 60);
+      const m = diffMins % 60;
+      if (hasOpenEntry) {
+        timeAgoLabel = h > 0 ? `há ${h}h ${m > 0 ? `${m}min` : ""}` : `há ${m}min`;
+      }
+    }
+
+    result.push({
+      userId: promoter.id,
+      name: promoter.name ?? `Promotor ${promoter.id}`,
+      status: hasOpenEntry ? "active" : totalMinutes > 0 ? "finished" : "inactive",
+      storeName,
+      entryTime: firstEntry?.entryTime ?? null,
+      exitTime: lastExit?.entryTime ?? null,
+      totalMinutes: Math.round(totalMinutes),
+      timeAgoLabel,
+    });
+  }
+
+  // Ordena: ativos → encerrados → inativos
+  return result.sort((a, b) => {
+    const order = { active: 0, finished: 1, inactive: 2 };
+    return order[a.status] - order[b.status];
+  });
+}
+
 // ─── PUSH TOKENS ──────────────────────────────────────────────────────────────
 
 export async function upsertPushToken(data: InsertPushToken): Promise<void> {
