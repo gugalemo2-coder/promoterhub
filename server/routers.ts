@@ -330,19 +330,29 @@ export const appRouter = router({
     acknowledge: protectedProcedure.input(z.object({ id: z.number(), notes: z.string().optional() })).mutation(({ ctx, input }) => db.acknowledgeGeoAlert(input.id, getAppUserId(ctx.user), input.notes)),
     createAlert: protectedProcedure.input(z.object({ storeId: z.number(), alertType: z.enum(["left_radius", "suspicious_movement", "gps_spoofing_suspected", "low_hours", "no_entry"]), latitude: z.number().optional(), longitude: z.number().optional(), distanceFromStore: z.number().optional(), notes: z.string().optional() })).mutation(async ({ ctx, input }) => {
       const id = await db.createGeoAlert({ userId: getAppUserId(ctx.user), storeId: input.storeId, alertType: input.alertType, latitude: input.latitude?.toString(), longitude: input.longitude?.toString(), distanceFromStore: input.distanceFromStore?.toString(), notes: input.notes });
-      if (input.alertType === "left_radius") {
-        const store = await db.getStoreById(input.storeId);
-        const promoterName = ctx.user.name ?? `Promotor ${getAppUserId(ctx.user)}`;
-        push.notifyPromoterLeftRadius(promoterName, store?.name ?? `Loja ${input.storeId}`).catch(() => {});
-      }
       return { id };
     }),
   }),
   pushTokens: router({
     register: protectedProcedure
-      .input(z.object({ token: z.string().min(1), platform: z.enum(["ios", "android", "web"]), deviceId: z.string().optional() }))
+      .input(z.object({
+        // Web Push: subscription JSON completo
+        subscription: z.string().optional(),
+        // Legacy (mantido para compatibilidade)
+        token: z.string().optional(),
+        platform: z.enum(["ios", "android", "web"]).default("web"),
+        deviceId: z.string().optional(),
+      }))
       .mutation(async ({ ctx, input }) => {
-        await db.upsertPushToken({ userId: getAppUserId(ctx.user), token: input.token, platform: input.platform, deviceId: input.deviceId });
+        const userId = getAppUserId(ctx.user);
+        if (input.subscription) {
+          // Web Push subscription
+          const parsed = JSON.parse(input.subscription);
+          await db.upsertWebPushSubscription(userId, input.subscription, parsed.endpoint);
+        } else if (input.token) {
+          // Legacy
+          await db.upsertPushToken({ userId, token: input.token, platform: input.platform, deviceId: input.deviceId });
+        }
         return { success: true };
       }),
   }),
@@ -531,6 +541,17 @@ export const appRouter = router({
           const { url } = await storagePut(fileKey, buffer, p.fileType);
           await db.addProductExpirationPhoto({ expirationId: id, photoUrl: url, sortOrder: i });
         }
+        // Notifica gestores/masters sobre novo registro de vencimento
+        Promise.all([
+          db.getAppUserById(userId),
+          db.getBrandById(input.brandId),
+          db.getStoreById(input.storeId),
+        ]).then(([promoter, brand, store]) => {
+          const promoterName = promoter?.name ?? "Promotor";
+          const brandName = brand?.name ?? "Marca";
+          const storeName = store?.name ?? "Loja";
+          push.notifyNewProductExpiration(promoterName, brandName, storeName).catch(() => {});
+        }).catch(() => {});
         return { id };
       }),
     list: protectedProcedure
