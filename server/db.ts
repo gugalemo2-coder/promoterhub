@@ -726,6 +726,46 @@ export async function upsertPushToken(data: InsertPushToken): Promise<void> {
   await db.insert(pushTokens).values({ ...data, isActive: true });
 }
 
+/** Salva ou atualiza uma Web Push subscription (token = JSON stringificado da subscription) */
+export async function upsertWebPushSubscription(userId: number, subscriptionJson: string, endpoint: string): Promise<void> {
+  const db = await getDb();
+  if (!db) return;
+  // Desativa subscription anterior com o mesmo endpoint
+  await db.update(pushTokens).set({ isActive: false })
+    .where(and(eq(pushTokens.userId, userId), eq(pushTokens.token, endpoint)));
+  // Remove registros antigos do mesmo endpoint de qualquer usuário
+  await db.update(pushTokens).set({ isActive: false })
+    .where(eq(pushTokens.token, endpoint));
+  // Insere nova subscription
+  await db.insert(pushTokens).values({
+    userId,
+    token: subscriptionJson,
+    platform: "web",
+    deviceId: endpoint.slice(0, 255),
+    isActive: true,
+  });
+}
+
+/** Busca todas as subscriptions Web Push ativas para uma lista de userIds */
+export async function getWebPushSubscriptionsByUserIds(userIds: number[]): Promise<PushToken[]> {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(pushTokens)
+    .where(and(
+      inArray(pushTokens.userId, userIds),
+      eq(pushTokens.platform, "web"),
+      eq(pushTokens.isActive, true)
+    ));
+}
+
+/** Desativa subscription quando o endpoint retorna 410 (expirado) */
+export async function deactivatePushSubscription(endpoint: string): Promise<void> {
+  const db = await getDb();
+  if (!db) return;
+  await db.update(pushTokens).set({ isActive: false })
+    .where(eq(pushTokens.deviceId, endpoint.slice(0, 255)));
+}
+
 export async function getPushTokensByUserId(userId: number): Promise<PushToken[]> {
   const db = await getDb();
   if (!db) return [];
