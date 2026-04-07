@@ -31,6 +31,7 @@ import { ScreenContainer } from "@/components/screen-container";
 import { useColors } from "@/hooks/use-colors";
 import { useRole } from "@/lib/role-context";
 import { trpc } from "@/lib/trpc";
+import { formatDateTime } from "@/lib/date-utils";
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
 const PHOTO_SIZE = (SCREEN_WIDTH - 48 - 8) / 3;
@@ -437,12 +438,6 @@ export default function ManagerPhotosScreen() {
     return p ? (p.name ?? p.login ?? `Promotor ${p.id}`) : "Todos";
   };
 
-  const formatDate = (iso: string | Date | null) => {
-    if (!iso) return "—";
-    const d = new Date(iso as string);
-    return `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}/${d.getFullYear()} ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
-  };
-
   const renderFilterChip = (label: string, type: FilterType, active: boolean) => (
     <TouchableOpacity
       key={type}
@@ -723,7 +718,7 @@ export default function ManagerPhotosScreen() {
                   <Text style={styles.infoStripValue} numberOfLines={1}>{currentPhoto.brandName ?? "—"}</Text>
                 </View>
               </View>
-              <Text style={styles.infoStripDate}>{formatDate(currentPhoto.photoTimestamp)}</Text>
+              <Text style={styles.infoStripDate}>{formatDateTime(currentPhoto.photoTimestamp)}</Text>
             </View>
           )}
 
@@ -785,7 +780,7 @@ export default function ManagerPhotosScreen() {
                         </View>
                         <View style={{ flex: 1 }}>
                           <Text style={[styles.commentUserName, { color: colors.foreground }]}>{c.userName ?? "Gestor"}</Text>
-                          <Text style={[styles.commentDate, { color: colors.muted }]}>{formatDate(c.createdAt)}</Text>
+                          <Text style={[styles.commentDate, { color: colors.muted }]}>{formatDateTime(c.createdAt)}</Text>
                         </View>
                         {isManager && (
                           <TouchableOpacity onPress={() => handleDeleteComment(c.id)} style={styles.commentDeleteBtn}>
