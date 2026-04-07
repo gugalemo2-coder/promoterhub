@@ -3,6 +3,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { useColors } from "@/hooks/use-colors";
 import { useRole } from "@/lib/role-context";
 import { trpc } from "@/lib/trpc";
+import { formatHours, startOfDay, endOfDay } from "@/lib/date-utils";
 import { Ionicons } from "@expo/vector-icons";
 import { Image } from "expo-image";
 import { Redirect, useRouter } from "expo-router";
@@ -45,8 +46,8 @@ export default function HomeScreen() {
   const [previewPhoto, setPreviewPhoto] = useState<{ uri: string } | null>(null);
 
   // FIX fuso horário + otimização: datas calculadas uma vez com useMemo
-  const todayStart = useMemo(() => new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0), [now]);
-  const todayEnd = useMemo(() => new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999), [now]);
+  const todayStart = useMemo(() => startOfDay(now), [now]);
+  const todayEnd = useMemo(() => endOfDay(now), [now]);
   const todayStartISO = useMemo(() => todayStart.toISOString(), [todayStart]);
   const todayEndISO = useMemo(() => todayEnd.toISOString(), [todayEnd]);
 
@@ -88,18 +89,18 @@ export default function HomeScreen() {
     { enabled: isReady && isManager }
   );
 
+  // Dashboard de presença — atualiza ao focar na tela
+  const { data: presenceData } = trpc.reports.presenceDashboard.useQuery(
+    { dayStart: todayStartISO, dayEnd: todayEndISO },
+    { enabled: isReady && isManager, refetchOnWindowFocus: true }
+  );
+
   const sortedPhotos = useMemo(() => {
     if (!todayPhotos) return [];
     return [...todayPhotos].sort(
       (a, b) => new Date(b.photoTimestamp ?? 0).getTime() - new Date(a.photoTimestamp ?? 0).getTime()
     );
   }, [todayPhotos]);
-
-  const formatHours = (minutes: number) => {
-    const h = Math.floor(minutes / 60);
-    const m = Math.floor(minutes % 60);
-    return `${h}h ${m.toString().padStart(2, "0")}m`;
-  };
 
   const doLogout = async () => {
     try {
@@ -241,6 +242,74 @@ export default function HomeScreen() {
               </TouchableOpacity>
             ))}
           </View>
+
+          {/* Dashboard de Presença */}
+          {presenceData && presenceData.length > 0 && (() => {
+            const activeCount = presenceData.filter((p) => p.status === "active").length;
+            const totalCount = presenceData.length;
+            return (
+              <View style={{ marginHorizontal: 16, marginTop: 8, marginBottom: 8 }}>
+                <View style={[styles.sectionRow, { marginHorizontal: 0, marginBottom: 10 }]}>
+                  <Text style={[styles.sectionTitle, { color: colors.foreground, marginHorizontal: 0, marginTop: 0, marginBottom: 0 }]}>
+                    Presença Hoje
+                  </Text>
+                  <View style={[styles.presenceBadge, { backgroundColor: activeCount > 0 ? "#0E9F6E20" : colors.surface, borderColor: activeCount > 0 ? "#0E9F6E" : colors.border }]}>
+                    <View style={[styles.presenceDot, { backgroundColor: activeCount > 0 ? "#0E9F6E" : colors.muted }]} />
+                    <Text style={[styles.presenceBadgeText, { color: activeCount > 0 ? "#0E9F6E" : colors.muted }]}>
+                      {activeCount} de {totalCount} ativo{activeCount !== 1 ? "s" : ""}
+                    </Text>
+                  </View>
+                </View>
+
+                <View style={[styles.presenceCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+                  {presenceData.map((p, i) => {
+                    const isActive = p.status === "active";
+                    const isFinished = p.status === "finished";
+                    const dotColor = isActive ? "#0E9F6E" : isFinished ? "#6B7280" : "#EF444440";
+                    const statusLabel = isActive ? `Ativo ${p.timeAgoLabel}` : isFinished ? `Encerrou · ${formatHours(p.totalMinutes)}` : "Sem registro hoje";
+
+                    return (
+                      <View
+                        key={p.userId}
+                        style={[
+                          styles.presenceRow,
+                          { borderBottomColor: colors.border },
+                          i === presenceData.length - 1 && { borderBottomWidth: 0 }
+                        ]}
+                      >
+                        {/* Status dot */}
+                        <View style={[styles.presenceStatusDot, { backgroundColor: isActive ? "#0E9F6E" : isFinished ? "#6B728040" : "#EF444420", borderColor: isActive ? "#0E9F6E" : isFinished ? "#6B7280" : "#EF4444" }]}>
+                          {isActive && <View style={styles.presenceActivePulse} />}
+                        </View>
+
+                        {/* Info */}
+                        <View style={{ flex: 1 }}>
+                          <Text style={[styles.presenceName, { color: colors.foreground }]} numberOfLines={1}>
+                            {p.name}
+                          </Text>
+                          <Text style={[styles.presenceStatus, { color: isActive ? "#0E9F6E" : colors.muted }]} numberOfLines={1}>
+                            {statusLabel}
+                          </Text>
+                          {p.storeName && (
+                            <Text style={[styles.presenceStore, { color: colors.muted }]} numberOfLines={1}>
+                              <Ionicons name="storefront-outline" size={11} color={colors.muted} /> {p.storeName}
+                            </Text>
+                          )}
+                        </View>
+
+                        {/* Horas trabalhadas */}
+                        {p.totalMinutes > 0 && (
+                          <Text style={[styles.presenceHours, { color: isActive ? colors.primary : colors.muted }]}>
+                            {formatHours(p.totalMinutes)}
+                          </Text>
+                        )}
+                      </View>
+                    );
+                  })}
+                </View>
+              </View>
+            );
+          })()}
         </ScrollView>
 
         {/* Modal de preview inline da foto */}
@@ -436,6 +505,18 @@ const styles = StyleSheet.create({
   quickAction: { flex: 1, minWidth: "44%", borderRadius: 16, padding: 16, alignItems: "center", gap: 10, borderWidth: 1 },
   quickActionIcon: { width: 52, height: 52, borderRadius: 16, alignItems: "center", justifyContent: "center" },
   quickActionLabel: { fontSize: 13, fontWeight: "600", textAlign: "center" },
+  // Presença
+  presenceBadge: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 12, borderWidth: 1 },
+  presenceDot: { width: 7, height: 7, borderRadius: 4 },
+  presenceBadgeText: { fontSize: 12, fontWeight: "600" },
+  presenceCard: { borderRadius: 16, borderWidth: 1, overflow: "hidden" },
+  presenceRow: { flexDirection: "row", alignItems: "center", gap: 12, padding: 14, borderBottomWidth: 0.5 },
+  presenceStatusDot: { width: 14, height: 14, borderRadius: 7, borderWidth: 2, alignItems: "center", justifyContent: "center" },
+  presenceActivePulse: { width: 6, height: 6, borderRadius: 3, backgroundColor: "#0E9F6E" },
+  presenceName: { fontSize: 14, fontWeight: "600" },
+  presenceStatus: { fontSize: 12, marginTop: 1 },
+  presenceStore: { fontSize: 11, marginTop: 2 },
+  presenceHours: { fontSize: 13, fontWeight: "700" },
   emptyStores: { marginHorizontal: 16, borderRadius: 16, borderWidth: 1, padding: 24, alignItems: "center", gap: 10, marginBottom: 24 },
   emptyStoresText: { fontSize: 14, textAlign: "center", lineHeight: 20 },
   storesList: { paddingHorizontal: 16, gap: 10, marginBottom: 24 },
