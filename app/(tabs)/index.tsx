@@ -4,10 +4,11 @@ import { useColors } from "@/hooks/use-colors";
 import { useRole } from "@/lib/role-context";
 import { trpc } from "@/lib/trpc";
 import { formatHours, startOfDay, endOfDay } from "@/lib/date-utils";
+import { usePushNotifications } from "@/hooks/use-push-notifications";
 import { Ionicons } from "@expo/vector-icons";
 import { Image } from "expo-image";
 import { Redirect, useRouter } from "expo-router";
-import { useMemo, useState } from "react";
+import { useMemo, useState, useCallback } from "react";
 import {
   Alert,
   Dimensions,
@@ -35,6 +36,9 @@ export default function HomeScreen() {
   const isMaster = appRole === "master";
   const isSupervisor = appRole === "supervisor";
   const accentColor = isMaster ? "#7C3AED" : isSupervisor ? "#D97706" : colors.primary;
+
+  // Hook de push notifications — registra permissão quando o sino é tocado
+  const { requestPermission, permissionStatus } = usePushNotifications();
 
   const isReady = !!user && !isRoleLoading && !!appRole;
 
@@ -136,8 +140,21 @@ export default function HomeScreen() {
 
           {/* Header */}
           <View style={[styles.managerHeader, { backgroundColor: accentColor }]}>
-            <TouchableOpacity style={styles.bellBtn} onPress={() => router.push("/(tabs)/alerts" as any)} activeOpacity={0.8}>
+            <TouchableOpacity
+              style={styles.bellBtn}
+              onPress={async () => {
+                if (permissionStatus !== "granted") {
+                  await requestPermission();
+                } else {
+                  router.push("/(tabs)/alerts" as any);
+                }
+              }}
+              activeOpacity={0.8}
+            >
               <Ionicons name="notifications-outline" size={26} color="#fff" />
+              {permissionStatus !== "granted" && (
+                <View style={styles.bellDot} />
+              )}
             </TouchableOpacity>
             <View style={styles.managerGreeting}>
               <Text style={styles.managerGreetingText}>{greeting}, {firstName}!</Text>
@@ -463,6 +480,7 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
   managerHeader: { flexDirection: "row", alignItems: "center", paddingHorizontal: 16, paddingTop: 16, paddingBottom: 20, gap: 12 },
   bellBtn: { position: "relative", padding: 4 },
+  bellDot: { position: "absolute", top: 4, right: 4, width: 8, height: 8, borderRadius: 4, backgroundColor: "#EF4444", borderWidth: 1.5, borderColor: "#fff" },
   managerGreeting: { flex: 1, alignItems: "center" },
   managerGreetingText: { fontSize: 20, fontWeight: "800", color: "#fff" },
   managerSubtitle: { fontSize: 13, color: "rgba(255,255,255,0.8)", marginTop: 2 },
