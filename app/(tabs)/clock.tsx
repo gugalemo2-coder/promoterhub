@@ -3,6 +3,7 @@ import { useColors } from "@/hooks/use-colors";
 import { useRole } from "@/lib/role-context";
 import { trpc } from "@/lib/trpc";
 import { useOfflineQueue } from "@/hooks/use-offline-queue";
+import { formatTime, formatDateLong, formatHours, startOfDay, endOfDay } from "@/lib/date-utils";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import * as ImagePicker from "expo-image-picker";
@@ -293,17 +294,8 @@ export default function ClockScreen() {
   };
 
   // FIX Bug 1: calcular dayStart no fuso local para passar ao servidor
-  const dayStart = useMemo(() => {
-    const d = new Date(selectedDate);
-    d.setHours(0, 0, 0, 0);
-    return d;
-  }, [selectedDate]);
-
-  const dayEnd = useMemo(() => {
-    const d = new Date(selectedDate);
-    d.setHours(23, 59, 59, 999);
-    return d;
-  }, [selectedDate]);
+  const dayStart = useMemo(() => startOfDay(selectedDate), [selectedDate]);
+  const dayEnd = useMemo(() => endOfDay(selectedDate), [selectedDate]);
 
   const utils = trpc.useUtils();
   // FIX Bug 1: passa dayStart local ao servidor para evitar erro de fuso horário
@@ -411,15 +403,6 @@ export default function ClockScreen() {
 
   const exitStore = stores.find((s) => s.id === lastEntry?.storeId) ?? (stores.length > 0 ? stores[0] : null);
 
-  // Otimização: funções de formatação definidas uma vez
-  const formatTime = (date: Date | string) => new Date(date).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
-  const formatDate = (date: Date) => date.toLocaleDateString("pt-BR", { weekday: "long", day: "2-digit", month: "long" });
-  const formatHours = (minutes: number) => {
-    const h = Math.floor(minutes / 60);
-    const m = Math.floor(minutes % 60);
-    return `${h}h ${m.toString().padStart(2, "0")}m`;
-  };
-
   const changeDate = (days: number) => {
     const newDate = new Date(selectedDate);
     newDate.setDate(newDate.getDate() + days);
@@ -466,7 +449,7 @@ export default function ClockScreen() {
         <Pressable style={({ pressed }) => [styles.dateNavBtn, pressed && { opacity: 0.6 }]} onPress={() => changeDate(-1)}>
           <Ionicons name="chevron-back" size={20} color={colors.primary} />
         </Pressable>
-        <Text style={[styles.dateNavText, { color: colors.foreground }]}>{formatDate(selectedDate)}</Text>
+        <Text style={[styles.dateNavText, { color: colors.foreground }]}>{formatDateLong(selectedDate)}</Text>
         <Pressable
           style={({ pressed }) => [styles.dateNavBtn, pressed && { opacity: 0.6 }, isToday && { opacity: 0.3 }]}
           onPress={() => changeDate(1)}
