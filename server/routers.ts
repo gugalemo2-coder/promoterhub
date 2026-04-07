@@ -358,6 +358,9 @@ export const appRouter = router({
     monthly: protectedProcedure
       .input(z.object({ year: z.number().int().min(2020).max(2100), month: z.number().int().min(1).max(12), userId: z.number().optional() }))
       .query(({ input }) => db.getMonthlyReport(input.year, input.month, input.userId)),
+    presenceDashboard: protectedProcedure
+      .input(z.object({ dayStart: z.string(), dayEnd: z.string() }))
+      .query(({ input }) => db.getPresenceDashboard(new Date(input.dayStart), new Date(input.dayEnd))),
   }),
   notifications: router({
     list: protectedProcedure.input(z.object({ limit: z.number().default(50) })).query(({ ctx, input }) => db.getNotificationsByUser(getAppUserId(ctx.user), input.limit)),
