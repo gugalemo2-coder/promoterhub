@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Home, Clock, Camera, Package, FolderOpen, ShoppingCart, User } from "lucide-react";
+import { Home, Clock, Camera, ShoppingCart, FolderOpen, Package, User } from "lucide-react";
 
 const NAV_ITEMS = [
   { href: "/team/promoter-home", icon: Home, label: "Início" },
@@ -9,7 +9,7 @@ const NAV_ITEMS = [
   { href: "/team/promoter-photos", icon: Camera, label: "Fotos" },
   { href: "/materials", icon: ShoppingCart, label: "Materiais" },
   { href: "/files", icon: FolderOpen, label: "Arquivos" },
-  { href: "/team/product-expiration", icon: Package, label: "Vencimento" },
+  { href: "/team/product-expiration", icon: Package, label: "Vencim." },
   { href: "/team/my-profile", icon: User, label: "Perfil" },
 ];
 
@@ -23,14 +23,14 @@ export function MobileNav() {
         bottom: 0,
         left: 0,
         right: 0,
-        height: 68,
         background: "white",
         borderTop: "1px solid #e5e7eb",
         display: "flex",
         alignItems: "center",
         justifyContent: "space-around",
         zIndex: 50,
-        paddingBottom: "env(safe-area-inset-bottom, 0px)",
+        paddingTop: 6,
+        paddingBottom: "max(6px, env(safe-area-inset-bottom, 0px))",
         boxShadow: "0 -2px 10px rgba(0,0,0,0.05)",
       }}
     >
@@ -45,16 +45,26 @@ export function MobileNav() {
               display: "flex",
               flexDirection: "column",
               alignItems: "center",
-              gap: 2,
-              padding: "6px 8px",
+              gap: 1,
+              padding: "4px 0",
               textDecoration: "none",
               color: isActive ? "#1A56DB" : "#9ca3af",
               transition: "color 0.15s",
-              minWidth: 44,
+              flex: 1,
+              minWidth: 0,
             }}
           >
             <Icon size={20} strokeWidth={isActive ? 2.5 : 1.8} />
-            <span style={{ fontSize: 9, fontWeight: isActive ? 700 : 500 }}>{item.label}</span>
+            <span style={{
+              fontSize: 9,
+              fontWeight: isActive ? 700 : 500,
+              lineHeight: 1.2,
+              whiteSpace: "nowrap",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              maxWidth: "100%",
+              textAlign: "center",
+            }}>{item.label}</span>
           </Link>
         );
       })}
