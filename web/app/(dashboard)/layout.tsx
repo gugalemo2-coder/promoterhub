@@ -36,9 +36,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   if (isPromoter) {
     return (
-      <div style={{ display: "flex", flexDirection: "column", minHeight: "100vh", background: "#f9fafb" }}>
+      <div style={{ display: "flex", flexDirection: "column", minHeight: "100vh", background: "#f9fafb", overflowX: "hidden", width: "100%" }}>
         <WebPushSetup />
-        <main style={{ flex: 1, paddingBottom: 72, display: "flex", flexDirection: "column" }}>
+        <main style={{ flex: 1, paddingBottom: 72, display: "flex", flexDirection: "column", overflowX: "hidden", width: "100%", maxWidth: "100vw" }}>
           {children}
         </main>
         <MobileNav />
