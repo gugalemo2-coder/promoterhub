@@ -273,12 +273,50 @@ export async function getAllTimeEntriesForDate(date: Date): Promise<TimeEntry[]>
   return db.select().from(timeEntries).where(and(gte(timeEntries.entryTime, dayStart), lte(timeEntries.entryTime, dayEnd))).orderBy(desc(timeEntries.entryTime));
 }
 
+export async function getAllTimeEntriesForDateWithNames(date: Date) {
+  const db = await getDb();
+  if (!db) return [];
+  const dayStart = new Date(date); dayStart.setHours(0, 0, 0, 0);
+  const dayEnd = new Date(date); dayEnd.setHours(23, 59, 59, 999);
+  return db
+    .select({
+      id: timeEntries.id, userId: timeEntries.userId, storeId: timeEntries.storeId,
+      entryType: timeEntries.entryType, entryTime: timeEntries.entryTime,
+      photoUrl: timeEntries.photoUrl, notes: timeEntries.notes,
+      promoterName: appUsers.name, storeName: stores.name,
+    })
+    .from(timeEntries)
+    .leftJoin(appUsers, eq(appUsers.id, timeEntries.userId))
+    .leftJoin(stores, eq(stores.id, timeEntries.storeId))
+    .where(and(gte(timeEntries.entryTime, dayStart), lte(timeEntries.entryTime, dayEnd)))
+    .orderBy(desc(timeEntries.entryTime));
+}
+
 export async function getAllTimeEntriesForRange(startDate: Date, endDate: Date): Promise<TimeEntry[]> {
   const db = await getDb();
   if (!db) return [];
   const rangeStart = new Date(startDate); rangeStart.setHours(0, 0, 0, 0);
   const rangeEnd = new Date(endDate); rangeEnd.setHours(23, 59, 59, 999);
   return db.select().from(timeEntries).where(and(gte(timeEntries.entryTime, rangeStart), lte(timeEntries.entryTime, rangeEnd))).orderBy(desc(timeEntries.entryTime));
+}
+
+export async function getAllTimeEntriesForRangeWithNames(startDate: Date, endDate: Date) {
+  const db = await getDb();
+  if (!db) return [];
+  const rangeStart = new Date(startDate); rangeStart.setHours(0, 0, 0, 0);
+  const rangeEnd = new Date(endDate); rangeEnd.setHours(23, 59, 59, 999);
+  return db
+    .select({
+      id: timeEntries.id, userId: timeEntries.userId, storeId: timeEntries.storeId,
+      entryType: timeEntries.entryType, entryTime: timeEntries.entryTime,
+      photoUrl: timeEntries.photoUrl, notes: timeEntries.notes,
+      promoterName: appUsers.name, storeName: stores.name,
+    })
+    .from(timeEntries)
+    .leftJoin(appUsers, eq(appUsers.id, timeEntries.userId))
+    .leftJoin(stores, eq(stores.id, timeEntries.storeId))
+    .where(and(gte(timeEntries.entryTime, rangeStart), lte(timeEntries.entryTime, rangeEnd)))
+    .orderBy(desc(timeEntries.entryTime));
 }
 
 // ─── PHOTOS ───────────────────────────────────────────────────────────────────
@@ -397,7 +435,7 @@ export async function createMaterialRequest(data: InsertMaterialRequest): Promis
   return result[0].insertId;
 }
 
-export async function getMaterialRequests(filters: { userId?: number; status?: "pending" | "approved" | "rejected" | "delivered" | "cancelled"; brandId?: number; limit?: number; offset?: number; }): Promise<(MaterialRequest & { materialName?: string | null; brandId?: number | null; brandName?: string | null; promoterName?: string | null; storeName?: string | null })[]> {
+export async function getMaterialRequests(filters: { userId?: number; status?: "pending" | "approved" | "rejected" | "delivered" | "cancelled"; brandId?: number; limit?: number; offset?: number; }): Promise<(MaterialRequest & { materialName?: string | null; materialPhotoUrl?: string | null; brandId?: number | null; brandName?: string | null; promoterName?: string | null; storeName?: string | null })[]> {
   const db = await getDb();
   if (!db) return [];
   const conditions = [];
@@ -423,6 +461,7 @@ export async function getMaterialRequests(filters: { userId?: number; status?: "
       createdAt: materialRequests.createdAt,
       updatedAt: materialRequests.updatedAt,
       materialName: materials.name,
+      materialPhotoUrl: materials.photoUrl,
       brandId: materials.brandId,
       brandName: brands.name,
       promoterName: appUsers.name,
@@ -2086,6 +2125,7 @@ export async function getPromoterStoreTimeStats(promoterId: number, startDate: D
   totalMinutes: number;
   weeklyAvgMinutes: number;
   percentage: number;
+  visitCount: number;
 }[]> {
   const db = await getDb();
   if (!db) return [];
@@ -2110,14 +2150,15 @@ export async function getPromoterStoreTimeStats(promoterId: number, startDate: D
     .orderBy(timeEntries.entryTime);
 
   // Calculate time per store by pairing entry/exit
-  const storeMinutes: Record<number, { storeName: string; totalMinutes: number }> = {};
+  const storeMinutes: Record<number, { storeName: string; totalMinutes: number; visitCount: number }> = {};
   const openEntries: Record<number, Date> = {}; // storeId -> entry time
 
   for (const e of entries) {
     const sid = e.storeId;
-    if (!storeMinutes[sid]) storeMinutes[sid] = { storeName: e.storeName ?? `Loja ${sid}`, totalMinutes: 0 };
+    if (!storeMinutes[sid]) storeMinutes[sid] = { storeName: e.storeName ?? `Loja ${sid}`, totalMinutes: 0, visitCount: 0 };
     if (e.entryType === "entry") {
       openEntries[sid] = new Date(e.entryTime);
+      storeMinutes[sid].visitCount++;
     } else if (e.entryType === "exit" && openEntries[sid]) {
       const mins = (new Date(e.entryTime).getTime() - openEntries[sid].getTime()) / 60000;
       storeMinutes[sid].totalMinutes += Math.max(0, mins);
@@ -2137,6 +2178,7 @@ export async function getPromoterStoreTimeStats(promoterId: number, startDate: D
       storeId: Number(sid),
       storeName: v.storeName,
       totalMinutes: Math.round(v.totalMinutes),
+      visitCount: v.visitCount,
       // Média semanal = total na loja / 4 semanas
       weeklyAvgMinutes: Math.round(v.totalMinutes / FIXED_WEEKS),
       // Percentual = tempo na loja / tempo total do promotor no período
