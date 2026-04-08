@@ -5,7 +5,8 @@ import Image from "next/image";
 import {
   LayoutDashboard, Users, Trophy, MapPin, Camera, Package,
   BarChart3, Settings, LogOut, ChevronLeft, Tag, Clock, FolderOpen,
-  BarChart2, Navigation, UserCog, ChevronRight, Bell,
+  BarChart2, Navigation, UserCog, ChevronRight, Bell, FileSignature,
+  Shield, Timer, AlertTriangle, AlertCircle,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import { trpc } from "@/lib/trpc";
@@ -93,8 +94,11 @@ export function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle:
           label: "Promotores",
           items: [
             { href: "/clock", icon: Clock, label: "Controle de Ponto" },
+            { href: "/team/audit-clock", icon: Shield, label: "Auditoria de Ponto" },
+            { href: "/team/store-time", icon: Timer, label: "Tempo por Loja" },
             { href: "/photos", icon: Camera, label: "Fotos", badge: pendingPhotos > 0 ? pendingPhotos : undefined },
             { href: "/materials", icon: Package, label: "Materiais", badge: pendingMaterials > 0 ? pendingMaterials : undefined },
+            { href: "/team/manager-product-expiration", icon: AlertTriangle, label: "Vencimento Produtos" },
           ],
         },
         {
@@ -108,7 +112,9 @@ export function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle:
           label: "Gestão",
           items: [
             { href: "/notifications", icon: Bell, label: "Notificações" },
+            { href: "/alerts", icon: AlertCircle, label: "Alertas" },
             { href: "/reports", icon: BarChart3, label: "Relatórios" },
+            { href: "/sign-report", icon: FileSignature, label: "Assinatura de Relatório" },
             ...(isMaster ? [{ href: "/master-users", icon: UserCog, label: "Usuários" }] : []),
             { href: "/settings", icon: Settings, label: "Configurações" },
           ],
