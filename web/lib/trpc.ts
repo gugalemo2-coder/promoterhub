@@ -9,15 +9,17 @@ export const trpc = createTRPCReact<AppRouter>();
 
 function getApiUrl() {
   if (typeof window !== "undefined") {
-    const { protocol, hostname } = window.location;
-    // If running on port 3001 (web dev), point to 3000 (API)
-    const apiHostname = hostname.replace(/^3001-/, "3000-").replace(/^8082-/, "3000-");
-    if (apiHostname !== hostname) {
-      return `${protocol}//${apiHostname}`;
+    const { hostname } = window.location;
+
+    // Local development: point to local API server
+    if (hostname === "localhost" || hostname === "127.0.0.1") {
+      return "http://localhost:3000";
     }
-    // Same host (e.g. vercel deploy), use /api prefix
-    return "";
+
+    // Production: point to Railway API
+    return "https://api-production-bbc3e.up.railway.app";
   }
+
   return process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000";
 }
 
@@ -29,7 +31,6 @@ export function createTRPCClient() {
         transformer: SuperJSON,
         headers() {
           if (typeof document !== "undefined") {
-            // Cookie is sent automatically by browser
             return {};
           }
           return {};
