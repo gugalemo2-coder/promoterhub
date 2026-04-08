@@ -16,7 +16,7 @@ export default function RootPage() {
     }
     const role = (user as any)?.appRole;
     if (role === "promoter") {
-      router.replace("/promoter-home");
+      router.replace("/team/promoter-home");
     } else {
       router.replace("/dashboard");
     }
