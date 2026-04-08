@@ -31,7 +31,7 @@ function getRoleBadgeColor(role: string | null | undefined): string {
   return "#1d4ed8";
 }
 
-export function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle: () => void }) {
+export function Sidebar({ collapsed, onToggle, onNavigate }: { collapsed: boolean; onToggle: () => void; onNavigate?: () => void }) {
   const pathname = usePathname();
   const { user, logout } = useAuth();
   const pendingQuery = trpc.photos.countPending.useQuery(undefined, { refetchInterval: 30000 });
@@ -176,6 +176,7 @@ export function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle:
               const isActive = pathname === item.href || pathname.startsWith(item.href + "/");
               return (
                 <Link key={item.href} href={item.href}
+                  onClick={onNavigate}
                   title={collapsed ? item.label : undefined}
                   style={{
                     display: "flex", alignItems: "center", gap: 10,
@@ -213,10 +214,9 @@ export function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle:
         ))}
       </nav>
 
-      {/* Footer — always visible, adapts to collapsed state */}
+      {/* Footer */}
       <div style={{ borderTop: "1px solid rgba(255,255,255,0.06)", padding: "10px 10px" }}>
         {collapsed ? (
-          /* Collapsed: avatar + logout icon stacked */
           <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
             <div style={{
               width: 32, height: 32, borderRadius: "50%",
@@ -239,13 +239,11 @@ export function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle:
             </button>
           </div>
         ) : (
-          /* Expanded: welcome banner with name, role badge and logout */
           <div style={{
             background: `${badgeColor}18`,
             border: `1px solid ${badgeColor}30`,
             borderRadius: 10, padding: "10px 12px",
           }}>
-            {/* Top row: avatar + name + logout */}
             <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
               <div style={{
                 width: 34, height: 34, minWidth: 34, borderRadius: "50%",
@@ -278,7 +276,6 @@ export function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle:
                 Sair
               </button>
             </div>
-            {/* Role badge */}
             <div style={{
               display: "inline-flex", alignItems: "center",
               background: badgeColor,
