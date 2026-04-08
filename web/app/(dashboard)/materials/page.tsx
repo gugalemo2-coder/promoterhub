@@ -324,7 +324,9 @@ export default function MaterialsPage() {
   ];
 
   return (
-    <div style={{ padding: "28px 32px", maxWidth: 1200, margin: "0 auto" }}>
+    <div style={{ padding: "16px", maxWidth: 1200, margin: "0 auto" }}>
+      {/* responsive padding via className override */}
+      <style>{`@media (min-width: 640px) { .materials-page { padding: 28px 32px !important; } }`}</style>
       {/* Toast */}
       {toast && (
         <div style={{
@@ -415,20 +417,19 @@ export default function MaterialsPage() {
 
       {/* Tabs */}
       <div style={{ display: "flex", gap: 4, marginBottom: 24, borderBottom: "1px solid #e5e7eb" }}>
-        {!isManager && (
-          <button
-            onClick={() => setActiveTab("catalog")}
-            style={{
-              padding: "10px 18px", fontSize: 14, fontWeight: 600, cursor: "pointer",
-              border: "none", background: "none",
-              color: activeTab === "catalog" ? "#1d4ed8" : "#6b7280",
-              borderBottom: activeTab === "catalog" ? "2px solid #1d4ed8" : "2px solid transparent",
-              marginBottom: -1,
-            }}
-          >
-            Catálogo
-          </button>
-        )}
+        {/* Catálogo tab visible for all roles */}
+        <button
+          onClick={() => setActiveTab("catalog")}
+          style={{
+            padding: "10px 18px", fontSize: 14, fontWeight: 600, cursor: "pointer",
+            border: "none", background: "none",
+            color: activeTab === "catalog" ? "#1d4ed8" : "#6b7280",
+            borderBottom: activeTab === "catalog" ? "2px solid #1d4ed8" : "2px solid transparent",
+            marginBottom: -1,
+          }}
+        >
+          {isManager ? "Estoque" : "Catálogo"}
+        </button>
         <button
           onClick={() => setActiveTab("requests")}
           style={{
@@ -452,8 +453,8 @@ export default function MaterialsPage() {
         </button>
       </div>
 
-      {/* ── CATÁLOGO (promotor) ── */}
-      {activeTab === "catalog" && !isManager && (
+      {/* ── CATÁLOGO / ESTOQUE ── */}
+      {activeTab === "catalog" && (
         <div>
           {materials.isLoading ? (
             <div style={{ textAlign: "center", padding: "60px 0", color: "#9ca3af" }}>Carregando materiais...</div>
@@ -617,9 +618,14 @@ export default function MaterialsPage() {
                       gap: 16, flexWrap: "wrap",
                     }}
                   >
-                    {/* Ícone */}
-                    <div style={{ width: 42, height: 42, borderRadius: 10, background: "#f9fafb", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, marginTop: 2 }}>
-                      <Package size={18} style={{ color: "#6b7280" }} />
+                    {/* Foto ou ícone do material */}
+                    <div style={{ width: 42, height: 42, borderRadius: 10, background: "#f9fafb", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, marginTop: 2, overflow: "hidden" }}>
+                      {req.materialPhotoUrl ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={req.materialPhotoUrl} alt={req.materialName ?? ""} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                      ) : (
+                        <Package size={18} style={{ color: "#6b7280" }} />
+                      )}
                     </div>
 
                     {/* Info principal */}
