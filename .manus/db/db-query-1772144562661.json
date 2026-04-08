@@ -1,9 +1,0 @@
-{
-  "query": "DELETE FROM photos;\nDELETE FROM time_entries;",
-  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 3MUjan8YnY9PgZH.4cd173914575 --database cSF363ubWEjutwgRMZGZ84 --execute DELETE FROM photos;\nDELETE FROM time_entries;",
-  "rows": [],
-  "messages": [],
-  "stdout": "",
-  "stderr": "",
-  "execution_time_ms": 150
-}

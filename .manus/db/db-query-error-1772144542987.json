@@ -1,8 +1,0 @@
-{
-  "query": "SELECT tablename FROM pg_tables WHERE schemaname = 'public' ORDER BY tablename;",
-  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 3MUjan8YnY9PgZH.4cd173914575 --database cSF363ubWEjutwgRMZGZ84 --execute SELECT tablename FROM pg_tables WHERE schemaname = 'public' ORDER BY tablename;",
-  "returncode": 1,
-  "logs": [
-    "ERROR 1146 (42S02) at line 1: Table 'csf363ubwejutwgrmzgz84.pg_tables' doesn't exist"
-  ]
-}
