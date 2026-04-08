@@ -77,7 +77,7 @@ export default function SettingsPage() {
   ];
 
   return (
-    <div className="p-6 max-w-3xl mx-auto">
+    <div className="p-4 sm:p-6 max-w-3xl mx-auto">
       <PageHeader
         title="Configurações"
         subtitle="Score e notificações"
@@ -125,10 +125,10 @@ export default function SettingsPage() {
 
             <div className="space-y-3">
               {scoreWeights.map((w) => (
-                <div key={w.key} className="flex items-center gap-3">
+                <div key={w.key} className="flex items-center gap-2 sm:gap-3">
                   <div className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${w.color}`} />
-                  <span className="text-sm text-gray-700 flex-1">{w.label}</span>
-                  <div className="flex items-center gap-2">
+                  <span className="text-xs sm:text-sm text-gray-700 flex-1 min-w-0 truncate">{w.label}</span>
+                  <div className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0">
                     <button
                       onClick={() => adjustWeight(w.key, -5)}
                       className="w-7 h-7 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold text-sm flex items-center justify-center transition-colors"
@@ -154,7 +154,7 @@ export default function SettingsPage() {
             <p className="text-xs text-gray-500 mb-4">Escolha quais eventos geram notificações</p>
             <div className="space-y-4">
               {notifications.map((n) => (
-                <div key={n.key} className="flex items-start gap-3">
+                <div key={n.key} className="flex items-start gap-3 min-w-0">
                   <button
                     onClick={() => update(n.key, !form[n.key])}
                     className={`relative w-11 h-6 rounded-full transition-colors flex-shrink-0 mt-0.5 ${
@@ -165,9 +165,9 @@ export default function SettingsPage() {
                       form[n.key] ? "translate-x-5" : "translate-x-0.5"
                     }`} />
                   </button>
-                  <div>
+                  <div className="min-w-0">
                     <p className="text-sm font-medium text-gray-900">{n.label}</p>
-                    <p className="text-xs text-gray-500 mt-0.5">{n.desc}</p>
+                    <p className="text-xs text-gray-500 mt-0.5 leading-relaxed">{n.desc}</p>
                   </div>
                 </div>
               ))}
