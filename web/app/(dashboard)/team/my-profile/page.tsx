@@ -3,14 +3,14 @@ import { useAuth } from "@/lib/auth-context";
 import { trpc } from "@/lib/trpc";
 import {
   User, CheckCircle, XCircle, Package, MapPin, Calendar,
-  ChevronLeft, ChevronRight, BarChart3, Loader2,
+  ChevronLeft, ChevronRight, BarChart3, Loader2, LogOut,
 } from "lucide-react";
 import { useState } from "react";
 
 const MONTHS = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
 
 export default function MyProfilePage() {
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
   const now = new Date();
   const [year, setYear] = useState(now.getFullYear());
   const [month, setMonth] = useState(now.getMonth() + 1);
@@ -39,7 +39,23 @@ export default function MyProfilePage() {
         background: "linear-gradient(135deg, #1A56DB 0%, #1E40AF 100%)",
         padding: "24px 20px 32px", textAlign: "center",
         borderRadius: "0 0 24px 24px",
+        position: "relative",
       }}>
+        {/* Logout button */}
+        <button
+          onClick={logout}
+          style={{
+            position: "absolute", top: 16, right: 16,
+            display: "flex", alignItems: "center", gap: 6,
+            background: "rgba(255,255,255,0.15)", border: "1px solid rgba(255,255,255,0.25)",
+            borderRadius: 10, padding: "8px 14px", cursor: "pointer",
+            color: "white", fontSize: 12, fontWeight: 600,
+          }}
+        >
+          <LogOut size={14} />
+          Sair
+        </button>
+
         <div style={{
           width: 64, height: 64, borderRadius: "50%", background: "rgba(255,255,255,0.2)",
           display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 10px",
