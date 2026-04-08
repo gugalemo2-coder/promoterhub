@@ -259,7 +259,7 @@ export default function MasterUsersPage() {
   }
 
   return (
-    <div className="p-6 max-w-7xl mx-auto">
+    <div className="p-4 sm:p-6 max-w-7xl mx-auto">
       <PageHeader
         title="Usuários"
         subtitle="Gerenciamento de contas e permissões"
@@ -325,7 +325,7 @@ export default function MasterUsersPage() {
         </select>
       </div>
 
-      {/* Table */}
+      {/* Users List */}
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
         {loading ? (
           <div className="flex items-center justify-center py-20 text-gray-400 gap-3">
@@ -338,7 +338,49 @@ export default function MasterUsersPage() {
             <p className="text-sm">Nenhum usuário encontrado</p>
           </div>
         ) : (
-          <table className="w-full text-sm">
+          <>
+            {/* Mobile Cards (below md) */}
+            <div className="divide-y divide-gray-50 md:hidden">
+              {filtered.map((u) => (
+                <div key={u.id} className={`p-4 ${!u.active ? "opacity-60" : ""}`}>
+                  <div className="flex items-center gap-3 mb-3">
+                    <div className="w-9 h-9 rounded-full bg-blue-100 flex items-center justify-center text-blue-700 font-bold text-sm flex-shrink-0">
+                      {u.avatarUrl ? (
+                        <img src={u.avatarUrl} alt={u.name ?? u.login} className="w-9 h-9 rounded-full object-cover" />
+                      ) : (
+                        (u.name ?? u.login).charAt(0).toUpperCase()
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-gray-800 truncate">{u.name ?? "—"}</p>
+                      <p className="text-xs text-gray-500 truncate">{u.login}</p>
+                    </div>
+                    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold ${ROLE_COLORS[u.appRole] ?? "bg-gray-100 text-gray-600"}`}>
+                      {ROLE_LABELS[u.appRole] ?? u.appRole}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold ${u.active ? "bg-green-100 text-green-700" : "bg-red-100 text-red-600"}`}>
+                      <span className={`w-1.5 h-1.5 rounded-full ${u.active ? "bg-green-500" : "bg-red-400"}`} />
+                      {u.active ? "Ativo" : "Inativo"}
+                    </span>
+                    <div className="flex items-center gap-1">
+                      <button onClick={() => setRoleModal(u)} title="Alterar cargo" className="p-2 rounded-lg text-purple-600 hover:bg-purple-50 transition-colors"><Shield size={16} /></button>
+                      <button onClick={() => { setPasswordModal(u); setNewPassword(""); setShowPassword(false); }} title="Redefinir senha" className="p-2 rounded-lg text-blue-600 hover:bg-blue-50 transition-colors"><Key size={16} /></button>
+                      <button onClick={() => handleToggleActive(u)} title={u.active ? "Desativar" : "Ativar"} className={`p-2 rounded-lg transition-colors ${u.active ? "text-orange-500 hover:bg-orange-50" : "text-green-600 hover:bg-green-50"}`}>
+                        {u.active ? <UserX size={16} /> : <UserCheck size={16} />}
+                      </button>
+                      {u.appRole !== "master" && (
+                        <button onClick={() => setDeleteModal(u)} title="Excluir" className="p-2 rounded-lg text-red-500 hover:bg-red-50 transition-colors"><Trash2 size={16} /></button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Desktop Table (md+) */}
+            <table className="w-full text-sm hidden md:table">
             <thead>
               <tr className="border-b border-gray-100 bg-gray-50">
                 <th className="text-left px-5 py-3 font-semibold text-gray-600">Usuário</th>
@@ -447,6 +489,7 @@ export default function MasterUsersPage() {
               ))}
             </tbody>
           </table>
+          </>
         )}
       </div>
 
@@ -469,7 +512,7 @@ export default function MasterUsersPage() {
               </span>
             </p>
             <div className="flex flex-col gap-2 mb-5">
-              {(["promoter", "manager", "supervisor"] as const).map((role) => (
+              {(["promoter", "supervisor", "manager", "master"] as const).map((role) => (
                 <button
                   key={role}
                   onClick={() => handleChangeRole(roleModal, role)}
