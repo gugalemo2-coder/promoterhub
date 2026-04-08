@@ -26,15 +26,11 @@
   "include": [
     "server/**/*.ts",
     "shared/**/*.ts",
-    "drizzle/**/*.ts",
-    "nativewind-env.d.ts",
-    ".expo/types/**/*.ts",
-    "expo-env.d.ts"
+    "drizzle/**/*.ts"
   ],
   "exclude": [
     "node_modules",
     "dist",
     "web"
-  ],
-  "extends": "expo/tsconfig.base"
+  ]
 }
