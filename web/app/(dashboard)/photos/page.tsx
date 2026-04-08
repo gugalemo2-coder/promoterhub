@@ -4,7 +4,7 @@ import { formatDateTime } from "@/lib/utils";
 import {
   Camera, RefreshCw, CheckCircle, XCircle, Download,
   ExternalLink, Filter, X, CheckSquare, Square, Archive,
-  MessageSquare, Send,
+  MessageSquare, Send, Maximize2,
 } from "lucide-react";
 import { useState, useCallback } from "react";
 import JSZip from "jszip";
@@ -80,6 +80,10 @@ function PhotoCard({
         )}
         {(hovered || selected) && !selectMode && (
           <div style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.45)", display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
+            <button onClick={() => photo.photoUrl && (window as any).__setFullscreen?.(photo.photoUrl)} title="Ver em tela cheia"
+              style={{ width: 36, height: 36, borderRadius: "50%", background: "rgba(255,255,255,0.9)", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <Maximize2 size={15} style={{ color: "#374151" }} />
+            </button>
             <button onClick={() => onDownload(photo, idx)} disabled={downloading === photo.id} title="Baixar"
               style={{ width: 36, height: 36, borderRadius: "50%", background: "rgba(255,255,255,0.9)", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
               {downloading === photo.id ? <div style={{ width: 14, height: 14, border: "2px solid #6b7280", borderTopColor: "transparent", borderRadius: "50%", animation: "spin 0.8s linear infinite" }} /> : <Download size={15} style={{ color: "#374151" }} />}
@@ -100,13 +104,13 @@ function PhotoCard({
         <p style={{ fontSize: 12, fontWeight: 600, color: "#111827", margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{promoterName}</p>
         <p style={{ fontSize: 11, color: "#6b7280", margin: "2px 0 0", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{storeName}{brandName ? ` · ${brandName}` : ""}</p>
         <p style={{ fontSize: 10, color: "#9ca3af", margin: "3px 0 0" }}>{formatDateTime(photo.createdAt as string)}</p>
-        <div style={{ display: "flex", gap: 6, marginTop: 8, alignItems: "center" }}>
+        <div style={{ display: "flex", gap: 4, marginTop: 8, alignItems: "center" }}>
           {photo.status === "pending" && (
             <>
-              <button onClick={() => onApprove(photo.id)} style={{ flex: 1, padding: "5px 0", borderRadius: 7, border: "none", background: "#d1fae5", color: "#065f46", fontSize: 11, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 4 }}>
+              <button onClick={() => onApprove(photo.id)} style={{ flex: 1, padding: "6px 0", borderRadius: 7, border: "none", background: "#d1fae5", color: "#065f46", fontSize: 11, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 3 }}>
                 <CheckCircle size={11} /> Aprovar
               </button>
-              <button onClick={() => onReject(photo.id)} style={{ flex: 1, padding: "5px 0", borderRadius: 7, border: "none", background: "#fee2e2", color: "#991b1b", fontSize: 11, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 4 }}>
+              <button onClick={() => onReject(photo.id)} style={{ flex: 1, padding: "6px 0", borderRadius: 7, border: "none", background: "#fee2e2", color: "#991b1b", fontSize: 11, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 3 }}>
                 <XCircle size={11} /> Rejeitar
               </button>
             </>
@@ -128,13 +132,13 @@ function CommentPanel({ photoId, onClose }: { photoId: number; onClose: () => vo
 
   const handleAdd = async () => {
     if (!text.trim()) return;
-    await addComment.mutateAsync({ photoId, text: text.trim() });
+    await addComment.mutateAsync({ photoId, comment: text.trim() });
     setText("");
     comments.refetch();
   };
 
   const handleDelete = async (id: number) => {
-    await deleteComment.mutateAsync({ commentId: id });
+    await deleteComment.mutateAsync({ id });
     comments.refetch();
   };
 
@@ -186,6 +190,7 @@ export default function PhotosPage() {
   const [batchLoading, setBatchLoading] = useState(false);
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
   const [commentPhotoId, setCommentPhotoId] = useState<number | null>(null);
+  const [fullscreenUrl, setFullscreenUrl] = useState<string | null>(null);
 
   const photos = trpc.photos.listAllWithDetails.useQuery({
     status: status === "all" ? undefined : status,
@@ -309,8 +314,11 @@ export default function PhotosPage() {
   ];
 
   return (
-    <div style={{ padding: "28px 32px", maxWidth: 1400, margin: "0 auto", paddingRight: commentPhotoId ? 360 : 32 }}>
-      <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
+    <div style={{ padding: "16px", maxWidth: 1400, margin: "0 auto", paddingRight: commentPhotoId ? 360 : 16 }}>
+      <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+      @media (min-width: 640px) { .photos-container { padding: 28px 32px !important; padding-right: ${commentPhotoId ? '360px' : '32px'} !important; } }`}</style>
+      <script dangerouslySetInnerHTML={{ __html: "" }} />
+      {(() => { if (typeof window !== "undefined") (window as any).__setFullscreen = setFullscreenUrl; return null; })()}
 
       {toast && (
         <div style={{
@@ -321,11 +329,11 @@ export default function PhotosPage() {
         }}>{toast.msg}</div>
       )}
 
-      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 24 }}>
+      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 24, flexWrap: "wrap", gap: 12 }}>
         <div>
-          <h1 style={{ fontSize: 22, fontWeight: 800, color: "#111827", margin: 0 }}>Fotos dos Promotores</h1>
+          <h1 style={{ fontSize: 20, fontWeight: 800, color: "#111827", margin: 0 }}>Fotos dos Promotores</h1>
           <p style={{ fontSize: 13, color: "#6b7280", margin: "4px 0 0" }}>
-            {data.length} foto(s) · {data.filter((p) => p.status === "pending").length} pendente(s) de revisão
+            {data.length} foto(s) · {data.filter((p) => p.status === "pending").length} pendente(s)
           </p>
         </div>
         <button
@@ -403,9 +411,9 @@ export default function PhotosPage() {
 
       {selectMode && (
         <div style={{
-          background: "#1e3a8a", borderRadius: 12, padding: "12px 18px",
-          marginBottom: 16, display: "flex", alignItems: "center", gap: 12,
-          boxShadow: "0 4px 16px rgba(30,58,138,0.25)",
+          background: "#1e3a8a", borderRadius: 12, padding: "12px 16px",
+          marginBottom: 16, display: "flex", alignItems: "center", gap: 8,
+          boxShadow: "0 4px 16px rgba(30,58,138,0.25)", flexWrap: "wrap",
         }}>
           <span style={{ color: "white", fontSize: 13, fontWeight: 600, flex: 1 }}>
             {selected.size} foto(s) selecionada(s)
@@ -440,7 +448,7 @@ export default function PhotosPage() {
           <p style={{ margin: 0 }}>Nenhuma foto encontrada</p>
         </div>
       ) : (
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: 16 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))", gap: 12 }}>
           {data.map((photo, idx) => (
             <PhotoCard
               key={photo.id}
@@ -464,6 +472,39 @@ export default function PhotosPage() {
         <p style={{ textAlign: "center", fontSize: 11, color: "#9ca3af", marginTop: 20 }}>
           Clique no ícone de seleção em qualquer foto para ativar a seleção múltipla
         </p>
+      )}
+
+      {/* Fullscreen Image Modal */}
+      {fullscreenUrl && (
+        <div
+          onClick={() => setFullscreenUrl(null)}
+          style={{
+            position: "fixed", inset: 0, background: "rgba(0,0,0,0.85)",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            zIndex: 9999, cursor: "zoom-out", padding: 16,
+          }}
+        >
+          <button
+            onClick={() => setFullscreenUrl(null)}
+            style={{
+              position: "absolute", top: 16, right: 16, width: 40, height: 40,
+              borderRadius: "50%", background: "rgba(255,255,255,0.15)", border: "none",
+              cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
+            }}
+          >
+            <X size={20} style={{ color: "white" }} />
+          </button>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={fullscreenUrl}
+            alt="Foto em tela cheia"
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              maxWidth: "95vw", maxHeight: "90vh", objectFit: "contain",
+              borderRadius: 8, cursor: "default",
+            }}
+          />
+        </div>
       )}
 
       {/* Comment Side Panel */}
