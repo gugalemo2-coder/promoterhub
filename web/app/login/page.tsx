@@ -7,10 +7,9 @@ import { useEffect, useState } from "react";
 import { Loader2, Users, Camera, Package, Shield, Eye, EyeOff, LogIn } from "lucide-react";
 
 export default function LoginPage() {
-  const { isAuthenticated, loading, demoLogin, appLogin } = useAuth();
+  const { isAuthenticated, loading, appLogin } = useAuth();
   const router = useRouter();
 
-  const [demoLoading, setDemoLoading] = useState<"promoter" | "manager" | null>(null);
   const [loginLoading, setLoginLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -43,19 +42,6 @@ export default function LoginPage() {
     }
   };
 
-  const handleDemoLogin = async (role: "promoter" | "manager") => {
-    try {
-      setError("");
-      setDemoLoading(role);
-      await demoLogin(role);
-      router.replace("/dashboard");
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Erro ao fazer login");
-    } finally {
-      setDemoLoading(null);
-    }
-  };
-
   if (loading) {
     return (
       <div className="flex items-center justify-center h-screen bg-gray-50">
@@ -63,8 +49,6 @@ export default function LoginPage() {
       </div>
     );
   }
-
-  const isAnyLoading = loginLoading || demoLoading !== null;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-700 via-blue-600 to-blue-800 flex items-center justify-center p-4">
@@ -113,7 +97,7 @@ export default function LoginPage() {
                 autoCapitalize="none"
                 autoCorrect="off"
                 spellCheck={false}
-                disabled={isAnyLoading}
+                disabled={loginLoading}
                 className="w-full px-3.5 py-2.5 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:opacity-60 bg-gray-50"
               />
             </div>
@@ -125,7 +109,7 @@ export default function LoginPage() {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="••••••••"
-                  disabled={isAnyLoading}
+                  disabled={loginLoading}
                   className="w-full px-3.5 py-2.5 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:opacity-60 bg-gray-50 pr-10"
                 />
                 <button
@@ -140,7 +124,7 @@ export default function LoginPage() {
             </div>
             <button
               type="submit"
-              disabled={isAnyLoading}
+              disabled={loginLoading}
               className="w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white font-semibold py-3 px-6 rounded-xl transition-colors text-sm"
             >
               {loginLoading ? (
@@ -151,45 +135,6 @@ export default function LoginPage() {
               Entrar
             </button>
           </form>
-
-          {/* Divider */}
-          <div className="relative mb-4">
-            <div className="absolute inset-0 flex items-center">
-              <div className="w-full border-t border-gray-100" />
-            </div>
-            <div className="relative flex justify-center text-xs">
-              <span className="bg-white px-3 text-gray-400">ou acesso de demonstração</span>
-            </div>
-          </div>
-
-          {/* Demo Buttons */}
-          <div className="space-y-2">
-            <button
-              onClick={() => handleDemoLogin("manager")}
-              disabled={isAnyLoading}
-              className="w-full flex items-center justify-center gap-3 bg-gray-50 hover:bg-gray-100 disabled:opacity-60 text-gray-700 font-medium py-2.5 px-6 rounded-xl border border-gray-200 transition-colors text-sm"
-            >
-              {demoLoading === "manager" ? (
-                <Loader2 size={16} className="animate-spin" />
-              ) : (
-                <Shield size={16} className="text-blue-500" />
-              )}
-              Entrar como Gestor Demo
-            </button>
-
-            <button
-              onClick={() => handleDemoLogin("promoter")}
-              disabled={isAnyLoading}
-              className="w-full flex items-center justify-center gap-3 bg-gray-50 hover:bg-gray-100 disabled:opacity-60 text-gray-700 font-medium py-2.5 px-6 rounded-xl border border-gray-200 transition-colors text-sm"
-            >
-              {demoLoading === "promoter" ? (
-                <Loader2 size={16} className="animate-spin" />
-              ) : (
-                <Users size={16} className="text-green-500" />
-              )}
-              Entrar como Promotor Demo
-            </button>
-          </div>
 
           <p className="text-center text-xs text-gray-400 mt-5">
             Dados seguros · Dinâmica Corretora v1.0
