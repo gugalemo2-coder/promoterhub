@@ -1566,17 +1566,18 @@ export async function getStoreVisitHistory(
   const endDate = new Date(year, month, 0, 23, 59, 59);
 
   // Get all entries for this store in the period
+  // NOTE: timeEntries.userId references app_users.id, NOT users.id (OAuth table)
   const entries = await db
     .select({
       id: timeEntries.id,
       userId: timeEntries.userId,
       entryType: timeEntries.entryType,
       entryTime: timeEntries.entryTime,
-      userName: users.name,
-      userEmail: users.email,
+      userName: appUsers.name,
+      userEmail: appUsers.login,
     })
     .from(timeEntries)
-    .innerJoin(users, eq(users.id, timeEntries.userId))
+    .innerJoin(appUsers, eq(appUsers.id, timeEntries.userId))
     .where(
       and(
         eq(timeEntries.storeId, storeId),
