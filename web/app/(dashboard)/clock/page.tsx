@@ -21,6 +21,10 @@ function isSameDay(a: Date, b: Date) {
   return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
 }
 
+function getInitials(name: string) {
+  return name.split(" ").slice(0, 2).map((w) => w[0]?.toUpperCase() ?? "").join("");
+}
+
 const MONTHS = Array.from({ length: 12 }, (_, i) => ({ value: i + 1, label: getMonthName(i + 1) }));
 
 export default function ClockPage() {
@@ -58,20 +62,20 @@ export default function ClockPage() {
 
   // Daily stats
   const dailyEntries = dailyQuery.data ?? [];
-  const dailyEntryCount = dailyEntries.filter((e) => e.entryType === "entry").length;
-  const dailyExitCount = dailyEntries.filter((e) => e.entryType === "exit").length;
+  const dailyEntryCount = dailyEntries.filter((e: any) => e.entryType === "entry").length;
+  const dailyExitCount = dailyEntries.filter((e: any) => e.entryType === "exit").length;
 
   // Monthly stats
   const monthlyEntries = monthlyQuery.data ?? [];
-  const monthlyEntryCount = monthlyEntries.filter((e) => e.entryType === "entry").length;
-  const monthlyExitCount = monthlyEntries.filter((e) => e.entryType === "exit").length;
+  const monthlyEntryCount = monthlyEntries.filter((e: any) => e.entryType === "entry").length;
+  const monthlyExitCount = monthlyEntries.filter((e: any) => e.entryType === "exit").length;
   // Count unique days with at least one entry
   const uniqueDays = new Set(
-    monthlyEntries.map((e) => new Date(e.entryTime).toDateString())
+    monthlyEntries.map((e: any) => new Date(e.entryTime).toDateString())
   ).size;
 
   const isLoading = viewMode === "day" ? dailyQuery.isLoading : monthlyQuery.isLoading;
-  const entries = viewMode === "day" ? dailyEntries : monthlyEntries;
+  const entries = (viewMode === "day" ? dailyEntries : monthlyEntries) as any[];
   const entryCount = viewMode === "day" ? dailyEntryCount : monthlyEntryCount;
   const exitCount = viewMode === "day" ? dailyExitCount : monthlyExitCount;
 
@@ -83,7 +87,7 @@ export default function ClockPage() {
   const years = [now.getFullYear() - 1, now.getFullYear()];
 
   return (
-    <div className="p-6 max-w-7xl mx-auto">
+    <div className="p-4 sm:p-6 max-w-7xl mx-auto">
       <PageHeader
         title="Controle de Ponto"
         subtitle="Registros de entrada e saída de todos os promotores"
@@ -91,15 +95,13 @@ export default function ClockPage() {
         iconColor="text-blue-600"
         iconBg="bg-blue-50"
         actions={
-          <div className="flex items-center gap-2">
-            <button
-              onClick={refetch}
-              className="flex items-center gap-2 px-3 py-2 text-sm text-gray-600 hover:text-gray-900 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
-            >
-              <RefreshCw size={14} />
-              Atualizar
-            </button>
-          </div>
+          <button
+            onClick={refetch}
+            className="flex items-center gap-2 px-3 py-2 text-sm text-gray-600 hover:text-gray-900 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+          >
+            <RefreshCw size={14} />
+            <span className="hidden sm:inline">Atualizar</span>
+          </button>
         }
       />
 
@@ -151,7 +153,7 @@ export default function ClockPage() {
           </button>
         </div>
       ) : (
-        <div className="flex items-center gap-3 mb-6">
+        <div className="flex flex-wrap items-center gap-3 mb-6">
           <select
             value={monthYear.month}
             onChange={(e) => setMonthYear((m) => ({ ...m, month: Number(e.target.value) }))}
@@ -170,97 +172,129 @@ export default function ClockPage() {
               <option key={y} value={y}>{y}</option>
             ))}
           </select>
-          <span className="text-sm text-gray-500 ml-1">
+          <span className="text-sm text-gray-500">
             {uniqueDays} dia{uniqueDays !== 1 ? "s" : ""} com registros
           </span>
         </div>
       )}
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
-        <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4">
-          <p className="text-xs text-gray-500 mb-1">Total de Registros</p>
-          <p className="text-2xl font-bold text-gray-900">{entries.length}</p>
+      <div className="grid grid-cols-3 gap-3 sm:gap-4 mb-6">
+        <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-3 sm:p-4">
+          <p className="text-xs text-gray-500 mb-1">Registros</p>
+          <p className="text-xl sm:text-2xl font-bold text-gray-900">{entries.length}</p>
         </div>
-        <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4">
+        <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-3 sm:p-4">
           <p className="text-xs text-gray-500 mb-1">Entradas</p>
-          <p className="text-2xl font-bold text-green-600">{entryCount}</p>
+          <p className="text-xl sm:text-2xl font-bold text-green-600">{entryCount}</p>
         </div>
-        <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4">
+        <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-3 sm:p-4">
           <p className="text-xs text-gray-500 mb-1">Saídas</p>
-          <p className="text-2xl font-bold text-orange-500">{exitCount}</p>
+          <p className="text-xl sm:text-2xl font-bold text-orange-500">{exitCount}</p>
         </div>
       </div>
 
-      {/* Table */}
-      <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
-        <table className="w-full">
-          <thead>
-            <tr className="border-b border-gray-100 bg-gray-50">
-              <th className="text-left px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Promotor</th>
-              <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide hidden md:table-cell">Loja</th>
-              <th className="text-center px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Tipo</th>
-              <th className="text-center px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">
-                {viewMode === "month" ? "Data e Hora" : "Horário"}
-              </th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-50">
-            {isLoading ? (
-              <tr>
-                <td colSpan={4} className="text-center py-12 text-gray-400 text-sm">Carregando...</td>
-              </tr>
-            ) : entries.length === 0 ? (
-              <tr>
-                <td colSpan={4} className="text-center py-12">
-                  <div className="flex flex-col items-center gap-2">
-                    <Clock size={32} className="text-gray-200" />
-                    <p className="text-gray-400 text-sm">
-                      {viewMode === "day" ? "Nenhum registro neste dia" : `Nenhum registro em ${getMonthName(monthYear.month)} ${monthYear.year}`}
-                    </p>
-                  </div>
-                </td>
-              </tr>
-            ) : (
-              entries.map((entry, idx) => (
-                <tr key={`${entry.id}-${idx}`} className="hover:bg-gray-50 transition-colors">
-                  <td className="px-5 py-4">
-                    <div className="flex items-center gap-2">
-                      <div className="w-7 h-7 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0">
-                        <span className="text-blue-700 text-xs font-semibold">
-                          {String(entry.userId).charAt(0)}
-                        </span>
-                      </div>
-                      <span className="text-sm font-medium text-gray-900">Promotor #{entry.userId}</span>
-                    </div>
-                  </td>
-                  <td className="px-4 py-4 hidden md:table-cell">
-                    <span className="text-sm text-gray-700">Loja #{entry.storeId}</span>
-                  </td>
-                  <td className="px-4 py-4 text-center">
-                    <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium ${
-                      entry.entryType === "entry"
-                        ? "bg-green-50 text-green-700"
-                        : "bg-orange-50 text-orange-700"
-                    }`}>
-                      {entry.entryType === "entry" ? "Entrada" : "Saída"}
-                    </span>
-                  </td>
-                  <td className="px-4 py-4 text-center">
-                    {viewMode === "month" ? (
-                      <span className="text-xs text-gray-700">
-                        {new Date(entry.entryTime).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" })} {formatTime(entry.entryTime)}
+      {/* Loading / Empty */}
+      {isLoading ? (
+        <div className="text-center py-12 text-gray-400 text-sm">Carregando...</div>
+      ) : entries.length === 0 ? (
+        <div className="flex flex-col items-center gap-2 py-12">
+          <Clock size={32} className="text-gray-200" />
+          <p className="text-gray-400 text-sm">
+            {viewMode === "day" ? "Nenhum registro neste dia" : `Nenhum registro em ${getMonthName(monthYear.month)} ${monthYear.year}`}
+          </p>
+        </div>
+      ) : (
+        <>
+          {/* Mobile Cards (below md) */}
+          <div className="flex flex-col gap-3 md:hidden">
+            {entries.map((entry: any, idx: number) => (
+              <div key={`${entry.id}-${idx}`} className="bg-white rounded-xl border border-gray-100 shadow-sm p-4">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-2">
+                    <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0">
+                      <span className="text-blue-700 text-xs font-semibold">
+                        {getInitials(entry.promoterName ?? "?")}
                       </span>
-                    ) : (
-                      <span className="text-sm font-mono text-gray-900">{formatTime(entry.entryTime)}</span>
-                    )}
-                  </td>
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-gray-900 truncate">{entry.promoterName ?? `Promotor #${entry.userId}`}</p>
+                      <p className="text-xs text-gray-500 truncate">{entry.storeName ?? `Loja #${entry.storeId}`}</p>
+                    </div>
+                  </div>
+                  <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium ${
+                    entry.entryType === "entry"
+                      ? "bg-green-50 text-green-700"
+                      : "bg-orange-50 text-orange-700"
+                  }`}>
+                    {entry.entryType === "entry" ? "Entrada" : "Saída"}
+                  </span>
+                </div>
+                <div className="text-xs text-gray-500">
+                  {viewMode === "month" ? (
+                    <span>{new Date(entry.entryTime).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" })} às {formatTime(entry.entryTime)}</span>
+                  ) : (
+                    <span className="font-mono text-gray-900">{formatTime(entry.entryTime)}</span>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Desktop Table (md+) */}
+          <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden hidden md:block">
+            <table className="w-full">
+              <thead>
+                <tr className="border-b border-gray-100 bg-gray-50">
+                  <th className="text-left px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Promotor</th>
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Loja</th>
+                  <th className="text-center px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Tipo</th>
+                  <th className="text-center px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                    {viewMode === "month" ? "Data e Hora" : "Horário"}
+                  </th>
                 </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
+              </thead>
+              <tbody className="divide-y divide-gray-50">
+                {entries.map((entry: any, idx: number) => (
+                  <tr key={`${entry.id}-${idx}`} className="hover:bg-gray-50 transition-colors">
+                    <td className="px-5 py-4">
+                      <div className="flex items-center gap-2">
+                        <div className="w-7 h-7 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0">
+                          <span className="text-blue-700 text-xs font-semibold">
+                            {getInitials(entry.promoterName ?? "?")}
+                          </span>
+                        </div>
+                        <span className="text-sm font-medium text-gray-900">{entry.promoterName ?? `Promotor #${entry.userId}`}</span>
+                      </div>
+                    </td>
+                    <td className="px-4 py-4">
+                      <span className="text-sm text-gray-700">{entry.storeName ?? `Loja #${entry.storeId}`}</span>
+                    </td>
+                    <td className="px-4 py-4 text-center">
+                      <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium ${
+                        entry.entryType === "entry"
+                          ? "bg-green-50 text-green-700"
+                          : "bg-orange-50 text-orange-700"
+                      }`}>
+                        {entry.entryType === "entry" ? "Entrada" : "Saída"}
+                      </span>
+                    </td>
+                    <td className="px-4 py-4 text-center">
+                      {viewMode === "month" ? (
+                        <span className="text-xs text-gray-700">
+                          {new Date(entry.entryTime).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" })} {formatTime(entry.entryTime)}
+                        </span>
+                      ) : (
+                        <span className="text-sm font-mono text-gray-900">{formatTime(entry.entryTime)}</span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
     </div>
   );
 }
