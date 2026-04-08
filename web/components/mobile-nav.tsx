@@ -1,14 +1,16 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Home, Clock, Camera, Package, User } from "lucide-react";
+import { Home, Clock, Camera, Package, FolderOpen, ShoppingCart, User } from "lucide-react";
 
 const NAV_ITEMS = [
-  { href: "/promoter-home", icon: Home, label: "Início" },
-  { href: "/promoter-clock", icon: Clock, label: "Ponto" },
-  { href: "/promoter-photos", icon: Camera, label: "Fotos" },
-  { href: "/product-expiration", icon: Package, label: "Vencimento" },
-  { href: "/my-profile", icon: User, label: "Perfil" },
+  { href: "/team/promoter-home", icon: Home, label: "Início" },
+  { href: "/team/promoter-clock", icon: Clock, label: "Ponto" },
+  { href: "/team/promoter-photos", icon: Camera, label: "Fotos" },
+  { href: "/materials", icon: ShoppingCart, label: "Materiais" },
+  { href: "/files", icon: FolderOpen, label: "Arquivos" },
+  { href: "/team/product-expiration", icon: Package, label: "Vencimento" },
+  { href: "/team/my-profile", icon: User, label: "Perfil" },
 ];
 
 export function MobileNav() {
@@ -44,15 +46,15 @@ export function MobileNav() {
               flexDirection: "column",
               alignItems: "center",
               gap: 2,
-              padding: "6px 12px",
+              padding: "6px 8px",
               textDecoration: "none",
               color: isActive ? "#1A56DB" : "#9ca3af",
               transition: "color 0.15s",
-              minWidth: 56,
+              minWidth: 44,
             }}
           >
-            <Icon size={22} strokeWidth={isActive ? 2.5 : 1.8} />
-            <span style={{ fontSize: 10, fontWeight: isActive ? 700 : 500 }}>{item.label}</span>
+            <Icon size={20} strokeWidth={isActive ? 2.5 : 1.8} />
+            <span style={{ fontSize: 9, fontWeight: isActive ? 700 : 500 }}>{item.label}</span>
           </Link>
         );
       })}
