@@ -2,7 +2,6 @@
 
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/lib/auth-context";
-import { PageHeader } from "@/components/page-header";
 import { FolderOpen, RefreshCw, Upload, Download, FileText, Image, Grid, File, X, Loader2 } from "lucide-react";
 import { useState, useRef } from "react";
 
@@ -78,16 +77,18 @@ export default function FilesPage() {
   };
 
   return (
-    <div style={{ padding: "20px 16px", maxWidth: 800, margin: "0 auto", paddingBottom: 100 }}>
+    <div style={{ padding: "20px 16px", maxWidth: 800, margin: "0 auto", paddingBottom: 100, overflowX: "hidden", boxSizing: "border-box", width: "100%" }}>
+      <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
+
       {/* Header */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20, gap: 12 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 12, minWidth: 0 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 12, minWidth: 0, flex: 1 }}>
           <div style={{ width: 40, height: 40, borderRadius: 12, background: "#FEF3C7", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
             <FolderOpen size={20} style={{ color: "#D97706" }} />
           </div>
-          <div style={{ minWidth: 0 }}>
+          <div style={{ minWidth: 0, flex: 1 }}>
             <h1 style={{ fontSize: 18, fontWeight: 800, color: "#111827", margin: 0 }}>Arquivos</h1>
-            <p style={{ fontSize: 12, color: "#6b7280", margin: 0, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>Documentos e materiais por marca</p>
+            <p style={{ fontSize: 12, color: "#6b7280", margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>Documentos e materiais por marca</p>
           </div>
         </div>
         <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
@@ -100,7 +101,7 @@ export default function FilesPage() {
           {isManager && (
             <button
               onClick={() => setShowUploadModal(true)}
-              style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 14px", borderRadius: 10, border: "none", background: "#D97706", color: "white", fontSize: 13, fontWeight: 600, cursor: "pointer" }}
+              style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 14px", borderRadius: 10, border: "none", background: "#D97706", color: "white", fontSize: 13, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap" }}
             >
               <Upload size={14} />
               Enviar
@@ -110,7 +111,7 @@ export default function FilesPage() {
       </div>
 
       {/* Brand Filter */}
-      <div style={{ display: "flex", gap: 8, marginBottom: 20, overflowX: "auto", paddingBottom: 4 }}>
+      <div style={{ display: "flex", gap: 8, marginBottom: 20, overflowX: "auto", paddingBottom: 4, WebkitOverflowScrolling: "touch" }}>
         <button
           onClick={() => setSelectedBrandId(null)}
           style={{
@@ -178,13 +179,13 @@ export default function FilesPage() {
                 <button onClick={() => fileInputRef.current?.click()} style={{
                   width: "100%", border: `2px dashed ${selectedFile ? "#D97706" : "#e5e7eb"}`, borderRadius: 12, padding: 16,
                   display: "flex", alignItems: "center", gap: 12, cursor: "pointer",
-                  background: selectedFile ? "#FEF3C7" : "#f9fafb",
+                  background: selectedFile ? "#FEF3C7" : "#f9fafb", boxSizing: "border-box",
                 }}>
-                  <Upload size={18} style={{ color: selectedFile ? "#D97706" : "#9ca3af" }} />
-                  <div style={{ flex: 1, textAlign: "left" }}>
+                  <Upload size={18} style={{ color: selectedFile ? "#D97706" : "#9ca3af", flexShrink: 0 }} />
+                  <div style={{ flex: 1, textAlign: "left", minWidth: 0 }}>
                     {selectedFile ? (
                       <>
-                        <p style={{ fontSize: 13, fontWeight: 600, color: "#111827", margin: 0, wordBreak: "break-all" }}>{selectedFile.name}</p>
+                        <p style={{ fontSize: 13, fontWeight: 600, color: "#111827", margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{selectedFile.name}</p>
                         <p style={{ fontSize: 11, color: "#6b7280", margin: "2px 0 0" }}>{formatFileSize(selectedFile.size)}</p>
                       </>
                     ) : (
@@ -210,12 +211,11 @@ export default function FilesPage() {
         </div>
       )}
 
-      {/* Files List - Card layout for mobile */}
+      {/* Files List - Card layout */}
       {isLoading ? (
         <div style={{ textAlign: "center", padding: 60 }}>
           <Loader2 size={28} style={{ color: "#D97706", animation: "spin 1s linear infinite", margin: "0 auto 8px" }} />
           <p style={{ fontSize: 13, color: "#6b7280", margin: 0 }}>Carregando...</p>
-          <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
         </div>
       ) : !files || files.length === 0 ? (
         <div style={{ textAlign: "center", padding: 60 }}>
@@ -241,7 +241,8 @@ export default function FilesPage() {
                 style={{
                   background: "white", borderRadius: 14, padding: "14px 16px",
                   border: "1px solid #e5e7eb", display: "flex", alignItems: "center", gap: 12,
-                  textDecoration: "none", color: "inherit",
+                  textDecoration: "none", color: "inherit", boxSizing: "border-box",
+                  width: "100%", minWidth: 0,
                 }}
               >
                 <div style={{ width: 42, height: 42, borderRadius: 12, backgroundColor: bg, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
@@ -251,7 +252,7 @@ export default function FilesPage() {
                   <p style={{ fontSize: 13, fontWeight: 600, color: "#111827", margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                     {file.fileName}
                   </p>
-                  <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 3 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 3, flexWrap: "wrap" }}>
                     {brand && (
                       <span style={{
                         display: "inline-flex", alignItems: "center", gap: 4,
