@@ -27,7 +27,7 @@ export default function PromoterHomePage() {
   const hasOpenEntry = !!(lastOpen.data as any)?.id;
 
   return (
-    <div style={{ padding: "24px 20px", maxWidth: 600, margin: "0 auto" }}>
+    <div style={{ padding: "24px 20px", maxWidth: 600, margin: "0 auto", paddingBottom: 100 }}>
       {/* Greeting */}
       <div style={{ marginBottom: 24 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
@@ -43,29 +43,29 @@ export default function PromoterHomePage() {
 
       {/* Daily Summary Cards */}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 24 }}>
-        <div style={{ background: "white", borderRadius: 14, padding: 16, border: "1px solid #e5e7eb" }}>
-          <Clock size={18} style={{ color: "#3b82f6", marginBottom: 8 }} />
+        <div style={{ background: "white", borderRadius: 14, padding: 16, border: "1px solid #e5e7eb", textAlign: "center" }}>
+          <Clock size={18} style={{ color: "#3b82f6", margin: "0 auto 8px", display: "block" }} />
           <p style={{ fontSize: 20, fontWeight: 800, color: "#111827", margin: 0 }}>
             {summary.isLoading ? "—" : formatHours(s?.totalMinutes ?? 0)}
           </p>
           <p style={{ fontSize: 11, color: "#6b7280", margin: "2px 0 0" }}>Horas hoje</p>
         </div>
-        <div style={{ background: "white", borderRadius: 14, padding: 16, border: "1px solid #e5e7eb" }}>
-          <Camera size={18} style={{ color: "#8b5cf6", marginBottom: 8 }} />
+        <div style={{ background: "white", borderRadius: 14, padding: 16, border: "1px solid #e5e7eb", textAlign: "center" }}>
+          <Camera size={18} style={{ color: "#8b5cf6", margin: "0 auto 8px", display: "block" }} />
           <p style={{ fontSize: 20, fontWeight: 800, color: "#111827", margin: 0 }}>
             {summary.isLoading ? "—" : (s?.totalPhotos ?? 0)}
           </p>
           <p style={{ fontSize: 11, color: "#6b7280", margin: "2px 0 0" }}>Fotos hoje</p>
         </div>
-        <div style={{ background: "white", borderRadius: 14, padding: 16, border: "1px solid #e5e7eb" }}>
-          <MapPin size={18} style={{ color: "#10b981", marginBottom: 8 }} />
+        <div style={{ background: "white", borderRadius: 14, padding: 16, border: "1px solid #e5e7eb", textAlign: "center" }}>
+          <MapPin size={18} style={{ color: "#10b981", margin: "0 auto 8px", display: "block" }} />
           <p style={{ fontSize: 20, fontWeight: 800, color: "#111827", margin: 0 }}>
             {summary.isLoading ? "—" : (s?.totalEntries ?? 0)}
           </p>
           <p style={{ fontSize: 11, color: "#6b7280", margin: "2px 0 0" }}>Registros</p>
         </div>
-        <div style={{ background: "white", borderRadius: 14, padding: 16, border: "1px solid #e5e7eb" }}>
-          <Camera size={18} style={{ color: "#f59e0b", marginBottom: 8 }} />
+        <div style={{ background: "white", borderRadius: 14, padding: 16, border: "1px solid #e5e7eb", textAlign: "center" }}>
+          <Camera size={18} style={{ color: "#f59e0b", margin: "0 auto 8px", display: "block" }} />
           <p style={{ fontSize: 20, fontWeight: 800, color: "#111827", margin: 0 }}>
             {summary.isLoading ? "—" : (s?.pendingPhotos ?? 0)}
           </p>
@@ -90,10 +90,10 @@ export default function PromoterHomePage() {
 
       {/* Quick Actions */}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 28 }}>
-        <Link href="/team/promoter-photos" style={{ display: "flex", alignItems: "center", gap: 8, background: "white", borderRadius: 12, padding: "14px 16px", border: "1px solid #e5e7eb", textDecoration: "none", color: "#374151", fontSize: 13, fontWeight: 600 }}>
+        <Link href="/team/promoter-photos" style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, background: "white", borderRadius: 12, padding: "14px 16px", border: "1px solid #e5e7eb", textDecoration: "none", color: "#374151", fontSize: 13, fontWeight: 600 }}>
           <Camera size={16} style={{ color: "#8b5cf6" }} /> Enviar Fotos
         </Link>
-        <Link href="/team/product-expiration" style={{ display: "flex", alignItems: "center", gap: 8, background: "white", borderRadius: 12, padding: "14px 16px", border: "1px solid #e5e7eb", textDecoration: "none", color: "#374151", fontSize: 13, fontWeight: 600 }}>
+        <Link href="/team/product-expiration" style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, background: "white", borderRadius: 12, padding: "14px 16px", border: "1px solid #e5e7eb", textDecoration: "none", color: "#374151", fontSize: 13, fontWeight: 600 }}>
           <MapPin size={16} style={{ color: "#f59e0b" }} /> Vencimentos
         </Link>
       </div>
@@ -108,14 +108,14 @@ export default function PromoterHomePage() {
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           {(stores.data ?? []).map((store: any) => (
             <div key={store.id} style={{ background: "white", borderRadius: 12, padding: "14px 16px", border: "1px solid #e5e7eb", display: "flex", alignItems: "center", gap: 12 }}>
-              <div style={{ width: 36, height: 36, borderRadius: 10, background: "#eff6ff", display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <div style={{ width: 36, height: 36, borderRadius: 10, background: "#eff6ff", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
                 <MapPin size={16} style={{ color: "#3b82f6" }} />
               </div>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <p style={{ fontSize: 13, fontWeight: 600, color: "#111827", margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{store.name}</p>
                 {store.address && <p style={{ fontSize: 11, color: "#6b7280", margin: "2px 0 0", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{store.address}</p>}
               </div>
-              <ChevronRight size={16} style={{ color: "#d1d5db" }} />
+              <ChevronRight size={16} style={{ color: "#d1d5db", flexShrink: 0 }} />
             </div>
           ))}
         </div>
