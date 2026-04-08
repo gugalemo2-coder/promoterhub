@@ -4,6 +4,7 @@ import { formatDateTime } from "@/lib/utils";
 import {
   Camera, RefreshCw, CheckCircle, XCircle, Download,
   ExternalLink, Filter, X, CheckSquare, Square, Archive,
+  MessageSquare, Send,
 } from "lucide-react";
 import { useState, useCallback } from "react";
 import JSZip from "jszip";
@@ -16,6 +17,8 @@ interface Photo {
   status?: string | null;
   createdAt?: string | Date | null;
   brandId?: number | null;
+  userId?: number | null;
+  storeId?: number | null;
   [key: string]: unknown;
 }
 
@@ -37,6 +40,7 @@ function StatusPill({ status }: { status: string }) {
 
 function PhotoCard({
   photo, idx, selected, onSelect, onApprove, onReject, onDownload, downloading, selectMode,
+  onOpenComments, commentPhotoId,
 }: {
   photo: Photo; idx: number; selected: boolean;
   onSelect: (id: number) => void;
@@ -45,6 +49,8 @@ function PhotoCard({
   onDownload: (photo: Photo, idx: number) => void;
   downloading: number | null;
   selectMode: boolean;
+  onOpenComments: (id: number) => void;
+  commentPhotoId: number | null;
 }) {
   const [hovered, setHovered] = useState(false);
   const promoterName = (photo.promoterName as string) ?? "Promotor";
@@ -94,42 +100,110 @@ function PhotoCard({
         <p style={{ fontSize: 12, fontWeight: 600, color: "#111827", margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{promoterName}</p>
         <p style={{ fontSize: 11, color: "#6b7280", margin: "2px 0 0", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{storeName}{brandName ? ` · ${brandName}` : ""}</p>
         <p style={{ fontSize: 10, color: "#9ca3af", margin: "3px 0 0" }}>{formatDateTime(photo.createdAt as string)}</p>
-        {photo.status === "pending" && (
-          <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
-            <button onClick={() => onApprove(photo.id)} style={{ flex: 1, padding: "5px 0", borderRadius: 7, border: "none", background: "#d1fae5", color: "#065f46", fontSize: 11, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 4 }}>
-              <CheckCircle size={11} /> Aprovar
-            </button>
-            <button onClick={() => onReject(photo.id)} style={{ flex: 1, padding: "5px 0", borderRadius: 7, border: "none", background: "#fee2e2", color: "#991b1b", fontSize: 11, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 4 }}>
-              <XCircle size={11} /> Rejeitar
-            </button>
-          </div>
-        )}
+        <div style={{ display: "flex", gap: 6, marginTop: 8, alignItems: "center" }}>
+          {photo.status === "pending" && (
+            <>
+              <button onClick={() => onApprove(photo.id)} style={{ flex: 1, padding: "5px 0", borderRadius: 7, border: "none", background: "#d1fae5", color: "#065f46", fontSize: 11, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 4 }}>
+                <CheckCircle size={11} /> Aprovar
+              </button>
+              <button onClick={() => onReject(photo.id)} style={{ flex: 1, padding: "5px 0", borderRadius: 7, border: "none", background: "#fee2e2", color: "#991b1b", fontSize: 11, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 4 }}>
+                <XCircle size={11} /> Rejeitar
+              </button>
+            </>
+          )}
+          <button onClick={() => onOpenComments(photo.id)} style={{ width: 28, height: 28, borderRadius: 7, border: "1px solid #e5e7eb", background: commentPhotoId === photo.id ? "#eff6ff" : "white", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <MessageSquare size={12} style={{ color: commentPhotoId === photo.id ? "#1A56DB" : "#9ca3af" }} />
+          </button>
+        </div>
       </div>
     </div>
   );
-};
+}
 
+function CommentPanel({ photoId, onClose }: { photoId: number; onClose: () => void }) {
+  const [text, setText] = useState("");
+  const comments = trpc.photos.listComments.useQuery({ photoId });
+  const addComment = trpc.photos.addComment.useMutation();
+  const deleteComment = trpc.photos.deleteComment.useMutation();
 
+  const handleAdd = async () => {
+    if (!text.trim()) return;
+    await addComment.mutateAsync({ photoId, text: text.trim() });
+    setText("");
+    comments.refetch();
+  };
+
+  const handleDelete = async (id: number) => {
+    await deleteComment.mutateAsync({ commentId: id });
+    comments.refetch();
+  };
+
+  const list = (comments.data ?? []) as any[];
+
+  return (
+    <div style={{ position: "fixed", right: 0, top: 0, bottom: 0, width: 340, background: "white", boxShadow: "-4px 0 20px rgba(0,0,0,0.1)", zIndex: 60, display: "flex", flexDirection: "column" }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 20px", borderBottom: "1px solid #e5e7eb" }}>
+        <h3 style={{ fontSize: 14, fontWeight: 700, color: "#111827", margin: 0 }}>Comentários</h3>
+        <button onClick={onClose} style={{ width: 28, height: 28, borderRadius: 6, border: "none", background: "#f3f4f6", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}><X size={14} style={{ color: "#6b7280" }} /></button>
+      </div>
+      <div style={{ flex: 1, overflow: "auto", padding: "12px 20px" }}>
+        {comments.isLoading ? (
+          <p style={{ fontSize: 12, color: "#9ca3af" }}>Carregando...</p>
+        ) : list.length === 0 ? (
+          <p style={{ fontSize: 12, color: "#9ca3af", textAlign: "center", paddingTop: 20 }}>Nenhum comentário ainda</p>
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            {list.map((c: any) => (
+              <div key={c.id} style={{ padding: "8px 10px", background: "#f9fafb", borderRadius: 8 }}>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 3 }}>
+                  <span style={{ fontSize: 11, fontWeight: 600, color: "#374151" }}>{c.userName ?? "Usuário"}</span>
+                  <button onClick={() => handleDelete(c.id)} style={{ background: "none", border: "none", cursor: "pointer", padding: 0 }}>
+                    <X size={12} style={{ color: "#d1d5db" }} />
+                  </button>
+                </div>
+                <p style={{ fontSize: 12, color: "#6b7280", margin: 0 }}>{c.text}</p>
+                <p style={{ fontSize: 9, color: "#9ca3af", margin: "4px 0 0" }}>{formatDateTime(c.createdAt)}</p>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+      <div style={{ padding: "12px 20px", borderTop: "1px solid #e5e7eb", display: "flex", gap: 8 }}>
+        <input value={text} onChange={(e) => setText(e.target.value)} placeholder="Escrever comentário..." onKeyDown={(e) => e.key === "Enter" && handleAdd()} style={{ flex: 1, padding: "8px 12px", borderRadius: 8, border: "1px solid #e5e7eb", fontSize: 12, outline: "none" }} />
+        <button onClick={handleAdd} disabled={!text.trim()} style={{ width: 34, height: 34, borderRadius: 8, border: "none", background: "#1A56DB", color: "white", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", opacity: text.trim() ? 1 : 0.5 }}><Send size={14} /></button>
+      </div>
+    </div>
+  );
+}
 
 export default function PhotosPage() {
   const [status, setStatus] = useState<PhotoStatus>("all");
   const [selectedBrand, setSelectedBrand] = useState<number | undefined>(undefined);
+  const [selectedPromoter, setSelectedPromoter] = useState<number | undefined>(undefined);
+  const [selectedStore, setSelectedStore] = useState<number | undefined>(undefined);
   const [downloading, setDownloading] = useState<number | null>(null);
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [batchLoading, setBatchLoading] = useState(false);
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
+  const [commentPhotoId, setCommentPhotoId] = useState<number | null>(null);
 
   const photos = trpc.photos.listAllWithDetails.useQuery({
     status: status === "all" ? undefined : status,
     brandId: selectedBrand,
+    userId: selectedPromoter,
+    storeId: selectedStore,
     limit: 200,
   });
   const brands = trpc.brandsAdmin.listAll.useQuery();
+  const promoters = trpc.stores.listPromoterUsers.useQuery();
+  const stores = trpc.stores.list.useQuery();
   const updateStatus = trpc.photos.updateStatus.useMutation();
   const updateBatch = trpc.photos.updateStatusBatch.useMutation();
 
   const data: Photo[] = (photos.data ?? []) as Photo[];
   const brandList = brands.data ?? [];
+  const promoterList = (promoters.data ?? []) as any[];
+  const storeList = (stores.data ?? []) as any[];
   const selectMode = selected.size > 0;
 
   const showToast = (msg: string, type: "success" | "error" = "success") => {
@@ -188,34 +262,31 @@ export default function PhotosPage() {
     if (!photo.photoUrl) return;
     setDownloading(photo.id);
     try {
-      const promoterName = ((photo.promoterName as string) ?? "promotor").replace(/\s+/g, "-").toLowerCase();
-      const date = new Date((photo.createdAt as string) ?? Date.now()).toISOString().slice(0, 10);
-      const ext = (photo.photoUrl as string).split("?")[0].split(".").pop() ?? "jpg";
-      const filename = `foto-${promoterName}-${date}-${idx + 1}.${ext}`;
-      const response = await fetch(photo.photoUrl as string);
-      const blob = await response.blob();
+      const res = await fetch(photo.photoUrl);
+      const blob = await res.blob();
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
-      a.href = url; a.download = filename;
+      a.href = url;
+      const ext = photo.photoUrl.split(".").pop()?.split("?")[0] ?? "jpg";
+      a.download = `foto-${photo.id}.${ext}`;
       document.body.appendChild(a); a.click(); document.body.removeChild(a);
       setTimeout(() => URL.revokeObjectURL(url), 5000);
-    } catch { window.open(photo.photoUrl as string, "_blank"); }
-    finally { setDownloading(null); }
+    } finally { setDownloading(null); }
   }, []);
 
   const handleBatchDownload = async () => {
-    const toDownload = data.filter((p) => selected.has(p.id) && p.photoUrl);
-    if (toDownload.length === 0) return;
+    if (selected.size === 0) return;
     setBatchLoading(true);
     try {
       const zip = new JSZip();
+      const toDownload = data.filter((p) => selected.has(p.id) && p.photoUrl);
       await Promise.all(
         toDownload.map(async (photo, idx) => {
-          const response = await fetch(photo.photoUrl as string);
-          const blob = await response.blob();
-          const promoterName = ((photo.promoterName as string) ?? "promotor").replace(/\s+/g, "-").toLowerCase();
-          const date = new Date((photo.createdAt as string) ?? Date.now()).toISOString().slice(0, 10);
-          const ext = (photo.photoUrl as string).split("?")[0].split(".").pop() ?? "jpg";
+          const res = await fetch(photo.photoUrl!);
+          const blob = await res.blob();
+          const ext = photo.photoUrl!.split(".").pop()?.split("?")[0] ?? "jpg";
+          const promoterName = ((photo.promoterName as string) ?? "promotor").replace(/\s+/g, "-");
+          const date = photo.createdAt ? new Date(photo.createdAt as string).toISOString().slice(0, 10) : "sem-data";
           zip.file(`foto-${promoterName}-${date}-${idx + 1}.${ext}`, blob);
         })
       );
@@ -238,12 +309,12 @@ export default function PhotosPage() {
   ];
 
   return (
-    <div style={{ padding: "28px 32px", maxWidth: 1400, margin: "0 auto" }}>
+    <div style={{ padding: "28px 32px", maxWidth: 1400, margin: "0 auto", paddingRight: commentPhotoId ? 360 : 32 }}>
       <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
 
       {toast && (
         <div style={{
-          position: "fixed", top: 20, right: 24, zIndex: 9999,
+          position: "fixed", top: 20, right: commentPhotoId ? 364 : 24, zIndex: 9999,
           background: toast.type === "success" ? "#065f46" : "#991b1b",
           color: "white", padding: "10px 18px", borderRadius: 10,
           fontSize: 13, fontWeight: 600, boxShadow: "0 4px 16px rgba(0,0,0,0.15)",
@@ -273,7 +344,7 @@ export default function PhotosPage() {
       <div style={{
         background: "white", borderRadius: 12, border: "1px solid #e5e7eb",
         padding: "14px 18px", marginBottom: 20,
-        display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap",
+        display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap",
       }}>
         <Filter size={15} style={{ color: "#9ca3af" }} />
         <div style={{ display: "flex", gap: 4 }}>
@@ -295,15 +366,26 @@ export default function PhotosPage() {
         <select
           value={selectedBrand ?? ""}
           onChange={(e) => setSelectedBrand(e.target.value ? Number(e.target.value) : undefined)}
-          style={{
-            padding: "6px 10px", borderRadius: 8, border: "1px solid #e5e7eb",
-            fontSize: 12, color: "#374151", background: "white", cursor: "pointer", outline: "none",
-          }}
+          style={{ padding: "6px 10px", borderRadius: 8, border: "1px solid #e5e7eb", fontSize: 12, color: "#374151", background: "white", cursor: "pointer", outline: "none" }}
         >
           <option value="">Todas as marcas</option>
-          {brandList.map((b) => (
-            <option key={b.id} value={b.id}>{b.name}</option>
-          ))}
+          {brandList.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
+        </select>
+        <select
+          value={selectedPromoter ?? ""}
+          onChange={(e) => setSelectedPromoter(e.target.value ? Number(e.target.value) : undefined)}
+          style={{ padding: "6px 10px", borderRadius: 8, border: "1px solid #e5e7eb", fontSize: 12, color: "#374151", background: "white", cursor: "pointer", outline: "none" }}
+        >
+          <option value="">Todos promotores</option>
+          {promoterList.map((p: any) => <option key={p.id} value={p.id}>{p.name}</option>)}
+        </select>
+        <select
+          value={selectedStore ?? ""}
+          onChange={(e) => setSelectedStore(e.target.value ? Number(e.target.value) : undefined)}
+          style={{ padding: "6px 10px", borderRadius: 8, border: "1px solid #e5e7eb", fontSize: 12, color: "#374151", background: "white", cursor: "pointer", outline: "none" }}
+        >
+          <option value="">Todas as lojas</option>
+          {storeList.map((s: any) => <option key={s.id} value={s.id}>{s.name}</option>)}
         </select>
         {data.length > 0 && (
           <button
@@ -371,6 +453,8 @@ export default function PhotosPage() {
               onDownload={downloadSingle}
               downloading={downloading}
               selectMode={selectMode}
+              onOpenComments={(id) => setCommentPhotoId(commentPhotoId === id ? null : id)}
+              commentPhotoId={commentPhotoId}
             />
           ))}
         </div>
@@ -381,6 +465,9 @@ export default function PhotosPage() {
           Clique no ícone de seleção em qualquer foto para ativar a seleção múltipla
         </p>
       )}
+
+      {/* Comment Side Panel */}
+      {commentPhotoId && <CommentPanel photoId={commentPhotoId} onClose={() => setCommentPhotoId(null)} />}
     </div>
   );
 }
