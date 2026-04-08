@@ -1,6 +1,7 @@
 "use client";
 import { useAuth } from "@/lib/auth-context";
 import { Sidebar } from "@/components/sidebar";
+import { MobileNav } from "@/components/mobile-nav";
 import { WebPushSetup } from "@/components/web-push-setup";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -11,17 +12,14 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const router = useRouter();
   const [collapsed, setCollapsed] = useState(false);
 
+  const role = (user as any)?.appRole as string | undefined;
+  const isPromoter = role === "promoter";
+
   useEffect(() => {
     if (!loading && !isAuthenticated) {
       router.replace("/login");
     }
-    if (!loading && isAuthenticated && user) {
-      const role = (user as any).appRole;
-      if (role !== "manager" && role !== "master" && role !== "supervisor") {
-        router.replace("/login");
-      }
-    }
-  }, [loading, isAuthenticated, user, router]);
+  }, [loading, isAuthenticated, router]);
 
   if (loading) {
     return (
@@ -35,6 +33,18 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   }
 
   if (!isAuthenticated) return null;
+
+  if (isPromoter) {
+    return (
+      <div style={{ display: "flex", flexDirection: "column", minHeight: "100vh", background: "#f9fafb" }}>
+        <WebPushSetup />
+        <main style={{ flex: 1, paddingBottom: 72, display: "flex", flexDirection: "column" }}>
+          {children}
+        </main>
+        <MobileNav />
+      </div>
+    );
+  }
 
   const sidebarW = collapsed ? 68 : 260;
 
