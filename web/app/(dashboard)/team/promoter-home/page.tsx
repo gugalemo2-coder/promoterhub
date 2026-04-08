@@ -75,7 +75,7 @@ export default function PromoterHomePage() {
 
       {/* Clock CTA */}
       <Link
-        href="/promoter-clock"
+        href="/team/promoter-clock"
         style={{
           display: "flex", alignItems: "center", justifyContent: "center", gap: 10,
           background: hasOpenEntry ? "#ef4444" : "#1A56DB",
@@ -90,10 +90,10 @@ export default function PromoterHomePage() {
 
       {/* Quick Actions */}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 28 }}>
-        <Link href="/promoter-photos" style={{ display: "flex", alignItems: "center", gap: 8, background: "white", borderRadius: 12, padding: "14px 16px", border: "1px solid #e5e7eb", textDecoration: "none", color: "#374151", fontSize: 13, fontWeight: 600 }}>
+        <Link href="/team/promoter-photos" style={{ display: "flex", alignItems: "center", gap: 8, background: "white", borderRadius: 12, padding: "14px 16px", border: "1px solid #e5e7eb", textDecoration: "none", color: "#374151", fontSize: 13, fontWeight: 600 }}>
           <Camera size={16} style={{ color: "#8b5cf6" }} /> Enviar Fotos
         </Link>
-        <Link href="/product-expiration" style={{ display: "flex", alignItems: "center", gap: 8, background: "white", borderRadius: 12, padding: "14px 16px", border: "1px solid #e5e7eb", textDecoration: "none", color: "#374151", fontSize: 13, fontWeight: 600 }}>
+        <Link href="/team/product-expiration" style={{ display: "flex", alignItems: "center", gap: 8, background: "white", borderRadius: 12, padding: "14px 16px", border: "1px solid #e5e7eb", textDecoration: "none", color: "#374151", fontSize: 13, fontWeight: 600 }}>
           <MapPin size={16} style={{ color: "#f59e0b" }} /> Vencimentos
         </Link>
       </div>
