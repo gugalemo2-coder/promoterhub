@@ -16,10 +16,15 @@ export default function PromoterClockPage() {
   const [toast, setToast] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
+  // FIX: Envia datas com horário explícito para garantir que o backend
+  // busque o dia correto independente do timezone do servidor
+  const dayStartISO = `${selectedDate}T00:00:00`;
+  const dayEndISO = `${selectedDate}T23:59:59`;
+
   const stores = trpc.stores.listForPromoter.useQuery();
-  const entries = trpc.timeEntries.list.useQuery({ startDate: selectedDate, endDate: selectedDate });
-  const dailySummary = trpc.timeEntries.dailySummary.useQuery({ date: selectedDate });
-  const lastOpen = trpc.timeEntries.lastOpenEntry.useQuery({ dayStart: selectedDate });
+  const entries = trpc.timeEntries.list.useQuery({ startDate: dayStartISO, endDate: dayEndISO });
+  const dailySummary = trpc.timeEntries.dailySummary.useQuery({ startDate: dayStartISO, endDate: dayEndISO });
+  const lastOpen = trpc.timeEntries.lastOpenEntry.useQuery({ dayStart: dayStartISO });
   const createEntry = trpc.timeEntries.create.useMutation();
 
   const storeList = stores.data ?? [];
@@ -78,7 +83,7 @@ export default function PromoterClockPage() {
   };
 
   return (
-    <div style={{ padding: "24px 20px", maxWidth: 600, margin: "0 auto" }}>
+    <div style={{ padding: "24px 20px", maxWidth: 600, margin: "0 auto", paddingBottom: 100 }}>
       <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
 
       {toast && (
@@ -161,7 +166,7 @@ export default function PromoterClockPage() {
                   {entry.entryType === "entry" ? "Entrada" : "Saída"}
                 </p>
                 <p style={{ fontSize: 11, color: "#6b7280", margin: "2px 0 0" }}>
-                  {entry.storeName ?? "Loja"} · {formatDateTime(entry.timestamp)}
+                  {entry.storeName ?? "Loja"} · {formatDateTime(entry.entryTime ?? entry.timestamp)}
                 </p>
               </div>
               {entry.photoUrl && (
