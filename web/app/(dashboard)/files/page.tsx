@@ -1,6 +1,7 @@
 "use client";
 
 import { trpc } from "@/lib/trpc";
+import { useAuth } from "@/lib/auth-context";
 import { PageHeader } from "@/components/page-header";
 import { FolderOpen, RefreshCw, Upload, Download, FileText, Image, Grid, File, X, Loader2 } from "lucide-react";
 import { useState, useRef } from "react";
@@ -20,6 +21,9 @@ function getFileIcon(fileType: string) {
 }
 
 export default function FilesPage() {
+  const { user } = useAuth();
+  const isManager = user?.appRole === "manager" || user?.appRole === "master";
+
   const [selectedBrandId, setSelectedBrandId] = useState<number | null>(null);
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [uploadBrandId, setUploadBrandId] = useState<number | null>(null);
@@ -74,156 +78,131 @@ export default function FilesPage() {
   };
 
   return (
-    <div className="p-6 max-w-7xl mx-auto">
-      <PageHeader
-        title="Arquivos"
-        subtitle="Documentos e materiais distribuídos por marca"
-        icon={FolderOpen}
-        iconColor="text-yellow-600"
-        iconBg="bg-yellow-50"
-        actions={
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => refetch()}
-              className="flex items-center gap-2 px-3 py-2 text-sm text-gray-600 hover:text-gray-900 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
-            >
-              <RefreshCw size={14} />
-              Atualizar
-            </button>
+    <div style={{ padding: "20px 16px", maxWidth: 800, margin: "0 auto", paddingBottom: 100 }}>
+      {/* Header */}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20, gap: 12 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 12, minWidth: 0 }}>
+          <div style={{ width: 40, height: 40, borderRadius: 12, background: "#FEF3C7", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+            <FolderOpen size={20} style={{ color: "#D97706" }} />
+          </div>
+          <div style={{ minWidth: 0 }}>
+            <h1 style={{ fontSize: 18, fontWeight: 800, color: "#111827", margin: 0 }}>Arquivos</h1>
+            <p style={{ fontSize: 12, color: "#6b7280", margin: 0, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>Documentos e materiais por marca</p>
+          </div>
+        </div>
+        <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
+          <button
+            onClick={() => refetch()}
+            style={{ width: 36, height: 36, borderRadius: 10, border: "1px solid #e5e7eb", background: "white", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}
+          >
+            <RefreshCw size={14} style={{ color: "#6b7280" }} />
+          </button>
+          {isManager && (
             <button
               onClick={() => setShowUploadModal(true)}
-              className="flex items-center gap-2 px-4 py-2 text-sm bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 transition-colors font-medium"
+              style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 14px", borderRadius: 10, border: "none", background: "#D97706", color: "white", fontSize: 13, fontWeight: 600, cursor: "pointer" }}
             >
               <Upload size={14} />
-              Enviar Arquivo
+              Enviar
             </button>
-          </div>
-        }
-      />
+          )}
+        </div>
+      </div>
 
       {/* Brand Filter */}
-      <div className="flex items-center gap-2 mb-6 overflow-x-auto pb-1">
+      <div style={{ display: "flex", gap: 8, marginBottom: 20, overflowX: "auto", paddingBottom: 4 }}>
         <button
           onClick={() => setSelectedBrandId(null)}
-          className={`px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-colors flex-shrink-0 ${
-            selectedBrandId === null
-              ? "bg-yellow-600 text-white"
-              : "bg-white border border-gray-200 text-gray-600 hover:bg-gray-50"
-          }`}
+          style={{
+            padding: "6px 14px", borderRadius: 20, fontSize: 12, fontWeight: 600, whiteSpace: "nowrap",
+            border: "none", cursor: "pointer", flexShrink: 0,
+            background: selectedBrandId === null ? "#D97706" : "white",
+            color: selectedBrandId === null ? "white" : "#6b7280",
+            boxShadow: selectedBrandId === null ? "none" : "0 0 0 1px #e5e7eb",
+          }}
         >
           Todos
         </button>
-        {brands?.map((brand) => (
+        {brands?.map((brand: any) => (
           <button
             key={brand.id}
             onClick={() => setSelectedBrandId(brand.id)}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-colors flex-shrink-0 ${
-              selectedBrandId === brand.id
-                ? "text-white"
-                : "bg-white border border-gray-200 text-gray-600 hover:bg-gray-50"
-            }`}
-            style={selectedBrandId === brand.id ? { backgroundColor: brand.colorHex ?? "#6B7280" } : {}}
+            style={{
+              display: "flex", alignItems: "center", gap: 6,
+              padding: "6px 14px", borderRadius: 20, fontSize: 12, fontWeight: 600, whiteSpace: "nowrap",
+              border: "none", cursor: "pointer", flexShrink: 0,
+              background: selectedBrandId === brand.id ? (brand.colorHex ?? "#6B7280") : "white",
+              color: selectedBrandId === brand.id ? "white" : "#6b7280",
+              boxShadow: selectedBrandId === brand.id ? "none" : "0 0 0 1px #e5e7eb",
+            }}
           >
-            <div
-              className="w-2 h-2 rounded-full flex-shrink-0"
-              style={{ backgroundColor: selectedBrandId === brand.id ? "rgba(255,255,255,0.7)" : (brand.colorHex ?? "#6B7280") }}
-            />
+            <div style={{ width: 6, height: 6, borderRadius: "50%", backgroundColor: selectedBrandId === brand.id ? "rgba(255,255,255,0.7)" : (brand.colorHex ?? "#6B7280"), flexShrink: 0 }} />
             {brand.name}
           </button>
         ))}
       </div>
 
-      {/* Upload Modal */}
-      {showUploadModal && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
-              <h2 className="text-lg font-bold text-gray-900">Enviar Arquivo</h2>
-              <button onClick={closeModal} className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400">
-                <X size={18} />
+      {/* Upload Modal - only for managers */}
+      {showUploadModal && isManager && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 50, padding: 16 }}>
+          <div style={{ background: "white", borderRadius: 20, width: "100%", maxWidth: 420, boxShadow: "0 20px 60px rgba(0,0,0,0.15)" }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 20px", borderBottom: "1px solid #f3f4f6" }}>
+              <h2 style={{ fontSize: 16, fontWeight: 700, color: "#111827", margin: 0 }}>Enviar Arquivo</h2>
+              <button onClick={closeModal} style={{ width: 30, height: 30, borderRadius: 8, border: "none", background: "#f3f4f6", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <X size={16} style={{ color: "#6b7280" }} />
               </button>
             </div>
-            <div className="px-6 py-5 space-y-4">
-              {/* Brand selection */}
+            <div style={{ padding: "16px 20px", display: "flex", flexDirection: "column", gap: 16 }}>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Marca <span className="text-red-500">*</span>
-                </label>
-                <div className="flex flex-wrap gap-2">
-                  {brands?.map((b) => (
-                    <button
-                      key={b.id}
-                      onClick={() => setUploadBrandId(b.id)}
-                      className="px-3 py-1.5 rounded-lg text-xs font-medium border-2 transition-colors"
-                      style={{
-                        borderColor: uploadBrandId === b.id ? (b.colorHex ?? "#3B82F6") : "#E5E7EB",
-                        backgroundColor: uploadBrandId === b.id ? (b.colorHex ?? "#3B82F6") + "15" : "transparent",
-                        color: uploadBrandId === b.id ? (b.colorHex ?? "#3B82F6") : "#6B7280",
-                      }}
-                    >
+                <label style={{ fontSize: 12, fontWeight: 600, color: "#374151", marginBottom: 8, display: "block" }}>Marca *</label>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                  {brands?.map((b: any) => (
+                    <button key={b.id} onClick={() => setUploadBrandId(b.id)} style={{
+                      padding: "6px 12px", borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: "pointer",
+                      border: `2px solid ${uploadBrandId === b.id ? (b.colorHex ?? "#3B82F6") : "#E5E7EB"}`,
+                      background: uploadBrandId === b.id ? (b.colorHex ?? "#3B82F6") + "15" : "transparent",
+                      color: uploadBrandId === b.id ? (b.colorHex ?? "#3B82F6") : "#6B7280",
+                    }}>
                       {b.name}
                     </button>
                   ))}
                 </div>
               </div>
-
-              {/* Description */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">Descrição (opcional)</label>
-                <input
-                  type="text"
-                  value={uploadDesc}
-                  onChange={(e) => setUploadDesc(e.target.value)}
-                  placeholder="Descreva o arquivo..."
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-yellow-400"
-                />
+                <label style={{ fontSize: 12, fontWeight: 600, color: "#374151", marginBottom: 6, display: "block" }}>Descrição (opcional)</label>
+                <input type="text" value={uploadDesc} onChange={(e) => setUploadDesc(e.target.value)} placeholder="Descreva o arquivo..." style={{ width: "100%", border: "1px solid #e5e7eb", borderRadius: 10, padding: "10px 12px", fontSize: 13, outline: "none", boxSizing: "border-box" }} />
               </div>
-
-              {/* File picker */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">Arquivo <span className="text-red-500">*</span></label>
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept=".pdf,image/*,.xls,.xlsx"
-                  className="hidden"
-                  onChange={handleFileChange}
-                />
-                <button
-                  onClick={() => fileInputRef.current?.click()}
-                  className={`w-full border-2 border-dashed rounded-xl p-4 flex items-center gap-3 transition-colors ${
-                    selectedFile
-                      ? "border-yellow-400 bg-yellow-50"
-                      : "border-gray-200 hover:border-gray-300 hover:bg-gray-50"
-                  }`}
-                >
-                  <Upload size={20} className={selectedFile ? "text-yellow-600" : "text-gray-400"} />
-                  <div className="flex-1 text-left">
+                <label style={{ fontSize: 12, fontWeight: 600, color: "#374151", marginBottom: 6, display: "block" }}>Arquivo *</label>
+                <input ref={fileInputRef} type="file" accept=".pdf,image/*,.xls,.xlsx" style={{ display: "none" }} onChange={handleFileChange} />
+                <button onClick={() => fileInputRef.current?.click()} style={{
+                  width: "100%", border: `2px dashed ${selectedFile ? "#D97706" : "#e5e7eb"}`, borderRadius: 12, padding: 16,
+                  display: "flex", alignItems: "center", gap: 12, cursor: "pointer",
+                  background: selectedFile ? "#FEF3C7" : "#f9fafb",
+                }}>
+                  <Upload size={18} style={{ color: selectedFile ? "#D97706" : "#9ca3af" }} />
+                  <div style={{ flex: 1, textAlign: "left" }}>
                     {selectedFile ? (
                       <>
-                        <p className="text-sm font-medium text-gray-900 truncate">{selectedFile.name}</p>
-                        <p className="text-xs text-gray-500">{formatFileSize(selectedFile.size)}</p>
+                        <p style={{ fontSize: 13, fontWeight: 600, color: "#111827", margin: 0, wordBreak: "break-all" }}>{selectedFile.name}</p>
+                        <p style={{ fontSize: 11, color: "#6b7280", margin: "2px 0 0" }}>{formatFileSize(selectedFile.size)}</p>
                       </>
                     ) : (
-                      <p className="text-sm text-gray-500">Clique para selecionar um arquivo (PDF, imagem, Excel)</p>
+                      <p style={{ fontSize: 13, color: "#6b7280", margin: 0 }}>PDF, imagem ou Excel</p>
                     )}
                   </div>
                 </button>
               </div>
             </div>
-            <div className="flex gap-2 px-6 py-4 border-t border-gray-100">
-              <button
-                onClick={closeModal}
-                className="flex-1 px-4 py-2.5 text-sm border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-50 font-medium"
-              >
-                Cancelar
-              </button>
-              <button
-                onClick={handleUpload}
-                disabled={uploading || !selectedFile || !uploadBrandId}
-                className="flex-1 px-4 py-2.5 text-sm bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 font-medium disabled:opacity-50 flex items-center justify-center gap-2"
-              >
-                {uploading && <Loader2 size={14} className="animate-spin" />}
+            <div style={{ display: "flex", gap: 8, padding: "16px 20px", borderTop: "1px solid #f3f4f6" }}>
+              <button onClick={closeModal} style={{ flex: 1, padding: "10px", borderRadius: 10, border: "1px solid #e5e7eb", background: "white", fontSize: 13, fontWeight: 600, color: "#6b7280", cursor: "pointer" }}>Cancelar</button>
+              <button onClick={handleUpload} disabled={uploading || !selectedFile || !uploadBrandId} style={{
+                flex: 1, padding: "10px", borderRadius: 10, border: "none", background: "#D97706", color: "white",
+                fontSize: 13, fontWeight: 600, cursor: uploading ? "not-allowed" : "pointer",
+                opacity: uploading || !selectedFile || !uploadBrandId ? 0.5 : 1,
+                display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+              }}>
+                {uploading && <Loader2 size={14} style={{ animation: "spin 1s linear infinite" }} />}
                 {uploading ? "Enviando..." : "Enviar"}
               </button>
             </div>
@@ -231,87 +210,65 @@ export default function FilesPage() {
         </div>
       )}
 
-      {/* Files List */}
+      {/* Files List - Card layout for mobile */}
       {isLoading ? (
-        <div className="flex items-center justify-center py-20">
-          <Loader2 className="w-8 h-8 animate-spin text-yellow-600" />
+        <div style={{ textAlign: "center", padding: 60 }}>
+          <Loader2 size={28} style={{ color: "#D97706", animation: "spin 1s linear infinite", margin: "0 auto 8px" }} />
+          <p style={{ fontSize: 13, color: "#6b7280", margin: 0 }}>Carregando...</p>
+          <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
         </div>
       ) : !files || files.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-20 gap-3">
-          <div className="w-16 h-16 bg-yellow-50 rounded-2xl flex items-center justify-center">
-            <FolderOpen size={28} className="text-yellow-400" />
+        <div style={{ textAlign: "center", padding: 60 }}>
+          <div style={{ width: 56, height: 56, borderRadius: 16, background: "#FEF3C7", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 12px" }}>
+            <FolderOpen size={24} style={{ color: "#D97706" }} />
           </div>
-          <p className="text-lg font-semibold text-gray-700">Nenhum arquivo encontrado</p>
-          <p className="text-sm text-gray-400">Clique em &quot;Enviar Arquivo&quot; para distribuir documentos aos promotores.</p>
+          <p style={{ fontSize: 15, fontWeight: 700, color: "#111827", margin: "0 0 4px" }}>Nenhum arquivo encontrado</p>
+          <p style={{ fontSize: 13, color: "#9ca3af", margin: 0 }}>
+            {isManager ? "Clique em \"Enviar\" para distribuir documentos." : "Ainda não há arquivos disponíveis."}
+          </p>
         </div>
       ) : (
-        <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
-          <table className="w-full">
-            <thead>
-              <tr className="border-b border-gray-100 bg-gray-50">
-                <th className="text-left px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Arquivo</th>
-                <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide hidden md:table-cell">Marca</th>
-                <th className="text-center px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide hidden lg:table-cell">Tamanho</th>
-                <th className="text-center px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide hidden lg:table-cell">Data</th>
-                <th className="text-center px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Ação</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-50">
-              {files.map((file, idx) => {
-                const brand = brands?.find((b) => b.id === file.brandId);
-                const { Icon, color, bg } = getFileIcon(file.fileType ?? "");
-                return (
-                  <tr key={`${file.id}-${idx}`} className="hover:bg-gray-50 transition-colors">
-                    <td className="px-5 py-4">
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ backgroundColor: bg }}>
-                          <Icon size={20} style={{ color }} />
-                        </div>
-                        <div>
-                          <p className="text-sm font-medium text-gray-900 truncate max-w-xs">{file.fileName}</p>
-                          {file.description && (
-                            <p className="text-xs text-gray-400 truncate max-w-xs">{file.description}</p>
-                          )}
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-4 py-4 hidden md:table-cell">
-                      {brand ? (
-                        <span
-                          className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium"
-                          style={{ backgroundColor: (brand.colorHex ?? "#6B7280") + "20", color: brand.colorHex ?? "#6B7280" }}
-                        >
-                          <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: brand.colorHex ?? "#6B7280" }} />
-                          {brand.name}
-                        </span>
-                      ) : (
-                        <span className="text-xs text-gray-400">—</span>
-                      )}
-                    </td>
-                    <td className="px-4 py-4 text-center hidden lg:table-cell">
-                      <span className="text-xs text-gray-500">{formatFileSize(file.fileSize ?? 0)}</span>
-                    </td>
-                    <td className="px-4 py-4 text-center hidden lg:table-cell">
-                      <span className="text-xs text-gray-500">
-                        {new Date(file.createdAt).toLocaleDateString("pt-BR")}
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          {files.map((file: any, idx: number) => {
+            const brand = brands?.find((b: any) => b.id === file.brandId);
+            const { Icon, color, bg } = getFileIcon(file.fileType ?? "");
+            return (
+              <a
+                key={`${file.id}-${idx}`}
+                href={file.fileUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{
+                  background: "white", borderRadius: 14, padding: "14px 16px",
+                  border: "1px solid #e5e7eb", display: "flex", alignItems: "center", gap: 12,
+                  textDecoration: "none", color: "inherit",
+                }}
+              >
+                <div style={{ width: 42, height: 42, borderRadius: 12, backgroundColor: bg, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                  <Icon size={20} style={{ color }} />
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <p style={{ fontSize: 13, fontWeight: 600, color: "#111827", margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    {file.fileName}
+                  </p>
+                  <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 3 }}>
+                    {brand && (
+                      <span style={{
+                        display: "inline-flex", alignItems: "center", gap: 4,
+                        fontSize: 10, fontWeight: 600, color: brand.colorHex ?? "#6B7280",
+                        background: (brand.colorHex ?? "#6B7280") + "18", padding: "1px 8px", borderRadius: 10,
+                      }}>
+                        <div style={{ width: 5, height: 5, borderRadius: "50%", backgroundColor: brand.colorHex ?? "#6B7280" }} />
+                        {brand.name}
                       </span>
-                    </td>
-                    <td className="px-4 py-4 text-center">
-                      <a
-                        href={file.fileUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-gray-50 text-gray-700 text-xs font-medium hover:bg-gray-100 transition-colors border border-gray-200"
-                      >
-                        <Download size={12} />
-                        Abrir
-                      </a>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+                    )}
+                    <span style={{ fontSize: 10, color: "#9ca3af" }}>{formatFileSize(file.fileSize ?? 0)}</span>
+                  </div>
+                </div>
+                <Download size={16} style={{ color: "#9ca3af", flexShrink: 0 }} />
+              </a>
+            );
+          })}
         </div>
       )}
     </div>
