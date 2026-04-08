@@ -102,8 +102,8 @@ export const appRouter = router({
     lastOpenEntry: protectedProcedure
       .input(z.object({ dayStart: z.string().optional() }))
       .query(({ ctx, input }) => db.getLastOpenEntry(getAppUserId(ctx.user), input.dayStart)),
-    allForDate: protectedProcedure.input(z.object({ date: z.string().optional() })).query(({ input }) => db.getAllTimeEntriesForDate(input.date ? new Date(input.date) : new Date())),
-    allForRange: protectedProcedure.input(z.object({ startDate: z.string(), endDate: z.string() })).query(({ input }) => db.getAllTimeEntriesForRange(new Date(input.startDate), new Date(input.endDate))),
+    allForDate: protectedProcedure.input(z.object({ date: z.string().optional() })).query(({ input }) => db.getAllTimeEntriesForDateWithNames(input.date ? new Date(input.date) : new Date())),
+    allForRange: protectedProcedure.input(z.object({ startDate: z.string(), endDate: z.string() })).query(({ input }) => db.getAllTimeEntriesForRangeWithNames(new Date(input.startDate), new Date(input.endDate))),
     forUser: protectedProcedure.input(z.object({ userId: z.number(), startDate: z.string().optional(), endDate: z.string().optional() })).query(({ input }) => db.getTimeEntriesByUser(input.userId, input.startDate ? new Date(input.startDate) : undefined, input.endDate ? new Date(input.endDate) : undefined)),
     audit: protectedProcedure.input(z.object({ promoterId: z.number().optional(), storeId: z.number().optional(), entryType: z.enum(["entry", "exit"]).optional(), startDate: z.string(), endDate: z.string() })).query(({ input }) => db.getTimeEntriesAudit({ promoterId: input.promoterId, storeId: input.storeId, entryType: input.entryType, startDate: new Date(input.startDate), endDate: new Date(input.endDate) })),
     storeTimeStats: protectedProcedure.input(z.object({ promoterId: z.number(), startDate: z.string(), endDate: z.string() })).query(({ input }) => db.getPromoterStoreTimeStats(input.promoterId, new Date(input.startDate), new Date(input.endDate))),
