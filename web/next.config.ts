@@ -1,7 +1,6 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  // Workaround for Next.js 16 bug with /_global-error prerender
   experimental: {
     staticGenerationRetryCount: 0,
   },
@@ -9,6 +8,8 @@ const nextConfig: NextConfig = {
   typescript: {
     ignoreBuildErrors: true,
   },
+  // Disable static error pages to avoid _global-error.rsc bug in Next.js 16
+  output: "standalone",
   async headers() {
     return [
       {
