@@ -30,16 +30,13 @@ export function createTRPCClient() {
         url: `${getApiUrl()}/api/trpc`,
         transformer: SuperJSON,
         headers() {
-          if (typeof document !== "undefined") {
-            return {};
+          if (typeof window !== "undefined") {
+            const token = localStorage.getItem("promoterhub_token");
+            if (token) {
+              return { Authorization: `Bearer ${token}` };
+            }
           }
           return {};
-        },
-        fetch(url, options) {
-          return fetch(url, {
-            ...options,
-            credentials: "include",
-          });
         },
       }),
     ],
