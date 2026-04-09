@@ -16,12 +16,14 @@ export default function ProductExpirationPage() {
   const [pickedPhotos, setPickedPhotos] = useState<PickedPhoto[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
-  const fileRef = useRef<HTMLInputElement>(null);
+  const [showPhotoOptions, setShowPhotoOptions] = useState(false);
+  const cameraRef = useRef<HTMLInputElement>(null);
+  const galleryRef = useRef<HTMLInputElement>(null);
 
   const { data: brands } = trpc.brands.list.useQuery();
   const { data: stores } = trpc.stores.listForPromoter.useQuery();
-  const { data: myExpirations, refetch } = trpc.productExpirations.listMine.useQuery({ limit: 50 });
-  const submitMutation = trpc.productExpirations.submit.useMutation();
+  const { data: myExpirations, refetch } = trpc.productExpirations.list.useQuery({ limit: 50 });
+  const createMutation = trpc.productExpirations.create.useMutation();
   const deleteMutation = trpc.productExpirations.delete.useMutation();
 
   const showToast = (msg: string, type: "success" | "error") => {
@@ -52,11 +54,15 @@ export default function ProductExpirationPage() {
     if (pickedPhotos.length === 0) { showToast("Adicione pelo menos uma foto", "error"); return; }
     setSubmitting(true);
     try {
-      await submitMutation.mutateAsync({
+      await createMutation.mutateAsync({
         brandId: selectedBrandId,
         storeId: selectedStoreId,
         description: description || undefined,
-        photos: pickedPhotos.map((p) => ({ base64: p.base64, fileType: p.fileType })),
+        photos: pickedPhotos.map((p) => ({
+          fileBase64: p.base64,
+          fileType: p.fileType,
+          fileName: `expiration-${Date.now()}.jpg`,
+        })),
       });
       setShowModal(false);
       setPickedPhotos([]);
@@ -89,7 +95,9 @@ export default function ProductExpirationPage() {
 
   return (
     <div style={{ minHeight: "100vh", background: "#f9fafb", position: "relative" }}>
-      <input type="file" ref={fileRef} accept="image/*" multiple style={{ display: "none" }} onChange={handleFileSelect} />
+      {/* Hidden file inputs — camera vs gallery */}
+      <input type="file" ref={cameraRef} accept="image/*" capture="environment" multiple style={{ display: "none" }} onChange={handleFileSelect} />
+      <input type="file" ref={galleryRef} accept="image/*" multiple style={{ display: "none" }} onChange={handleFileSelect} />
 
       {toast && (
         <div style={{
@@ -222,27 +230,17 @@ export default function ProductExpirationPage() {
                 />
               </div>
 
-              {/* Photos */}
+              {/* Photos — single button that opens option sheet */}
               <div>
                 <p style={{ fontSize: 13, fontWeight: 700, color: "#111827", margin: "0 0 6px" }}>Fotos ({pickedPhotos.length})</p>
-                <div style={{ display: "flex", gap: 8 }}>
-                  <button onClick={() => fileRef.current?.click()} style={{
-                    flex: 1, padding: "10px 0", borderRadius: 12, border: "none",
-                    background: "#1A56DB", color: "white", fontSize: 12, fontWeight: 600,
-                    cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 4,
-                  }}><Camera size={14} /> Câmera</button>
-                  <button onClick={() => {
-                    const inp = document.createElement("input");
-                    inp.type = "file"; inp.accept = "image/*"; inp.multiple = true;
-                    inp.onchange = (e) => handleFileSelect(e as any);
-                    inp.click();
-                  }} style={{
-                    flex: 1, padding: "10px 0", borderRadius: 12,
-                    border: "1.5px solid #1A56DB", background: "transparent",
-                    color: "#1A56DB", fontSize: 12, fontWeight: 600, cursor: "pointer",
-                    display: "flex", alignItems: "center", justifyContent: "center", gap: 4,
-                  }}><ImagePlus size={14} /> Galeria</button>
-                </div>
+                <button onClick={() => setShowPhotoOptions(true)} style={{
+                  width: "100%", padding: "12px 16px", borderRadius: 12,
+                  border: "1px dashed #d1d5db", background: "#f9fafb",
+                  cursor: "pointer", fontSize: 13, color: "#6b7280",
+                  display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+                }}>
+                  <Camera size={16} /> Tirar foto / Selecionar da galeria
+                </button>
                 {pickedPhotos.length > 0 && (
                   <div style={{ display: "flex", gap: 6, marginTop: 8, overflowX: "auto" }}>
                     {pickedPhotos.map((p, i) => (
@@ -275,6 +273,43 @@ export default function ProductExpirationPage() {
           </div>
         </div>
       )}
+
+      {/* Photo Options Bottom Sheet */}
+      {showPhotoOptions && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", zIndex: 200, display: "flex", alignItems: "flex-end", justifyContent: "center" }}
+          onClick={() => setShowPhotoOptions(false)}
+        >
+          <div onClick={(e) => e.stopPropagation()} style={{ background: "white", borderRadius: "20px 20px 0 0", width: "100%", maxWidth: 500, padding: "20px 20px", paddingBottom: "calc(20px + env(safe-area-inset-bottom, 0px))" }}>
+            <div style={{ width: 36, height: 4, borderRadius: 2, background: "#d1d5db", margin: "0 auto 16px" }} />
+            <p style={{ fontSize: 15, fontWeight: 700, color: "#111827", margin: "0 0 14px", textAlign: "center" }}>Adicionar Foto</p>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              <button onClick={() => { setShowPhotoOptions(false); setTimeout(() => cameraRef.current?.click(), 100); }} style={{
+                display: "flex", alignItems: "center", gap: 12, padding: "14px 16px", borderRadius: 12,
+                border: "1px solid #e5e7eb", background: "white", cursor: "pointer", fontSize: 14, fontWeight: 600, color: "#111827", width: "100%",
+              }}>
+                <div style={{ width: 40, height: 40, borderRadius: 10, background: "#1A56DB", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                  <Camera size={18} style={{ color: "white" }} />
+                </div>
+                Tirar Foto com Câmera
+              </button>
+              <button onClick={() => { setShowPhotoOptions(false); setTimeout(() => galleryRef.current?.click(), 100); }} style={{
+                display: "flex", alignItems: "center", gap: 12, padding: "14px 16px", borderRadius: 12,
+                border: "1px solid #e5e7eb", background: "white", cursor: "pointer", fontSize: 14, fontWeight: 600, color: "#111827", width: "100%",
+              }}>
+                <div style={{ width: 40, height: 40, borderRadius: 10, background: "#7c3aed", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                  <ImagePlus size={18} style={{ color: "white" }} />
+                </div>
+                Escolher da Galeria
+              </button>
+            </div>
+            <button onClick={() => setShowPhotoOptions(false)} style={{
+              width: "100%", padding: "12px", borderRadius: 12, border: "none",
+              background: "#f3f4f6", color: "#6b7280", fontSize: 14, fontWeight: 600, cursor: "pointer", marginTop: 10,
+            }}>Cancelar</button>
+          </div>
+        </div>
+      )}
+
       <style>{"@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }"}</style>
     </div>
   );
