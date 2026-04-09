@@ -65,22 +65,34 @@ export default function NotificationsPage() {
   ];
 
   return (
-    <div className="p-4 sm:p-6 max-w-4xl mx-auto">
-      {/* Header — stacked on mobile */}
-      <div className="mb-4">
-        <div className="flex items-center gap-3 mb-2">
-          <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-sky-50 flex-shrink-0">
-            <Bell size={20} className="text-sky-600" />
+    <div style={{ padding: "16px", maxWidth: 900, margin: "0 auto" }}>
+      <style>{`@media (min-width: 640px) { .notif-page { padding: 24px 32px !important; } }`}</style>
+
+      {/* Header — empilhado verticalmente, visível no mobile */}
+      <div style={{ marginBottom: 16 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 8 }}>
+          <div style={{
+            width: 40, height: 40, borderRadius: 12, background: "#e0f2fe",
+            display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
+          }}>
+            <Bell size={20} style={{ color: "#0284c7" }} />
           </div>
-          <div className="flex-1 min-w-0">
-            <h1 className="text-xl font-bold text-gray-900">Notificações</h1>
-            <p className="text-sm text-gray-500">{unreadCount ? `${unreadCount} não ${unreadCount === 1 ? "lida" : "lidas"}` : "Tudo em dia"}</p>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <h1 style={{ fontSize: 20, fontWeight: 800, color: "#111827", margin: 0 }}>Notificações</h1>
+            <p style={{ fontSize: 13, color: "#6b7280", margin: "2px 0 0" }}>
+              {unreadCount ? `${unreadCount} não ${unreadCount === 1 ? "lida" : "lidas"}` : "Tudo em dia"}
+            </p>
           </div>
         </div>
-        <div className="flex items-center gap-2">
+        {/* Botões em linha abaixo do título */}
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           <button
             onClick={() => refetch()}
-            className="flex items-center gap-2 px-3 py-2 text-sm text-gray-600 hover:text-gray-900 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+            style={{
+              display: "flex", alignItems: "center", gap: 6, padding: "8px 12px",
+              fontSize: 13, color: "#4b5563", border: "1px solid #e5e7eb",
+              borderRadius: 8, background: "white", cursor: "pointer",
+            }}
           >
             <RefreshCw size={14} />
             Atualizar
@@ -89,7 +101,12 @@ export default function NotificationsPage() {
             <button
               onClick={() => markAllReadMutation.mutate()}
               disabled={markAllReadMutation.isPending}
-              className="flex items-center gap-2 px-3 py-2 text-sm bg-sky-600 text-white rounded-lg hover:bg-sky-700 transition-colors font-medium disabled:opacity-50"
+              style={{
+                display: "flex", alignItems: "center", gap: 6, padding: "8px 12px",
+                fontSize: 13, color: "white", background: "#0284c7",
+                border: "none", borderRadius: 8, cursor: "pointer", fontWeight: 600,
+                opacity: markAllReadMutation.isPending ? 0.5 : 1,
+              }}
             >
               <CheckCheck size={14} />
               Ler todas
@@ -98,17 +115,26 @@ export default function NotificationsPage() {
         </div>
       </div>
 
-      {/* Filter chips — scrollable on mobile */}
-      <div className="flex items-center gap-2 mb-6 overflow-x-auto pb-1 -mx-4 px-4 sm:mx-0 sm:px-0">
+      {/* Filter chips — scrollable horizontally */}
+      <div style={{
+        display: "flex", alignItems: "center", gap: 8,
+        marginBottom: 20, overflowX: "auto", WebkitOverflowScrolling: "touch",
+        paddingBottom: 4, scrollbarWidth: "none",
+        marginLeft: -16, marginRight: -16, paddingLeft: 16, paddingRight: 16,
+      }}>
+        <style>{`.notif-filters::-webkit-scrollbar { display: none; }`}</style>
         {filters.map((f) => (
           <button
             key={f.key}
             onClick={() => setFilter(f.key)}
-            className={`px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-colors flex-shrink-0 ${
-              filter === f.key
-                ? "bg-sky-600 text-white"
-                : "bg-white border border-gray-200 text-gray-600 hover:bg-gray-50"
-            }`}
+            style={{
+              padding: "6px 14px", borderRadius: 20, fontSize: 12, fontWeight: 600,
+              whiteSpace: "nowrap", flexShrink: 0, cursor: "pointer",
+              border: filter === f.key ? "none" : "1px solid #e5e7eb",
+              background: filter === f.key ? "#0284c7" : "white",
+              color: filter === f.key ? "white" : "#4b5563",
+              transition: "all 0.15s",
+            }}
           >
             {f.label}
           </button>
@@ -117,61 +143,84 @@ export default function NotificationsPage() {
 
       {/* Notifications list */}
       {isLoading ? (
-        <div className="flex items-center justify-center py-20">
-          <Loader2 className="w-8 h-8 animate-spin text-sky-600" />
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "center", padding: "80px 0" }}>
+          <Loader2 size={32} style={{ color: "#0284c7", animation: "spin 1s linear infinite" }} />
+          <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
         </div>
       ) : filtered.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-20 gap-3">
-          <span className="text-5xl">🔕</span>
-          <p className="text-lg font-semibold text-gray-700">
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "80px 0", gap: 12 }}>
+          <span style={{ fontSize: 48 }}>🔕</span>
+          <p style={{ fontSize: 16, fontWeight: 600, color: "#374151", margin: 0 }}>
             {filter === "unread" ? "Você está em dia com tudo!" : "Nenhuma notificação"}
           </p>
-          <p className="text-sm text-gray-400 text-center px-4">
+          <p style={{ fontSize: 13, color: "#9ca3af", textAlign: "center", padding: "0 16px", margin: 0 }}>
             {filter === "unread" ? "Todas as notificações foram lidas." : "Nenhuma notificação nesta categoria."}
           </p>
         </div>
       ) : (
-        <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+        <div style={{ background: "white", borderRadius: 12, border: "1px solid #f3f4f6", boxShadow: "0 1px 3px rgba(0,0,0,0.04)", overflow: "hidden" }}>
           {filtered.map((notif, idx) => {
             const config = TYPE_CONFIG[notif.type as NotifType] ?? TYPE_CONFIG.system;
             return (
               <div
                 key={`${notif.id}-${idx}`}
-                className={`flex items-start gap-3 sm:gap-4 px-4 sm:px-5 py-3 sm:py-4 border-b border-gray-50 last:border-b-0 transition-colors ${
-                  !notif.isRead ? "bg-blue-50/30" : "hover:bg-gray-50"
-                }`}
+                style={{
+                  display: "flex", alignItems: "flex-start", gap: 12,
+                  padding: "14px 16px",
+                  borderBottom: idx < filtered.length - 1 ? "1px solid #f9fafb" : "none",
+                  background: !notif.isRead ? "rgba(219,234,254,0.15)" : "transparent",
+                  transition: "background 0.15s",
+                }}
               >
                 {/* Icon */}
-                <div
-                  className="w-9 h-9 sm:w-11 sm:h-11 rounded-full flex items-center justify-center flex-shrink-0 text-lg sm:text-xl"
-                  style={{ backgroundColor: config.bg }}
-                >
+                <div style={{
+                  width: 40, height: 40, borderRadius: "50%",
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  flexShrink: 0, fontSize: 18, backgroundColor: config.bg,
+                }}>
                   {config.icon}
                 </div>
 
-                {/* Content */}
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-start justify-between gap-2 mb-0.5">
-                    <p className={`text-sm leading-snug ${!notif.isRead ? "font-bold text-gray-900" : "font-medium text-gray-700"}`}>
+                {/* Content — all info vertical, no clipping */}
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 8, marginBottom: 2 }}>
+                    <p style={{
+                      fontSize: 14, lineHeight: 1.4, margin: 0,
+                      fontWeight: !notif.isRead ? 700 : 500,
+                      color: !notif.isRead ? "#111827" : "#374151",
+                      wordBreak: "break-word",
+                    }}>
                       {notif.title}
                     </p>
-                    <span className="text-[10px] sm:text-xs text-gray-400 flex-shrink-0 mt-0.5">{timeAgo(notif.createdAt)}</span>
+                    <span style={{ fontSize: 11, color: "#9ca3af", flexShrink: 0, marginTop: 2 }}>
+                      {timeAgo(notif.createdAt)}
+                    </span>
                   </div>
-                  <p className={`text-xs sm:text-sm leading-relaxed ${!notif.isRead ? "text-gray-700" : "text-gray-400"}`}>
+                  <p style={{
+                    fontSize: 13, lineHeight: 1.5, margin: "0 0 6px",
+                    color: !notif.isRead ? "#374151" : "#9ca3af",
+                    wordBreak: "break-word",
+                  }}>
                     {notif.body}
                   </p>
-                  <div className="flex items-center gap-2 mt-1.5 sm:mt-2 flex-wrap">
-                    <span
-                      className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] sm:text-xs font-medium"
-                      style={{ backgroundColor: config.bg, color: config.color }}
-                    >
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                    <span style={{
+                      display: "inline-flex", alignItems: "center",
+                      padding: "2px 8px", borderRadius: 20,
+                      fontSize: 11, fontWeight: 600,
+                      backgroundColor: config.bg, color: config.color,
+                    }}>
                       {config.label}
                     </span>
                     {!notif.isRead && (
                       <button
                         onClick={() => markReadMutation.mutate({ id: notif.id })}
                         disabled={markReadMutation.isPending}
-                        className="text-[10px] sm:text-xs font-medium text-sky-600 hover:text-sky-800 transition-colors disabled:opacity-50"
+                        style={{
+                          fontSize: 11, fontWeight: 600, color: "#0284c7",
+                          background: "none", border: "none", cursor: "pointer",
+                          padding: 0, opacity: markReadMutation.isPending ? 0.5 : 1,
+                        }}
                       >
                         Marcar lida
                       </button>
