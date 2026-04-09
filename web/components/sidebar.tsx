@@ -160,6 +160,75 @@ export function Sidebar({ collapsed, onToggle, onNavigate }: { collapsed: boolea
         </button>
       </div>
 
+      {/* User info — fixed right below logo */}
+      {!collapsed && (
+        <div style={{
+          padding: "10px 10px", borderBottom: "1px solid rgba(255,255,255,0.06)",
+        }}>
+          <div style={{
+            background: `${badgeColor}18`,
+            border: `1px solid ${badgeColor}30`,
+            borderRadius: 10, padding: "10px 12px",
+            display: "flex", alignItems: "center", gap: 10,
+          }}>
+            <div style={{
+              width: 34, height: 34, minWidth: 34, borderRadius: "50%",
+              background: badgeColor,
+              display: "flex", alignItems: "center", justifyContent: "center",
+              fontSize: 13, fontWeight: 700, color: "white", overflow: "hidden", flexShrink: 0,
+            }}>
+              {user?.avatarUrl
+                // eslint-disable-next-line @next/next/no-img-element
+                ? <img src={user.avatarUrl} alt="" style={{ width: 34, height: 34, objectFit: "cover" }} />
+                : getInitials(user?.name)}
+            </div>
+            <div style={{ flex: 1, overflow: "hidden" }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: "white", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                {user?.name ?? "Usuário"}
+              </div>
+              <div style={{
+                display: "inline-flex", alignItems: "center",
+                background: badgeColor, borderRadius: 20, padding: "1px 8px", marginTop: 3,
+              }}>
+                <span style={{ fontSize: 9, fontWeight: 700, color: "white", letterSpacing: "0.05em" }}>
+                  {getRoleLabel(user?.appRole)}
+                </span>
+              </div>
+            </div>
+            <button onClick={logout} title="Sair" style={{
+              background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.15)",
+              borderRadius: 7, padding: "6px 10px", cursor: "pointer",
+              color: "#cbd5e1", display: "flex", alignItems: "center", gap: 4,
+              flexShrink: 0, fontSize: 11, fontWeight: 600,
+            }}>
+              <LogOut size={12} />
+              Sair
+            </button>
+          </div>
+        </div>
+      )}
+      {collapsed && (
+        <div style={{ padding: "8px 10px", borderBottom: "1px solid rgba(255,255,255,0.06)", display: "flex", flexDirection: "column", alignItems: "center", gap: 6 }}>
+          <div style={{
+            width: 32, height: 32, borderRadius: "50%", background: badgeColor,
+            display: "flex", alignItems: "center", justifyContent: "center",
+            fontSize: 12, fontWeight: 700, color: "white", overflow: "hidden", flexShrink: 0,
+          }}>
+            {user?.avatarUrl
+              // eslint-disable-next-line @next/next/no-img-element
+              ? <img src={user.avatarUrl} alt="" style={{ width: 32, height: 32, objectFit: "cover" }} />
+              : getInitials(user?.name)}
+          </div>
+          <button onClick={logout} title="Sair" style={{
+            background: "rgba(255,255,255,0.06)", border: "none", color: "#94a3b8",
+            cursor: "pointer", padding: "4px", borderRadius: 6,
+            display: "flex", alignItems: "center", justifyContent: "center",
+          }}>
+            <LogOut size={13} />
+          </button>
+        </div>
+      )}
+
       {/* Nav */}
       <nav style={{ flex: 1, overflowY: "auto", overflowX: "hidden", padding: "10px 8px" }}>
         {navGroups.map((group) => (
@@ -214,80 +283,9 @@ export function Sidebar({ collapsed, onToggle, onNavigate }: { collapsed: boolea
         ))}
       </nav>
 
-      {/* Footer */}
-      <div style={{ borderTop: "1px solid rgba(255,255,255,0.06)", padding: "12px 10px" }}>
-        {collapsed ? (
-          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
-            <div style={{
-              width: 32, height: 32, borderRadius: "50%",
-              background: badgeColor,
-              display: "flex", alignItems: "center", justifyContent: "center",
-              fontSize: 12, fontWeight: 700, color: "white", overflow: "hidden",
-              flexShrink: 0,
-            }}>
-              {user?.avatarUrl
-                // eslint-disable-next-line @next/next/no-img-element
-                ? <img src={user.avatarUrl} alt="" style={{ width: 32, height: 32, objectFit: "cover" }} />
-                : getInitials(user?.name)}
-            </div>
-            <button onClick={logout} title="Sair" style={{
-              background: "rgba(255,255,255,0.06)", border: "none", color: "#94a3b8",
-              cursor: "pointer", padding: "5px", borderRadius: 6,
-              display: "flex", alignItems: "center", justifyContent: "center",
-            }}>
-              <LogOut size={14} />
-            </button>
-          </div>
-        ) : (
-          <div style={{
-            background: `${badgeColor}18`,
-            border: `1px solid ${badgeColor}30`,
-            borderRadius: 12, padding: "12px",
-          }}>
-            {/* User info row */}
-            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
-              <div style={{
-                width: 36, height: 36, minWidth: 36, borderRadius: "50%",
-                background: badgeColor,
-                display: "flex", alignItems: "center", justifyContent: "center",
-                fontSize: 13, fontWeight: 700, color: "white", overflow: "hidden", flexShrink: 0,
-              }}>
-                {user?.avatarUrl
-                  // eslint-disable-next-line @next/next/no-img-element
-                  ? <img src={user.avatarUrl} alt="" style={{ width: 36, height: 36, objectFit: "cover" }} />
-                  : getInitials(user?.name)}
-              </div>
-              <div style={{ flex: 1, overflow: "hidden" }}>
-                <div style={{ fontSize: 13, fontWeight: 700, color: "white", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                  {user?.name ?? "Usuário"}
-                </div>
-                <div style={{
-                  display: "inline-flex", alignItems: "center",
-                  background: badgeColor,
-                  borderRadius: 20, padding: "1px 8px", marginTop: 3,
-                }}>
-                  <span style={{ fontSize: 9, fontWeight: 700, color: "white", letterSpacing: "0.05em" }}>
-                    {getRoleLabel(user?.appRole)}
-                  </span>
-                </div>
-              </div>
-            </div>
-            {/* Logout button — full width, easy to tap */}
-            <button
-              onClick={logout}
-              style={{
-                width: "100%",
-                display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
-                background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.15)",
-                borderRadius: 8, padding: "10px 12px", cursor: "pointer",
-                color: "#cbd5e1", fontSize: 13, fontWeight: 600,
-              }}
-            >
-              <LogOut size={14} />
-              Sair da conta
-            </button>
-          </div>
-        )}
+      {/* Footer — minimal since user info is at top */}
+      <div style={{ borderTop: "1px solid rgba(255,255,255,0.06)", padding: "8px 10px", textAlign: "center" }}>
+        <span style={{ fontSize: 9, color: "#475569" }}>PromoterHub v1.0</span>
       </div>
     </aside>
   );
