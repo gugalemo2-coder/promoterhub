@@ -6,7 +6,7 @@ import {
   ExternalLink, Filter, X, CheckSquare, Square, Archive,
   MessageSquare, Send, Maximize2,
 } from "lucide-react";
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import JSZip from "jszip";
 
 type PhotoStatus = "pending" | "approved" | "rejected" | "all";
@@ -40,7 +40,7 @@ function StatusPill({ status }: { status: string }) {
 
 function PhotoCard({
   photo, idx, selected, onSelect, onApprove, onReject, onDownload, downloading, selectMode,
-  onOpenComments, commentPhotoId,
+  onOpenComments, commentPhotoId, onOpenGallery,
 }: {
   photo: Photo; idx: number; selected: boolean;
   onSelect: (id: number) => void;
@@ -51,6 +51,7 @@ function PhotoCard({
   selectMode: boolean;
   onOpenComments: (id: number) => void;
   commentPhotoId: number | null;
+  onOpenGallery: (idx: number) => void;
 }) {
   const [hovered, setHovered] = useState(false);
   const promoterName = (photo.promoterName as string) ?? "Promotor";
@@ -70,7 +71,7 @@ function PhotoCard({
       }}
     >
       <div style={{ position: "relative", aspectRatio: "4/3", background: "#f3f4f6", overflow: "hidden", cursor: "pointer" }}
-        onClick={() => { if (!selectMode && photo.photoUrl) (window as any).__setFullscreen?.(photo.photoUrl); }}
+        onClick={() => { if (!selectMode && photo.photoUrl) onOpenGallery(idx); }}
       >
         {photo.photoUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
@@ -82,15 +83,16 @@ function PhotoCard({
         )}
         {(hovered || selected) && !selectMode && (
           <div style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.45)", display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
-            <button onClick={() => photo.photoUrl && (window as any).__setFullscreen?.(photo.photoUrl)} title="Ver em tela cheia"
+            <button onClick={(e) => { e.stopPropagation(); onOpenGallery(idx); }} title="Ver em tela cheia"
               style={{ width: 36, height: 36, borderRadius: "50%", background: "rgba(255,255,255,0.9)", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
               <Maximize2 size={15} style={{ color: "#374151" }} />
             </button>
-            <button onClick={() => onDownload(photo, idx)} disabled={downloading === photo.id} title="Baixar"
+            <button onClick={(e) => { e.stopPropagation(); onDownload(photo, idx); }} disabled={downloading === photo.id} title="Baixar"
               style={{ width: 36, height: 36, borderRadius: "50%", background: "rgba(255,255,255,0.9)", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
               {downloading === photo.id ? <div style={{ width: 14, height: 14, border: "2px solid #6b7280", borderTopColor: "transparent", borderRadius: "50%", animation: "spin 0.8s linear infinite" }} /> : <Download size={15} style={{ color: "#374151" }} />}
             </button>
             <a href={photo.photoUrl ?? "#"} target="_blank" rel="noopener noreferrer" title="Abrir em nova aba"
+              onClick={(e) => e.stopPropagation()}
               style={{ width: 36, height: 36, borderRadius: "50%", background: "rgba(255,255,255,0.9)", display: "flex", alignItems: "center", justifyContent: "center", textDecoration: "none" }}>
               <ExternalLink size={15} style={{ color: "#374151" }} />
             </a>
@@ -177,6 +179,260 @@ function CommentPanel({ photoId, onClose }: { photoId: number; onClose: () => vo
       <div style={{ padding: "12px 20px", borderTop: "1px solid #e5e7eb", display: "flex", gap: 8 }}>
         <input value={text} onChange={(e) => setText(e.target.value)} placeholder="Escrever comentário..." onKeyDown={(e) => e.key === "Enter" && handleAdd()} style={{ flex: 1, padding: "8px 12px", borderRadius: 8, border: "1px solid #e5e7eb", fontSize: 12, outline: "none" }} />
         <button onClick={handleAdd} disabled={!text.trim()} style={{ width: 34, height: 34, borderRadius: 8, border: "none", background: "#1A56DB", color: "white", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", opacity: text.trim() ? 1 : 0.5 }}><Send size={14} /></button>
+      </div>
+    </div>
+  );
+}
+
+/* ── Fullscreen Gallery with real zoom ── */
+function FullscreenGallery({
+  data,
+  initialIndex,
+  onClose,
+  onApprove,
+  onReject,
+  onComment,
+}: {
+  data: Photo[];
+  initialIndex: number;
+  onClose: () => void;
+  onApprove: (id: number) => Promise<void>;
+  onReject: (id: number) => Promise<void>;
+  onComment: (id: number) => void;
+}) {
+  const [index, setIndex] = useState(initialIndex);
+  const [scale, setScale] = useState(1);
+  const [translate, setTranslate] = useState({ x: 0, y: 0 });
+  const imgRef = useRef<HTMLImageElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  // Pinch state
+  const pinchRef = useRef({ startDist: 0, startScale: 1 });
+  // Pan state
+  const panRef = useRef({ startX: 0, startY: 0, startTx: 0, startTy: 0, isPanning: false });
+  // Swipe state
+  const swipeRef = useRef({ startX: 0, startY: 0, startTime: 0 });
+
+  const photo = data[index];
+  if (!photo) { onClose(); return null; }
+
+  const promoterName = (photo.promoterName as string) ?? "Promotor";
+  const storeName = (photo.storeName as string) ?? "PDV";
+  const brandName = (photo.brandName as string) ?? "";
+  const dateStr = formatDateTime(photo.createdAt as string);
+  const isPending = photo.status === "pending";
+
+  const resetZoom = () => { setScale(1); setTranslate({ x: 0, y: 0 }); };
+
+  const goTo = (newIdx: number) => {
+    resetZoom();
+    setIndex(newIdx);
+  };
+
+  // Double-tap / double-click zoom
+  const handleDoubleClick = (e: React.MouseEvent) => {
+    if (scale > 1) {
+      resetZoom();
+    } else {
+      const rect = containerRef.current?.getBoundingClientRect();
+      if (rect) {
+        const x = e.clientX - rect.left - rect.width / 2;
+        const y = e.clientY - rect.top - rect.height / 2;
+        setScale(2.5);
+        setTranslate({ x: -x * 0.6, y: -y * 0.6 });
+      } else {
+        setScale(2.5);
+      }
+    }
+  };
+
+  // Scroll wheel zoom (desktop)
+  const handleWheel = (e: React.WheelEvent) => {
+    e.preventDefault();
+    const delta = e.deltaY > 0 ? -0.25 : 0.25;
+    setScale((s) => {
+      const next = Math.max(1, Math.min(5, s + delta));
+      if (next <= 1) setTranslate({ x: 0, y: 0 });
+      return next;
+    });
+  };
+
+  // Touch handlers: pinch-to-zoom + pan + swipe
+  const handleTouchStart = (e: React.TouchEvent) => {
+    if (e.touches.length === 2) {
+      // Pinch start
+      const dx = e.touches[0].clientX - e.touches[1].clientX;
+      const dy = e.touches[0].clientY - e.touches[1].clientY;
+      pinchRef.current = { startDist: Math.hypot(dx, dy), startScale: scale };
+    } else if (e.touches.length === 1) {
+      const t = e.touches[0];
+      swipeRef.current = { startX: t.clientX, startY: t.clientY, startTime: Date.now() };
+      if (scale > 1) {
+        // Pan start
+        panRef.current = { startX: t.clientX, startY: t.clientY, startTx: translate.x, startTy: translate.y, isPanning: true };
+      }
+    }
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (e.touches.length === 2) {
+      // Pinch move
+      const dx = e.touches[0].clientX - e.touches[1].clientX;
+      const dy = e.touches[0].clientY - e.touches[1].clientY;
+      const dist = Math.hypot(dx, dy);
+      const newScale = Math.max(1, Math.min(5, pinchRef.current.startScale * (dist / pinchRef.current.startDist)));
+      setScale(newScale);
+      if (newScale <= 1) setTranslate({ x: 0, y: 0 });
+    } else if (e.touches.length === 1 && panRef.current.isPanning && scale > 1) {
+      const t = e.touches[0];
+      const dx = t.clientX - panRef.current.startX;
+      const dy = t.clientY - panRef.current.startY;
+      setTranslate({ x: panRef.current.startTx + dx, y: panRef.current.startTy + dy });
+    }
+  };
+
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    panRef.current.isPanning = false;
+
+    // Detect swipe (only when not zoomed)
+    if (scale <= 1 && e.changedTouches.length === 1) {
+      const t = e.changedTouches[0];
+      const diffX = t.clientX - swipeRef.current.startX;
+      const diffY = t.clientY - swipeRef.current.startY;
+      const elapsed = Date.now() - swipeRef.current.startTime;
+      if (Math.abs(diffX) > 50 && Math.abs(diffX) > Math.abs(diffY) && elapsed < 400) {
+        if (diffX < 0 && index < data.length - 1) goTo(index + 1);
+        if (diffX > 0 && index > 0) goTo(index - 1);
+      }
+    }
+  };
+
+  // Keyboard nav
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+      if (e.key === "ArrowLeft" && index > 0) goTo(index - 1);
+      if (e.key === "ArrowRight" && index < data.length - 1) goTo(index + 1);
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [index, data.length]);
+
+  return (
+    <div style={{
+      position: "fixed", inset: 0, background: "rgba(0,0,0,0.95)",
+      display: "flex", flexDirection: "column",
+      zIndex: 9999, userSelect: "none",
+    }}>
+      {/* Top bar */}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 16px", flexShrink: 0 }}>
+        <span style={{ color: "white", fontSize: 13, fontWeight: 600 }}>{index + 1} / {data.length}</span>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          {scale > 1 && (
+            <button onClick={resetZoom} style={{
+              background: "rgba(255,255,255,0.15)", border: "none", borderRadius: 8,
+              padding: "6px 12px", cursor: "pointer", color: "white", fontSize: 11, fontWeight: 600,
+            }}>
+              Resetar Zoom
+            </button>
+          )}
+          <button onClick={onClose} style={{ background: "rgba(255,255,255,0.15)", border: "none", borderRadius: "50%", width: 36, height: 36, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <X size={18} style={{ color: "white" }} />
+          </button>
+        </div>
+      </div>
+
+      {/* Image area with zoom */}
+      <div
+        ref={containerRef}
+        style={{
+          flex: 1, display: "flex", alignItems: "center", justifyContent: "center",
+          overflow: "hidden", position: "relative",
+          touchAction: "none", cursor: scale > 1 ? "grab" : "default",
+        }}
+        onDoubleClick={handleDoubleClick}
+        onWheel={handleWheel}
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
+      >
+        {/* Left arrow */}
+        {index > 0 && scale <= 1 && (
+          <button onClick={() => goTo(index - 1)} style={{ position: "absolute", left: 8, top: "50%", transform: "translateY(-50%)", background: "rgba(255,255,255,0.15)", border: "none", borderRadius: "50%", width: 40, height: 40, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 2 }}>
+            <span style={{ color: "white", fontSize: 20 }}>‹</span>
+          </button>
+        )}
+        {photo.photoUrl && (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            ref={imgRef}
+            src={photo.photoUrl}
+            alt="Foto"
+            draggable={false}
+            style={{
+              maxWidth: "100%", maxHeight: "65vh", objectFit: "contain",
+              borderRadius: 4,
+              transform: `scale(${scale}) translate(${translate.x / scale}px, ${translate.y / scale}px)`,
+              transformOrigin: "center center",
+              transition: scale === 1 ? "transform 0.2s ease-out" : "none",
+            }}
+          />
+        )}
+        {/* Right arrow */}
+        {index < data.length - 1 && scale <= 1 && (
+          <button onClick={() => goTo(index + 1)} style={{ position: "absolute", right: 8, top: "50%", transform: "translateY(-50%)", background: "rgba(255,255,255,0.15)", border: "none", borderRadius: "50%", width: 40, height: 40, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 2 }}>
+            <span style={{ color: "white", fontSize: 20 }}>›</span>
+          </button>
+        )}
+      </div>
+
+      {/* Bottom: info + status + action buttons */}
+      <div style={{ padding: "10px 16px 20px", flexShrink: 0, background: "linear-gradient(transparent, rgba(0,0,0,0.9))" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+          <p style={{ color: "white", fontSize: 14, fontWeight: 600, margin: 0, flex: 1 }}>{storeName}</p>
+          <StatusPill status={photo.status ?? "pending"} />
+        </div>
+        <p style={{ color: "rgba(255,255,255,0.7)", fontSize: 12, margin: "0 0 2px" }}>
+          {promoterName}{brandName ? ` · ${brandName}` : ""}
+        </p>
+        <p style={{ color: "rgba(255,255,255,0.5)", fontSize: 11, margin: "0 0 10px" }}>{dateStr}</p>
+
+        {/* Action buttons */}
+        <div style={{ display: "flex", gap: 8 }}>
+          {isPending && (
+            <>
+              <button
+                onClick={async () => {
+                  await onApprove(photo.id);
+                  if (index < data.length - 1) goTo(index);
+                  else if (data.length <= 1) onClose();
+                  else goTo(Math.max(0, index - 1));
+                }}
+                style={{ flex: 1, padding: "10px 0", borderRadius: 10, border: "none", background: "#10b981", color: "white", fontSize: 13, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 5 }}
+              >
+                <CheckCircle size={14} /> Aprovar
+              </button>
+              <button
+                onClick={async () => {
+                  await onReject(photo.id);
+                  if (index < data.length - 1) goTo(index);
+                  else if (data.length <= 1) onClose();
+                  else goTo(Math.max(0, index - 1));
+                }}
+                style={{ flex: 1, padding: "10px 0", borderRadius: 10, border: "none", background: "#ef4444", color: "white", fontSize: 13, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 5 }}
+              >
+                <XCircle size={14} /> Recusar
+              </button>
+            </>
+          )}
+          <button
+            onClick={() => { onComment(photo.id); onClose(); }}
+            style={{ flex: isPending ? 0 : 1, minWidth: isPending ? 48 : undefined, padding: "10px 14px", borderRadius: 10, border: "1px solid rgba(255,255,255,0.3)", background: "rgba(255,255,255,0.1)", color: "white", fontSize: 13, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 5 }}
+          >
+            <MessageSquare size={14} /> {!isPending && "Comentar"}
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -319,8 +575,6 @@ export default function PhotosPage() {
     <div style={{ padding: "16px", maxWidth: 1400, margin: "0 auto", paddingRight: commentPhotoId ? 360 : 16 }}>
       <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
       @media (min-width: 640px) { .photos-container { padding: 28px 32px !important; padding-right: ${commentPhotoId ? '360px' : '32px'} !important; } }`}</style>
-      <script dangerouslySetInnerHTML={{ __html: "" }} />
-      {(() => { if (typeof window !== "undefined") (window as any).__setFullscreen = (url: string) => { const idx = data.findIndex((p) => p.photoUrl === url); setGalleryIndex(idx >= 0 ? idx : 0); }; return null; })()}
 
       {toast && (
         <div style={{
@@ -465,6 +719,7 @@ export default function PhotosPage() {
               selectMode={selectMode}
               onOpenComments={(id) => setCommentPhotoId(commentPhotoId === id ? null : id)}
               commentPhotoId={commentPhotoId}
+              onOpenGallery={(i) => setGalleryIndex(i)}
             />
           ))}
         </div>
@@ -476,125 +731,17 @@ export default function PhotosPage() {
         </p>
       )}
 
-      {/* Fullscreen Gallery — swipe + zoom + actions */}
-      {galleryIndex !== null && data[galleryIndex] && (() => {
-        const photo = data[galleryIndex];
-        const promoterName = (photo.promoterName as string) ?? "Promotor";
-        const storeName = (photo.storeName as string) ?? "PDV";
-        const brandName = (photo.brandName as string) ?? "";
-        const dateStr = formatDateTime(photo.createdAt as string);
-        const isPending = photo.status === "pending";
-        return (
-          <div
-            style={{
-              position: "fixed", inset: 0, background: "rgba(0,0,0,0.95)",
-              display: "flex", flexDirection: "column",
-              zIndex: 9999, userSelect: "none",
-            }}
-          >
-            {/* Top bar */}
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 16px", flexShrink: 0 }}>
-              <span style={{ color: "white", fontSize: 13, fontWeight: 600 }}>{galleryIndex + 1} / {data.length}</span>
-              <button onClick={() => setGalleryIndex(null)} style={{ background: "rgba(255,255,255,0.15)", border: "none", borderRadius: "50%", width: 36, height: 36, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                <X size={18} style={{ color: "white" }} />
-              </button>
-            </div>
-
-            {/* Image area with swipe — allows pinch zoom via overflow auto */}
-            <div
-              style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", overflow: "auto", position: "relative", WebkitOverflowScrolling: "touch" }}
-              onTouchStart={(e) => {
-                if (e.touches.length > 1) return; // don't interfere with pinch
-                const touch = e.touches[0];
-                (e.currentTarget as any)._startX = touch.clientX;
-                (e.currentTarget as any)._startY = touch.clientY;
-                (e.currentTarget as any)._startTime = Date.now();
-              }}
-              onTouchEnd={(e) => {
-                const el = e.currentTarget as any;
-                if (!el._startX) return;
-                const endTouch = e.changedTouches[0];
-                const diffX = endTouch.clientX - el._startX;
-                const diffY = endTouch.clientY - el._startY;
-                const elapsed = Date.now() - (el._startTime ?? 0);
-                if (Math.abs(diffX) > 50 && Math.abs(diffX) > Math.abs(diffY) && elapsed < 400) {
-                  if (diffX < 0 && galleryIndex < data.length - 1) setGalleryIndex(galleryIndex + 1);
-                  if (diffX > 0 && galleryIndex > 0) setGalleryIndex(galleryIndex - 1);
-                }
-                el._startX = null;
-              }}
-            >
-              {galleryIndex > 0 && (
-                <button onClick={() => setGalleryIndex(galleryIndex - 1)} style={{ position: "absolute", left: 8, top: "50%", transform: "translateY(-50%)", background: "rgba(255,255,255,0.15)", border: "none", borderRadius: "50%", width: 40, height: 40, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 2 }}>
-                  <span style={{ color: "white", fontSize: 20 }}>‹</span>
-                </button>
-              )}
-              {photo.photoUrl && (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={photo.photoUrl}
-                  alt="Foto"
-                  style={{
-                    maxWidth: "100%", maxHeight: "65vh", objectFit: "contain",
-                    borderRadius: 4, touchAction: "manipulation",
-                    transform: "scale(1)", transformOrigin: "center center",
-                  }}
-                  onDoubleClick={(e) => {
-                    const img = e.currentTarget;
-                    if (img.style.transform === "scale(2)") {
-                      img.style.transform = "scale(1)";
-                      img.style.cursor = "default";
-                    } else {
-                      img.style.transform = "scale(2)";
-                      img.style.cursor = "zoom-out";
-                    }
-                  }}
-                />
-              )}
-              {galleryIndex < data.length - 1 && (
-                <button onClick={() => setGalleryIndex(galleryIndex + 1)} style={{ position: "absolute", right: 8, top: "50%", transform: "translateY(-50%)", background: "rgba(255,255,255,0.15)", border: "none", borderRadius: "50%", width: 40, height: 40, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 2 }}>
-                  <span style={{ color: "white", fontSize: 20 }}>›</span>
-                </button>
-              )}
-            </div>
-
-            {/* Bottom: info + action buttons */}
-            <div style={{ padding: "10px 16px 20px", flexShrink: 0, background: "linear-gradient(transparent, rgba(0,0,0,0.9))" }}>
-              <p style={{ color: "white", fontSize: 14, fontWeight: 600, margin: "0 0 2px" }}>{storeName}</p>
-              <p style={{ color: "rgba(255,255,255,0.7)", fontSize: 12, margin: "0 0 2px" }}>
-                {promoterName}{brandName ? ` · ${brandName}` : ""}
-              </p>
-              <p style={{ color: "rgba(255,255,255,0.5)", fontSize: 11, margin: "0 0 10px" }}>{dateStr}</p>
-
-              {/* Action buttons */}
-              <div style={{ display: "flex", gap: 8 }}>
-                {isPending && (
-                  <>
-                    <button
-                      onClick={async () => { await handleApprove(photo.id); if (galleryIndex < data.length - 1) setGalleryIndex(galleryIndex); else setGalleryIndex(null); }}
-                      style={{ flex: 1, padding: "10px 0", borderRadius: 10, border: "none", background: "#10b981", color: "white", fontSize: 13, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 5 }}
-                    >
-                      <CheckCircle size={14} /> Aprovar
-                    </button>
-                    <button
-                      onClick={async () => { await handleReject(photo.id); if (galleryIndex < data.length - 1) setGalleryIndex(galleryIndex); else setGalleryIndex(null); }}
-                      style={{ flex: 1, padding: "10px 0", borderRadius: 10, border: "none", background: "#ef4444", color: "white", fontSize: 13, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 5 }}
-                    >
-                      <XCircle size={14} /> Recusar
-                    </button>
-                  </>
-                )}
-                <button
-                  onClick={() => { setCommentPhotoId(photo.id); setGalleryIndex(null); }}
-                  style={{ flex: isPending ? 0 : 1, minWidth: isPending ? 48 : undefined, padding: "10px 14px", borderRadius: 10, border: "1px solid rgba(255,255,255,0.3)", background: "rgba(255,255,255,0.1)", color: "white", fontSize: 13, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 5 }}
-                >
-                  <MessageSquare size={14} /> {!isPending && "Comentar"}
-                </button>
-              </div>
-            </div>
-          </div>
-        );
-      })()}
+      {/* Fullscreen Gallery */}
+      {galleryIndex !== null && data[galleryIndex] && (
+        <FullscreenGallery
+          data={data}
+          initialIndex={galleryIndex}
+          onClose={() => setGalleryIndex(null)}
+          onApprove={handleApprove}
+          onReject={handleReject}
+          onComment={(id) => setCommentPhotoId(id)}
+        />
+      )}
 
       {/* Comment Side Panel */}
       {commentPhotoId && <CommentPanel photoId={commentPhotoId} onClose={() => setCommentPhotoId(null)} />}
