@@ -69,7 +69,9 @@ function PhotoCard({
         cursor: selectMode ? "pointer" : "default", position: "relative",
       }}
     >
-      <div style={{ position: "relative", aspectRatio: "4/3", background: "#f3f4f6", overflow: "hidden" }}>
+      <div style={{ position: "relative", aspectRatio: "4/3", background: "#f3f4f6", overflow: "hidden", cursor: "pointer" }}
+        onClick={() => { if (!selectMode && photo.photoUrl) (window as any).__setFullscreen?.(photo.photoUrl); }}
+      >
         {photo.photoUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img src={photo.photoUrl} alt="Foto" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
@@ -190,7 +192,7 @@ export default function PhotosPage() {
   const [batchLoading, setBatchLoading] = useState(false);
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
   const [commentPhotoId, setCommentPhotoId] = useState<number | null>(null);
-  const [fullscreenUrl, setFullscreenUrl] = useState<string | null>(null);
+  const [galleryIndex, setGalleryIndex] = useState<number | null>(null);
 
   const photos = trpc.photos.listAllWithDetails.useQuery({
     status: status === "all" ? undefined : status,
@@ -318,7 +320,7 @@ export default function PhotosPage() {
       <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
       @media (min-width: 640px) { .photos-container { padding: 28px 32px !important; padding-right: ${commentPhotoId ? '360px' : '32px'} !important; } }`}</style>
       <script dangerouslySetInnerHTML={{ __html: "" }} />
-      {(() => { if (typeof window !== "undefined") (window as any).__setFullscreen = setFullscreenUrl; return null; })()}
+      {(() => { if (typeof window !== "undefined") (window as any).__setFullscreen = (url: string) => { const idx = data.findIndex((p) => p.photoUrl === url); setGalleryIndex(idx >= 0 ? idx : 0); }; return null; })()}
 
       {toast && (
         <div style={{
@@ -474,38 +476,90 @@ export default function PhotosPage() {
         </p>
       )}
 
-      {/* Fullscreen Image Modal */}
-      {fullscreenUrl && (
-        <div
-          onClick={() => setFullscreenUrl(null)}
-          style={{
-            position: "fixed", inset: 0, background: "rgba(0,0,0,0.85)",
-            display: "flex", alignItems: "center", justifyContent: "center",
-            zIndex: 9999, cursor: "zoom-out", padding: 16,
-          }}
-        >
-          <button
-            onClick={() => setFullscreenUrl(null)}
+      {/* Fullscreen Gallery — swipe + zoom like iPhone */}
+      {galleryIndex !== null && data[galleryIndex] && (() => {
+        const photo = data[galleryIndex];
+        const promoterName = (photo.promoterName as string) ?? "Promotor";
+        const storeName = (photo.storeName as string) ?? "PDV";
+        const brandName = (photo.brandName as string) ?? "";
+        const dateStr = formatDateTime(photo.createdAt as string);
+        return (
+          <div
             style={{
-              position: "absolute", top: 16, right: 16, width: 40, height: 40,
-              borderRadius: "50%", background: "rgba(255,255,255,0.15)", border: "none",
-              cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
+              position: "fixed", inset: 0, background: "rgba(0,0,0,0.95)",
+              display: "flex", flexDirection: "column",
+              zIndex: 9999, touchAction: "none", userSelect: "none",
             }}
           >
-            <X size={20} style={{ color: "white" }} />
-          </button>
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={fullscreenUrl}
-            alt="Foto em tela cheia"
-            onClick={(e) => e.stopPropagation()}
-            style={{
-              maxWidth: "95vw", maxHeight: "90vh", objectFit: "contain",
-              borderRadius: 8, cursor: "default",
-            }}
-          />
-        </div>
-      )}
+            {/* Top bar */}
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 16px", flexShrink: 0 }}>
+              <span style={{ color: "white", fontSize: 13, fontWeight: 600 }}>{galleryIndex + 1} / {data.length}</span>
+              <button onClick={() => setGalleryIndex(null)} style={{ background: "rgba(255,255,255,0.15)", border: "none", borderRadius: "50%", width: 36, height: 36, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <X size={18} style={{ color: "white" }} />
+              </button>
+            </div>
+
+            {/* Image area with swipe */}
+            <div
+              style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden", position: "relative" }}
+              onTouchStart={(e) => {
+                const touch = e.touches[0];
+                (e.currentTarget as any)._startX = touch.clientX;
+                (e.currentTarget as any)._startY = touch.clientY;
+                (e.currentTarget as any)._startTime = Date.now();
+              }}
+              onTouchEnd={(e) => {
+                const el = e.currentTarget as any;
+                if (!el._startX) return;
+                const endTouch = e.changedTouches[0];
+                const diffX = endTouch.clientX - el._startX;
+                const diffY = endTouch.clientY - el._startY;
+                const elapsed = Date.now() - (el._startTime ?? 0);
+                // Only swipe if horizontal movement > 50px and faster than 300ms
+                if (Math.abs(diffX) > 50 && Math.abs(diffX) > Math.abs(diffY) && elapsed < 400) {
+                  if (diffX < 0 && galleryIndex < data.length - 1) setGalleryIndex(galleryIndex + 1);
+                  if (diffX > 0 && galleryIndex > 0) setGalleryIndex(galleryIndex - 1);
+                }
+                el._startX = null;
+              }}
+            >
+              {/* Left arrow */}
+              {galleryIndex > 0 && (
+                <button onClick={() => setGalleryIndex(galleryIndex - 1)} style={{ position: "absolute", left: 8, top: "50%", transform: "translateY(-50%)", background: "rgba(255,255,255,0.15)", border: "none", borderRadius: "50%", width: 40, height: 40, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 2 }}>
+                  <span style={{ color: "white", fontSize: 20 }}>‹</span>
+                </button>
+              )}
+              {/* Image with pinch zoom via CSS */}
+              {photo.photoUrl && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={photo.photoUrl}
+                  alt="Foto"
+                  style={{
+                    maxWidth: "95vw", maxHeight: "70vh", objectFit: "contain",
+                    borderRadius: 4, touchAction: "pinch-zoom",
+                  }}
+                />
+              )}
+              {/* Right arrow */}
+              {galleryIndex < data.length - 1 && (
+                <button onClick={() => setGalleryIndex(galleryIndex + 1)} style={{ position: "absolute", right: 8, top: "50%", transform: "translateY(-50%)", background: "rgba(255,255,255,0.15)", border: "none", borderRadius: "50%", width: 40, height: 40, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 2 }}>
+                  <span style={{ color: "white", fontSize: 20 }}>›</span>
+                </button>
+              )}
+            </div>
+
+            {/* Bottom info bar */}
+            <div style={{ padding: "12px 16px 24px", flexShrink: 0, background: "linear-gradient(transparent, rgba(0,0,0,0.8))" }}>
+              <p style={{ color: "white", fontSize: 14, fontWeight: 600, margin: "0 0 4px" }}>{storeName}</p>
+              <p style={{ color: "rgba(255,255,255,0.7)", fontSize: 12, margin: "0 0 2px" }}>
+                {promoterName}{brandName ? ` · ${brandName}` : ""}
+              </p>
+              <p style={{ color: "rgba(255,255,255,0.5)", fontSize: 11, margin: 0 }}>{dateStr}</p>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Comment Side Panel */}
       {commentPhotoId && <CommentPanel photoId={commentPhotoId} onClose={() => setCommentPhotoId(null)} />}
