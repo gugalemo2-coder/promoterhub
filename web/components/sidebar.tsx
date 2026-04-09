@@ -215,7 +215,7 @@ export function Sidebar({ collapsed, onToggle, onNavigate }: { collapsed: boolea
       </nav>
 
       {/* Footer */}
-      <div style={{ borderTop: "1px solid rgba(255,255,255,0.06)", padding: "10px 10px" }}>
+      <div style={{ borderTop: "1px solid rgba(255,255,255,0.06)", padding: "12px 10px" }}>
         {collapsed ? (
           <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
             <div style={{
@@ -242,49 +242,50 @@ export function Sidebar({ collapsed, onToggle, onNavigate }: { collapsed: boolea
           <div style={{
             background: `${badgeColor}18`,
             border: `1px solid ${badgeColor}30`,
-            borderRadius: 10, padding: "10px 12px",
+            borderRadius: 12, padding: "12px",
           }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
+            {/* User info row */}
+            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
               <div style={{
-                width: 34, height: 34, minWidth: 34, borderRadius: "50%",
+                width: 36, height: 36, minWidth: 36, borderRadius: "50%",
                 background: badgeColor,
                 display: "flex", alignItems: "center", justifyContent: "center",
                 fontSize: 13, fontWeight: 700, color: "white", overflow: "hidden", flexShrink: 0,
               }}>
                 {user?.avatarUrl
                   // eslint-disable-next-line @next/next/no-img-element
-                  ? <img src={user.avatarUrl} alt="" style={{ width: 34, height: 34, objectFit: "cover" }} />
+                  ? <img src={user.avatarUrl} alt="" style={{ width: 36, height: 36, objectFit: "cover" }} />
                   : getInitials(user?.name)}
               </div>
               <div style={{ flex: 1, overflow: "hidden" }}>
-                <div style={{ fontSize: 11, color: "#94a3b8", lineHeight: 1 }}>Bem-vindo(a),</div>
-                <div style={{ fontSize: 13, fontWeight: 700, color: "white", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", marginTop: 2 }}>
+                <div style={{ fontSize: 13, fontWeight: 700, color: "white", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                   {user?.name ?? "Usuário"}
                 </div>
+                <div style={{
+                  display: "inline-flex", alignItems: "center",
+                  background: badgeColor,
+                  borderRadius: 20, padding: "1px 8px", marginTop: 3,
+                }}>
+                  <span style={{ fontSize: 9, fontWeight: 700, color: "white", letterSpacing: "0.05em" }}>
+                    {getRoleLabel(user?.appRole)}
+                  </span>
+                </div>
               </div>
-              <button
-                onClick={logout}
-                title="Sair"
-                style={{
-                  background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.12)",
-                  borderRadius: 7, padding: "5px 8px", cursor: "pointer",
-                  color: "#94a3b8", display: "flex", alignItems: "center", gap: 4,
-                  flexShrink: 0, fontSize: 11, fontWeight: 600,
-                }}
-              >
-                <LogOut size={12} />
-                Sair
-              </button>
             </div>
-            <div style={{
-              display: "inline-flex", alignItems: "center",
-              background: badgeColor,
-              borderRadius: 20, padding: "2px 10px",
-            }}>
-              <span style={{ fontSize: 10, fontWeight: 700, color: "white", letterSpacing: "0.05em" }}>
-                {getRoleLabel(user?.appRole)}
-              </span>
-            </div>
+            {/* Logout button — full width, easy to tap */}
+            <button
+              onClick={logout}
+              style={{
+                width: "100%",
+                display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+                background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.15)",
+                borderRadius: 8, padding: "10px 12px", cursor: "pointer",
+                color: "#cbd5e1", fontSize: 13, fontWeight: 600,
+              }}
+            >
+              <LogOut size={14} />
+              Sair da conta
+            </button>
           </div>
         )}
       </div>
