@@ -197,11 +197,12 @@ export function Sidebar({ collapsed, onToggle, onNavigate }: { collapsed: boolea
             </div>
             <button onClick={logout} title="Sair" style={{
               background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.15)",
-              borderRadius: 7, padding: "6px 10px", cursor: "pointer",
+              borderRadius: 7, padding: "8px 12px", cursor: "pointer",
               color: "#cbd5e1", display: "flex", alignItems: "center", gap: 4,
               flexShrink: 0, fontSize: 11, fontWeight: 600,
+              minHeight: 40,
             }}>
-              <LogOut size={12} />
+              <LogOut size={13} />
               Sair
             </button>
           </div>
@@ -221,8 +222,9 @@ export function Sidebar({ collapsed, onToggle, onNavigate }: { collapsed: boolea
           </div>
           <button onClick={logout} title="Sair" style={{
             background: "rgba(255,255,255,0.06)", border: "none", color: "#94a3b8",
-            cursor: "pointer", padding: "4px", borderRadius: 6,
+            cursor: "pointer", padding: "6px", borderRadius: 6,
             display: "flex", alignItems: "center", justifyContent: "center",
+            minWidth: 32, minHeight: 40,
           }}>
             <LogOut size={13} />
           </button>
@@ -283,7 +285,7 @@ export function Sidebar({ collapsed, onToggle, onNavigate }: { collapsed: boolea
         ))}
       </nav>
 
-      {/* Footer — minimal since user info is at top */}
+      {/* Footer — minimal */}
       <div style={{ borderTop: "1px solid rgba(255,255,255,0.06)", padding: "8px 10px", textAlign: "center" }}>
         <span style={{ fontSize: 9, color: "#475569" }}>PromoterHub v1.0</span>
       </div>
