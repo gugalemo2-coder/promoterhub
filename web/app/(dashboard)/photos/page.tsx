@@ -476,19 +476,20 @@ export default function PhotosPage() {
         </p>
       )}
 
-      {/* Fullscreen Gallery — swipe + zoom like iPhone */}
+      {/* Fullscreen Gallery — swipe + zoom + actions */}
       {galleryIndex !== null && data[galleryIndex] && (() => {
         const photo = data[galleryIndex];
         const promoterName = (photo.promoterName as string) ?? "Promotor";
         const storeName = (photo.storeName as string) ?? "PDV";
         const brandName = (photo.brandName as string) ?? "";
         const dateStr = formatDateTime(photo.createdAt as string);
+        const isPending = photo.status === "pending";
         return (
           <div
             style={{
               position: "fixed", inset: 0, background: "rgba(0,0,0,0.95)",
               display: "flex", flexDirection: "column",
-              zIndex: 9999, touchAction: "none", userSelect: "none",
+              zIndex: 9999, userSelect: "none",
             }}
           >
             {/* Top bar */}
@@ -499,10 +500,11 @@ export default function PhotosPage() {
               </button>
             </div>
 
-            {/* Image area with swipe */}
+            {/* Image area with swipe — allows pinch zoom via overflow auto */}
             <div
-              style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden", position: "relative" }}
+              style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", overflow: "auto", position: "relative", WebkitOverflowScrolling: "touch" }}
               onTouchStart={(e) => {
+                if (e.touches.length > 1) return; // don't interfere with pinch
                 const touch = e.touches[0];
                 (e.currentTarget as any)._startX = touch.clientX;
                 (e.currentTarget as any)._startY = touch.clientY;
@@ -515,7 +517,6 @@ export default function PhotosPage() {
                 const diffX = endTouch.clientX - el._startX;
                 const diffY = endTouch.clientY - el._startY;
                 const elapsed = Date.now() - (el._startTime ?? 0);
-                // Only swipe if horizontal movement > 50px and faster than 300ms
                 if (Math.abs(diffX) > 50 && Math.abs(diffX) > Math.abs(diffY) && elapsed < 400) {
                   if (diffX < 0 && galleryIndex < data.length - 1) setGalleryIndex(galleryIndex + 1);
                   if (diffX > 0 && galleryIndex > 0) setGalleryIndex(galleryIndex - 1);
@@ -523,25 +524,33 @@ export default function PhotosPage() {
                 el._startX = null;
               }}
             >
-              {/* Left arrow */}
               {galleryIndex > 0 && (
                 <button onClick={() => setGalleryIndex(galleryIndex - 1)} style={{ position: "absolute", left: 8, top: "50%", transform: "translateY(-50%)", background: "rgba(255,255,255,0.15)", border: "none", borderRadius: "50%", width: 40, height: 40, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 2 }}>
                   <span style={{ color: "white", fontSize: 20 }}>‹</span>
                 </button>
               )}
-              {/* Image with pinch zoom via CSS */}
               {photo.photoUrl && (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
                   src={photo.photoUrl}
                   alt="Foto"
                   style={{
-                    maxWidth: "95vw", maxHeight: "70vh", objectFit: "contain",
-                    borderRadius: 4, touchAction: "pinch-zoom",
+                    maxWidth: "100%", maxHeight: "65vh", objectFit: "contain",
+                    borderRadius: 4, touchAction: "manipulation",
+                    transform: "scale(1)", transformOrigin: "center center",
+                  }}
+                  onDoubleClick={(e) => {
+                    const img = e.currentTarget;
+                    if (img.style.transform === "scale(2)") {
+                      img.style.transform = "scale(1)";
+                      img.style.cursor = "default";
+                    } else {
+                      img.style.transform = "scale(2)";
+                      img.style.cursor = "zoom-out";
+                    }
                   }}
                 />
               )}
-              {/* Right arrow */}
               {galleryIndex < data.length - 1 && (
                 <button onClick={() => setGalleryIndex(galleryIndex + 1)} style={{ position: "absolute", right: 8, top: "50%", transform: "translateY(-50%)", background: "rgba(255,255,255,0.15)", border: "none", borderRadius: "50%", width: 40, height: 40, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 2 }}>
                   <span style={{ color: "white", fontSize: 20 }}>›</span>
@@ -549,13 +558,39 @@ export default function PhotosPage() {
               )}
             </div>
 
-            {/* Bottom info bar */}
-            <div style={{ padding: "12px 16px 24px", flexShrink: 0, background: "linear-gradient(transparent, rgba(0,0,0,0.8))" }}>
-              <p style={{ color: "white", fontSize: 14, fontWeight: 600, margin: "0 0 4px" }}>{storeName}</p>
+            {/* Bottom: info + action buttons */}
+            <div style={{ padding: "10px 16px 20px", flexShrink: 0, background: "linear-gradient(transparent, rgba(0,0,0,0.9))" }}>
+              <p style={{ color: "white", fontSize: 14, fontWeight: 600, margin: "0 0 2px" }}>{storeName}</p>
               <p style={{ color: "rgba(255,255,255,0.7)", fontSize: 12, margin: "0 0 2px" }}>
                 {promoterName}{brandName ? ` · ${brandName}` : ""}
               </p>
-              <p style={{ color: "rgba(255,255,255,0.5)", fontSize: 11, margin: 0 }}>{dateStr}</p>
+              <p style={{ color: "rgba(255,255,255,0.5)", fontSize: 11, margin: "0 0 10px" }}>{dateStr}</p>
+
+              {/* Action buttons */}
+              <div style={{ display: "flex", gap: 8 }}>
+                {isPending && (
+                  <>
+                    <button
+                      onClick={async () => { await handleApprove(photo.id); if (galleryIndex < data.length - 1) setGalleryIndex(galleryIndex); else setGalleryIndex(null); }}
+                      style={{ flex: 1, padding: "10px 0", borderRadius: 10, border: "none", background: "#10b981", color: "white", fontSize: 13, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 5 }}
+                    >
+                      <CheckCircle size={14} /> Aprovar
+                    </button>
+                    <button
+                      onClick={async () => { await handleReject(photo.id); if (galleryIndex < data.length - 1) setGalleryIndex(galleryIndex); else setGalleryIndex(null); }}
+                      style={{ flex: 1, padding: "10px 0", borderRadius: 10, border: "none", background: "#ef4444", color: "white", fontSize: 13, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 5 }}
+                    >
+                      <XCircle size={14} /> Recusar
+                    </button>
+                  </>
+                )}
+                <button
+                  onClick={() => { setCommentPhotoId(photo.id); setGalleryIndex(null); }}
+                  style={{ flex: isPending ? 0 : 1, minWidth: isPending ? 48 : undefined, padding: "10px 14px", borderRadius: 10, border: "1px solid rgba(255,255,255,0.3)", background: "rgba(255,255,255,0.1)", color: "white", fontSize: 13, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 5 }}
+                >
+                  <MessageSquare size={14} /> {!isPending && "Comentar"}
+                </button>
+              </div>
             </div>
           </div>
         );
