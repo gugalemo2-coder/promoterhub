@@ -54,7 +54,7 @@ function PhotoCard({
   onOpenGallery: (idx: number) => void;
 }) {
   const [hovered, setHovered] = useState(false);
-  const promoterName = (photo.promoterName as string) ?? "Promotor";
+  const promoterName = (photo.userName as string) ?? "Promotor";
   const storeName = (photo.storeName as string) ?? "PDV";
   const brandName = (photo.brandName as string) ?? "";
   return (
@@ -197,6 +197,16 @@ function FullscreenGallery({
   const containerRef = useRef<HTMLDivElement>(null);
   const animRef = useRef<number>(0);
 
+  // Detect mobile (no arrows on touch devices)
+  const [isMobile, setIsMobile] = useState(false);
+  useEffect(() => {
+    setIsMobile("ontouchstart" in window || navigator.maxTouchPoints > 0);
+  }, []);
+
+  // Swipe offset for fluid iPhone-like transition
+  const [swipeOffset, setSwipeOffset] = useState(0);
+  const [swipeTransition, setSwipeTransition] = useState(false);
+
   // Zoom/pan state via ref for 60fps touch performance
   const stateRef = useRef({
     scale: 1, tx: 0, ty: 0,
@@ -220,7 +230,7 @@ function FullscreenGallery({
   const photo = data[index];
   if (!photo) { onClose(); return null; }
 
-  const promoterName = (photo.promoterName as string) ?? "Promotor";
+  const promoterName = (photo.userName as string) ?? "Promotor";
   const storeName = (photo.storeName as string) ?? "PDV";
   const brandName = (photo.brandName as string) ?? "";
   const dateStr = formatDateTime(photo.createdAt as string);
@@ -374,6 +384,14 @@ function FullscreenGallery({
       clampPan();
       s.animating = false;
       applyTransform();
+    } else if (e.touches.length === 1 && s.scale <= 1.05 && !s.isPinching) {
+      // Fluid swipe: move image with finger
+      const t = e.touches[0];
+      const diffX = t.clientX - s.swipeStartX;
+      const diffY = t.clientY - s.swipeStartY;
+      if (Math.abs(diffX) > Math.abs(diffY) * 1.2) {
+        setSwipeOffset(diffX);
+      }
     }
   };
 
@@ -382,7 +400,6 @@ function FullscreenGallery({
 
     if (s.isPinching && e.touches.length < 2) {
       s.isPinching = false;
-      // Snap to 1x if close
       if (s.scale < 1.05) {
         resetZoom(true);
       } else {
@@ -397,18 +414,46 @@ function FullscreenGallery({
 
     s.isPanning = false;
 
-    // Swipe detection (only when not zoomed)
+    // Swipe with fluid animation (only when not zoomed)
     if (s.scale <= 1.05 && e.changedTouches.length === 1) {
       const t = e.changedTouches[0];
       const diffX = t.clientX - s.swipeStartX;
       const diffY = t.clientY - s.swipeStartY;
       const elapsed = Date.now() - s.swipeStartTime;
-      if (Math.abs(diffX) > 50 && Math.abs(diffX) > Math.abs(diffY) * 1.5 && elapsed < 400) {
-        if (diffX < 0 && index < data.length - 1) goTo(index + 1);
-        if (diffX > 0 && index > 0) goTo(index - 1);
+      const velocity = Math.abs(diffX) / Math.max(elapsed, 1);
+
+      // Threshold: either big enough swipe or fast enough flick
+      const shouldSwipe = (Math.abs(diffX) > 60 || velocity > 0.4) && Math.abs(diffX) > Math.abs(diffY) * 1.2;
+
+      if (shouldSwipe && diffX < 0 && index < data.length - 1) {
+        // Animate out to the left, then switch
+        setSwipeTransition(true);
+        setSwipeOffset(-window.innerWidth);
+        setTimeout(() => {
+          setSwipeTransition(false);
+          setSwipeOffset(0);
+          goTo(index + 1);
+        }, 250);
+        return;
+      } else if (shouldSwipe && diffX > 0 && index > 0) {
+        // Animate out to the right, then switch
+        setSwipeTransition(true);
+        setSwipeOffset(window.innerWidth);
+        setTimeout(() => {
+          setSwipeTransition(false);
+          setSwipeOffset(0);
+          goTo(index - 1);
+        }, 250);
+        return;
+      }
+
+      // Snap back if swipe not far enough
+      if (swipeOffset !== 0) {
+        setSwipeTransition(true);
+        setSwipeOffset(0);
+        setTimeout(() => setSwipeTransition(false), 250);
       }
     } else if (s.scale > 1) {
-      // Snap pan after release
       clampPan();
       s.animating = true;
       applyTransform();
@@ -447,10 +492,12 @@ function FullscreenGallery({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [index, data.length]);
 
-  // Reset zoom on index change
+  // Reset zoom and swipe on index change
   useEffect(() => {
     const s = stateRef.current;
     s.scale = 1; s.tx = 0; s.ty = 0; s.animating = false;
+    setSwipeOffset(0);
+    setSwipeTransition(false);
     applyTransform();
     forceUpdate((n) => n + 1);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -493,27 +540,34 @@ function FullscreenGallery({
         onWheel={handleWheel}
         onDoubleClick={handleDoubleClick}
       >
-        {/* Arrows (only when not zoomed) */}
-        {index > 0 && currentScale <= 1.05 && (
+        {/* Arrows — desktop only */}
+        {!isMobile && index > 0 && currentScale <= 1.05 && (
           <button onClick={() => goTo(index - 1)} style={{ position: "absolute", left: 8, top: "50%", transform: "translateY(-50%)", background: "rgba(255,255,255,0.15)", border: "none", borderRadius: "50%", width: 40, height: 40, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 2 }}>
             <span style={{ color: "white", fontSize: 20 }}>‹</span>
           </button>
         )}
         {photo.photoUrl && (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={photo.photoUrl}
-            alt="Foto"
-            draggable={false}
-            style={{
-              maxWidth: "100%", maxHeight: "65vh", objectFit: "contain",
-              borderRadius: 4,
-              transformOrigin: "center center",
-              willChange: "transform",
-            }}
-          />
+          <div style={{
+            transform: `translateX(${swipeOffset}px)`,
+            transition: swipeTransition ? "transform 0.25s cubic-bezier(0.2, 0, 0, 1)" : "none",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            width: "100%", height: "100%",
+          }}>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={photo.photoUrl}
+              alt="Foto"
+              draggable={false}
+              style={{
+                maxWidth: "100%", maxHeight: "65vh", objectFit: "contain",
+                borderRadius: 4,
+                transformOrigin: "center center",
+                willChange: "transform",
+              }}
+            />
+          </div>
         )}
-        {index < data.length - 1 && currentScale <= 1.05 && (
+        {!isMobile && index < data.length - 1 && currentScale <= 1.05 && (
           <button onClick={() => goTo(index + 1)} style={{ position: "absolute", right: 8, top: "50%", transform: "translateY(-50%)", background: "rgba(255,255,255,0.15)", border: "none", borderRadius: "50%", width: 40, height: 40, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 2 }}>
             <span style={{ color: "white", fontSize: 20 }}>›</span>
           </button>
@@ -680,7 +734,7 @@ export default function PhotosPage() {
           const res = await fetch(photo.photoUrl!);
           const blob = await res.blob();
           const ext = photo.photoUrl!.split(".").pop()?.split("?")[0] ?? "jpg";
-          const pName = ((photo.promoterName as string) ?? "promotor").replace(/\s+/g, "-");
+          const pName = ((photo.userName as string) ?? "promotor").replace(/\s+/g, "-");
           const date = photo.createdAt ? new Date(photo.createdAt as string).toISOString().slice(0, 10) : "sem-data";
           zip.file(`foto-${pName}-${date}-${idx + 1}.${ext}`, blob);
         })
