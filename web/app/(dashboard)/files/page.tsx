@@ -2,7 +2,7 @@
 
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/lib/auth-context";
-import { FolderOpen, RefreshCw, Upload, Download, FileText, Image, Grid, File, X, Loader2 } from "lucide-react";
+import { FolderOpen, RefreshCw, Upload, Download, FileText, Image, Grid, File, X, Loader2, Trash2 } from "lucide-react";
 import { useState, useRef } from "react";
 
 function formatFileSize(bytes: number) {
@@ -36,6 +36,7 @@ export default function FilesPage() {
     brandId: selectedBrandId ?? undefined,
   });
   const uploadMutation = trpc.stockFiles.upload.useMutation();
+  const deleteMutation = trpc.stockFiles.delete.useMutation({ onSuccess: () => refetch() });
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -267,6 +268,23 @@ export default function FilesPage() {
                   </div>
                 </div>
                 <Download size={16} style={{ color: "#9ca3af", flexShrink: 0 }} />
+                {isManager && (
+                  <button
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      if (confirm(`Excluir "${file.fileName}"?`)) {
+                        deleteMutation.mutate({ id: file.id });
+                      }
+                    }}
+                    style={{
+                      background: "none", border: "none", cursor: "pointer", padding: 4,
+                      flexShrink: 0, borderRadius: 6,
+                    }}
+                  >
+                    <Trash2 size={16} style={{ color: "#ef4444" }} />
+                  </button>
+                )}
               </a>
             );
           })}
