@@ -44,19 +44,30 @@ const ROLE_COLORS: Record<string, string> = {
 };
 
 function getApiUrl() {
-  // In production (Vercel), use the env var directly
   if (process.env.NEXT_PUBLIC_API_URL) {
     return process.env.NEXT_PUBLIC_API_URL;
   }
-  // Dev: try hostname swap (3001→3000, 8082→3000)
   if (typeof window !== "undefined") {
-    const { protocol, hostname } = window.location;
-    const apiHostname = hostname.replace(/^3001-/, "3000-").replace(/^8082-/, "3000-");
-    if (apiHostname !== hostname) return `${protocol}//${apiHostname}`;
-    // Fallback dev: same machine
-    return "http://localhost:3000";
+    const { hostname } = window.location;
+    if (hostname === "localhost" || hostname === "127.0.0.1") {
+      return "http://localhost:3000";
+    }
+    // Production fallback — hardcoded like trpc.ts does
+    return "https://api-production-bbc3e.up.railway.app";
   }
   return "http://localhost:3000";
+}
+
+/** Build headers with Authorization Bearer token (same mechanism as tRPC client) */
+function authHeaders(extra?: Record<string, string>): Record<string, string> {
+  const headers: Record<string, string> = { "Content-Type": "application/json", ...extra };
+  if (typeof window !== "undefined") {
+    const token = localStorage.getItem("promoterhub_token");
+    if (token) {
+      headers["Authorization"] = `Bearer ${token}`;
+    }
+  }
+  return headers;
 }
 
 function Toast({
@@ -109,14 +120,16 @@ export default function MasterUsersPage() {
     setLoading(true);
     try {
       const res = await fetch(`${getApiUrl()}/api/master/users`, {
-        credentials: "include",
+        headers: authHeaders(),
       });
       if (res.ok) {
         const data = await res.json();
         setUsers(data.users ?? []);
+      } else {
+        console.error("Failed to fetch users:", res.status, await res.text().catch(() => ""));
       }
     } catch (e) {
-      console.error(e);
+      console.error("Fetch users error:", e);
     } finally {
       setLoading(false);
     }
@@ -147,14 +160,13 @@ export default function MasterUsersPage() {
     managers: users.filter((u) => u.appRole === "manager").length,
   };
 
-  // ── Change Role ──────────────────────────────────────────────────────────────
+  // ── Change Role ──
   const handleChangeRole = async (targetUser: AppUser, newRole: string) => {
     setProcessing(true);
     try {
       const res = await fetch(`${getApiUrl()}/api/master/users/${targetUser.id}/role`, {
         method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
+        headers: authHeaders(),
         body: JSON.stringify({ appRole: newRole }),
       });
       const data = await res.json();
@@ -172,14 +184,13 @@ export default function MasterUsersPage() {
     }
   };
 
-  // ── Toggle Active ────────────────────────────────────────────────────────────
+  // ── Toggle Active ──
   const handleToggleActive = async (targetUser: AppUser) => {
     setProcessing(true);
     try {
       const res = await fetch(`${getApiUrl()}/api/master/users/${targetUser.id}/active`, {
         method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
+        headers: authHeaders(),
         body: JSON.stringify({ active: !targetUser.active }),
       });
       const data = await res.json();
@@ -197,7 +208,7 @@ export default function MasterUsersPage() {
     }
   };
 
-  // ── Reset Password ───────────────────────────────────────────────────────────
+  // ── Reset Password ──
   const handleResetPassword = async () => {
     if (!passwordModal) return;
     if (!newPassword || newPassword.trim().length < 4) {
@@ -208,8 +219,7 @@ export default function MasterUsersPage() {
     try {
       const res = await fetch(`${getApiUrl()}/api/master/users/${passwordModal.id}/password`, {
         method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
+        headers: authHeaders(),
         body: JSON.stringify({ newPassword: newPassword.trim() }),
       });
       const data = await res.json();
@@ -227,14 +237,14 @@ export default function MasterUsersPage() {
     }
   };
 
-  // ── Delete User ──────────────────────────────────────────────────────────────
+  // ── Delete User ──
   const handleDeleteUser = async () => {
     if (!deleteModal) return;
     setProcessing(true);
     try {
       const res = await fetch(`${getApiUrl()}/api/master/users/${deleteModal.id}`, {
         method: "DELETE",
-        credentials: "include",
+        headers: authHeaders(),
       });
       const data = await res.json();
       if (res.ok) {
@@ -264,7 +274,7 @@ export default function MasterUsersPage() {
 
   return (
     <div className="p-4 sm:p-6 max-w-7xl mx-auto">
-      {/* Header — manual, sem PageHeader */}
+      {/* Header */}
       <div className="mb-6">
         <div className="flex items-center gap-3 mb-2">
           <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-amber-50 flex-shrink-0">
@@ -410,17 +420,12 @@ export default function MasterUsersPage() {
                     !u.active ? "opacity-60" : ""
                   }`}
                 >
-                  {/* Avatar + Name */}
                   <td className="px-5 py-3">
                     <div className="flex items-center gap-3">
                       <div className="w-9 h-9 rounded-full bg-blue-100 flex items-center justify-center text-blue-700 font-bold text-sm flex-shrink-0">
                         {u.avatarUrl ? (
                           // eslint-disable-next-line @next/next/no-img-element
-                          <img
-                            src={u.avatarUrl}
-                            alt={u.name ?? u.login}
-                            className="w-9 h-9 rounded-full object-cover"
-                          />
+                          <img src={u.avatarUrl} alt={u.name ?? u.login} className="w-9 h-9 rounded-full object-cover" />
                         ) : (
                           (u.name ?? u.login).charAt(0).toUpperCase()
                         )}
@@ -428,73 +433,27 @@ export default function MasterUsersPage() {
                       <span className="font-medium text-gray-800">{u.name ?? "—"}</span>
                     </div>
                   </td>
-                  {/* Login */}
                   <td className="px-4 py-3 text-gray-500">{u.login}</td>
-                  {/* Role */}
                   <td className="px-4 py-3">
-                    <span
-                      className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold ${
-                        ROLE_COLORS[u.appRole] ?? "bg-gray-100 text-gray-600"
-                      }`}
-                    >
+                    <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold ${ROLE_COLORS[u.appRole] ?? "bg-gray-100 text-gray-600"}`}>
                       {ROLE_LABELS[u.appRole] ?? u.appRole}
                     </span>
                   </td>
-                  {/* Status */}
                   <td className="px-4 py-3">
-                    <span
-                      className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold ${
-                        u.active
-                          ? "bg-green-100 text-green-700"
-                          : "bg-red-100 text-red-600"
-                      }`}
-                    >
-                      <span
-                        className={`w-1.5 h-1.5 rounded-full ${u.active ? "bg-green-500" : "bg-red-400"}`}
-                      />
+                    <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold ${u.active ? "bg-green-100 text-green-700" : "bg-red-100 text-red-600"}`}>
+                      <span className={`w-1.5 h-1.5 rounded-full ${u.active ? "bg-green-500" : "bg-red-400"}`} />
                       {u.active ? "Ativo" : "Inativo"}
                     </span>
                   </td>
-                  {/* Actions */}
                   <td className="px-5 py-3">
                     <div className="flex items-center justify-end gap-2">
-                      {/* Change Role */}
-                      <button
-                        onClick={() => setRoleModal(u)}
-                        title="Alterar cargo"
-                        className="p-1.5 rounded-lg text-purple-600 hover:bg-purple-50 transition-colors"
-                      >
-                        <Shield size={16} />
-                      </button>
-                      {/* Reset Password */}
-                      <button
-                        onClick={() => { setPasswordModal(u); setNewPassword(""); setShowPassword(false); }}
-                        title="Redefinir senha"
-                        className="p-1.5 rounded-lg text-blue-600 hover:bg-blue-50 transition-colors"
-                      >
-                        <Key size={16} />
-                      </button>
-                      {/* Toggle Active */}
-                      <button
-                        onClick={() => handleToggleActive(u)}
-                        title={u.active ? "Desativar conta" : "Ativar conta"}
-                        className={`p-1.5 rounded-lg transition-colors ${
-                          u.active
-                            ? "text-orange-500 hover:bg-orange-50"
-                            : "text-green-600 hover:bg-green-50"
-                        }`}
-                      >
+                      <button onClick={() => setRoleModal(u)} title="Alterar cargo" className="p-1.5 rounded-lg text-purple-600 hover:bg-purple-50 transition-colors"><Shield size={16} /></button>
+                      <button onClick={() => { setPasswordModal(u); setNewPassword(""); setShowPassword(false); }} title="Redefinir senha" className="p-1.5 rounded-lg text-blue-600 hover:bg-blue-50 transition-colors"><Key size={16} /></button>
+                      <button onClick={() => handleToggleActive(u)} title={u.active ? "Desativar conta" : "Ativar conta"} className={`p-1.5 rounded-lg transition-colors ${u.active ? "text-orange-500 hover:bg-orange-50" : "text-green-600 hover:bg-green-50"}`}>
                         {u.active ? <UserX size={16} /> : <UserCheck size={16} />}
                       </button>
-                      {/* Delete */}
                       {u.appRole !== "master" && (
-                        <button
-                          onClick={() => setDeleteModal(u)}
-                          title="Excluir conta"
-                          className="p-1.5 rounded-lg text-red-500 hover:bg-red-50 transition-colors"
-                        >
-                          <Trash2 size={16} />
-                        </button>
+                        <button onClick={() => setDeleteModal(u)} title="Excluir conta" className="p-1.5 rounded-lg text-red-500 hover:bg-red-50 transition-colors"><Trash2 size={16} /></button>
                       )}
                     </div>
                   </td>
@@ -506,21 +465,15 @@ export default function MasterUsersPage() {
         )}
       </div>
 
-      {/* ── Role Modal ─────────────────────────────────────────────────────────── */}
+      {/* Role Modal */}
       {roleModal && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6">
             <h3 className="text-lg font-bold text-gray-800 mb-1">Alterar Cargo</h3>
-            <p className="text-sm text-gray-500 mb-4">
-              Usuário: <strong>{roleModal.name ?? roleModal.login}</strong>
-            </p>
+            <p className="text-sm text-gray-500 mb-4">Usuário: <strong>{roleModal.name ?? roleModal.login}</strong></p>
             <p className="text-xs text-gray-400 mb-3">
               Cargo atual:{" "}
-              <span
-                className={`inline-flex px-2 py-0.5 rounded-full text-xs font-semibold ${
-                  ROLE_COLORS[roleModal.appRole]
-                }`}
-              >
+              <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-semibold ${ROLE_COLORS[roleModal.appRole]}`}>
                 {ROLE_LABELS[roleModal.appRole]}
               </span>
             </p>
@@ -538,30 +491,21 @@ export default function MasterUsersPage() {
                 >
                   <Shield size={16} />
                   {ROLE_LABELS[role]}
-                  {role === roleModal.appRole && (
-                    <span className="ml-auto text-xs text-blue-500">Atual</span>
-                  )}
+                  {role === roleModal.appRole && <span className="ml-auto text-xs text-blue-500">Atual</span>}
                 </button>
               ))}
             </div>
-            <button
-              onClick={() => setRoleModal(null)}
-              className="w-full py-2.5 rounded-xl border border-gray-200 text-sm text-gray-600 hover:bg-gray-50 transition-colors"
-            >
-              Cancelar
-            </button>
+            <button onClick={() => setRoleModal(null)} className="w-full py-2.5 rounded-xl border border-gray-200 text-sm text-gray-600 hover:bg-gray-50 transition-colors">Cancelar</button>
           </div>
         </div>
       )}
 
-      {/* ── Password Modal ──────────────────────────────────────────────────────── */}
+      {/* Password Modal */}
       {passwordModal && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6">
             <h3 className="text-lg font-bold text-gray-800 mb-1">Redefinir Senha</h3>
-            <p className="text-sm text-gray-500 mb-4">
-              Usuário: <strong>{passwordModal.name ?? passwordModal.login}</strong>
-            </p>
+            <p className="text-sm text-gray-500 mb-4">Usuário: <strong>{passwordModal.name ?? passwordModal.login}</strong></p>
             <div className="relative mb-5">
               <input
                 type={showPassword ? "text" : "password"}
@@ -571,26 +515,13 @@ export default function MasterUsersPage() {
                 className="w-full px-4 py-3 pr-12 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                 onKeyDown={(e) => e.key === "Enter" && handleResetPassword()}
               />
-              <button
-                type="button"
-                onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-              >
+              <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
                 {showPassword ? "🙈" : "👁️"}
               </button>
             </div>
             <div className="flex gap-3">
-              <button
-                onClick={() => setPasswordModal(null)}
-                className="flex-1 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-600 hover:bg-gray-50 transition-colors"
-              >
-                Cancelar
-              </button>
-              <button
-                onClick={handleResetPassword}
-                disabled={processing || !newPassword || newPassword.trim().length < 4}
-                className="flex-1 py-2.5 rounded-xl bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 transition-colors disabled:opacity-50"
-              >
+              <button onClick={() => setPasswordModal(null)} className="flex-1 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-600 hover:bg-gray-50 transition-colors">Cancelar</button>
+              <button onClick={handleResetPassword} disabled={processing || !newPassword || newPassword.trim().length < 4} className="flex-1 py-2.5 rounded-xl bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 transition-colors disabled:opacity-50">
                 {processing ? "Salvando..." : "Salvar"}
               </button>
             </div>
@@ -598,7 +529,7 @@ export default function MasterUsersPage() {
         </div>
       )}
 
-      {/* ── Delete Modal ────────────────────────────────────────────────────────── */}
+      {/* Delete Modal */}
       {deleteModal && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6">
@@ -609,25 +540,14 @@ export default function MasterUsersPage() {
               <h3 className="text-lg font-bold text-gray-800">Excluir Conta</h3>
             </div>
             <p className="text-sm text-gray-600 mb-2">
-              Tem certeza que deseja excluir permanentemente a conta de{" "}
-              <strong>{deleteModal.name ?? deleteModal.login}</strong>?
+              Tem certeza que deseja excluir permanentemente a conta de <strong>{deleteModal.name ?? deleteModal.login}</strong>?
             </p>
             <p className="text-xs text-red-500 bg-red-50 rounded-lg px-3 py-2 mb-5">
-              ⚠️ Esta ação é irreversível. Todos os dados do usuário (fotos, registros de ponto,
-              materiais, relatórios) serão removidos permanentemente.
+              ⚠️ Esta ação é irreversível. Todos os dados do usuário serão removidos permanentemente.
             </p>
             <div className="flex gap-3">
-              <button
-                onClick={() => setDeleteModal(null)}
-                className="flex-1 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-600 hover:bg-gray-50 transition-colors"
-              >
-                Cancelar
-              </button>
-              <button
-                onClick={handleDeleteUser}
-                disabled={processing}
-                className="flex-1 py-2.5 rounded-xl bg-red-600 text-white text-sm font-semibold hover:bg-red-700 transition-colors disabled:opacity-50"
-              >
+              <button onClick={() => setDeleteModal(null)} className="flex-1 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-600 hover:bg-gray-50 transition-colors">Cancelar</button>
+              <button onClick={handleDeleteUser} disabled={processing} className="flex-1 py-2.5 rounded-xl bg-red-600 text-white text-sm font-semibold hover:bg-red-700 transition-colors disabled:opacity-50">
                 {processing ? "Excluindo..." : "Excluir"}
               </button>
             </div>
@@ -636,13 +556,7 @@ export default function MasterUsersPage() {
       )}
 
       {/* Toast */}
-      {toast && (
-        <Toast
-          message={toast.message}
-          type={toast.type}
-          onClose={() => setToast(null)}
-        />
-      )}
+      {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
     </div>
   );
 }
