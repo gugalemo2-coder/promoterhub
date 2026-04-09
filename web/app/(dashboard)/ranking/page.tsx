@@ -167,9 +167,9 @@ export default function RankingPage() {
         </div>
       ) : (
         <>
-          {/* Mobile Cards (below md) */}
+          {/* Mobile Cards (below md) — starts from position 4 */}
           <div className="flex flex-col gap-3 md:hidden">
-            {data.map((p, i) => (
+            {data.slice(3).map((p, i) => (
               <Link
                 key={`card-${p.userId}-${i}`}
                 href={`/promoter/${p.userId}`}
@@ -177,11 +177,7 @@ export default function RankingPage() {
               >
                 <div className="flex items-center gap-3 mb-3">
                   <div className="flex-shrink-0 w-7 text-center">
-                    {i < 3 ? (
-                      <Medal size={16} className={MEDAL_COLORS[i]} />
-                    ) : (
-                      <span className="text-sm font-medium text-gray-400">{i + 1}</span>
-                    )}
+                    <span className="text-sm font-medium text-gray-400">{i + 4}</span>
                   </div>
                   <div className="w-9 h-9 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0">
                     <span className="text-blue-700 text-xs font-semibold">
@@ -228,14 +224,10 @@ export default function RankingPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
-                {data.map((p, i) => (
+                {data.slice(3).map((p, i) => (
                   <tr key={`row-${p.userId}-${i}`} className="hover:bg-gray-50 transition-colors">
                     <td className="px-5 py-4">
-                      {i < 3 ? (
-                        <Medal size={16} className={MEDAL_COLORS[i]} />
-                      ) : (
-                        <span className="text-sm font-medium text-gray-400">{i + 1}</span>
-                      )}
+                      <span className="text-sm font-medium text-gray-400">{i + 4}</span>
                     </td>
                     <td className="px-4 py-4">
                       <div className="flex items-center gap-3">
