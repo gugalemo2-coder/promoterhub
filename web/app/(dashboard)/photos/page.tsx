@@ -411,30 +411,41 @@ function FullscreenGallery({
         </div>
       </div>
 
-      {/* Carousel */}
+      {/* Carousel — 3-slot window (prev, current, next) */}
       <div
         style={{ flex: 1, position: "relative", overflow: "hidden", touchAction: "none" }}
         onTouchStart={handleTouchStart} onTouchMove={handleTouchMove} onTouchEnd={handleTouchEnd}
         onWheel={handleWheel} onDoubleClick={handleDoubleClick}
       >
         <div style={{
-          display: "flex", height: "100%",
-          transform: `translateX(calc(${-index * 100}% + ${dragX}px))`,
+          display: "flex", height: "100%", width: "300%",
+          transform: `translateX(calc(-33.333% + ${dragX}px))`,
           transition: isDragging ? "none" : "transform 0.35s cubic-bezier(0.25,0.1,0.25,1)",
-          width: `${data.length * 100}%`,
         }}>
-          {data.map((sp, i) => (
-            <div
-              key={sp.id}
-              ref={i === index ? imgContainerRef : undefined}
-              style={{ width: `${100 / data.length}%`, height: "100%", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}
-            >
-              {Math.abs(i - index) <= 1 && sp.photoUrl && (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={sp.photoUrl} alt="Foto" draggable={false} style={{ maxWidth: "95%", maxHeight: "65vh", objectFit: "contain", borderRadius: 4, transformOrigin: "center center", willChange: "transform" }} />
-              )}
-            </div>
-          ))}
+          {/* Slot 0: previous */}
+          <div style={{ width: "33.333%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+            {index > 0 && data[index - 1]?.photoUrl && (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={data[index - 1].photoUrl!} alt="Foto" draggable={false} style={{ maxWidth: "95%", maxHeight: "65vh", objectFit: "contain", borderRadius: 4 }} />
+            )}
+          </div>
+          {/* Slot 1: current */}
+          <div
+            ref={imgContainerRef}
+            style={{ width: "33.333%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}
+          >
+            {photo.photoUrl && (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={photo.photoUrl} alt="Foto" draggable={false} style={{ maxWidth: "95%", maxHeight: "65vh", objectFit: "contain", borderRadius: 4, transformOrigin: "center center", willChange: "transform" }} />
+            )}
+          </div>
+          {/* Slot 2: next */}
+          <div style={{ width: "33.333%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+            {index < data.length - 1 && data[index + 1]?.photoUrl && (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={data[index + 1].photoUrl!} alt="Foto" draggable={false} style={{ maxWidth: "95%", maxHeight: "65vh", objectFit: "contain", borderRadius: 4 }} />
+            )}
+          </div>
         </div>
         {/* Desktop arrows */}
         {!isMobile && index > 0 && zoomScale <= 1.05 && (
