@@ -1,7 +1,6 @@
 "use client";
 
 import { trpc } from "@/lib/trpc";
-import { PageHeader } from "@/components/page-header";
 import { Bell, RefreshCw, CheckCheck, Loader2 } from "lucide-react";
 import { useState } from "react";
 
@@ -67,35 +66,37 @@ export default function NotificationsPage() {
 
   return (
     <div className="p-4 sm:p-6 max-w-4xl mx-auto">
-      <PageHeader
-        title="Notificações"
-        subtitle={unreadCount ? `${unreadCount} não ${unreadCount === 1 ? "lida" : "lidas"}` : "Tudo em dia"}
-        icon={Bell}
-        iconColor="text-sky-600"
-        iconBg="bg-sky-50"
-        actions={
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => refetch()}
-              className="flex items-center gap-2 px-3 py-2 text-sm text-gray-600 hover:text-gray-900 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
-            >
-              <RefreshCw size={14} />
-              <span className="hidden sm:inline">Atualizar</span>
-            </button>
-            {(unreadCount ?? 0) > 0 && (
-              <button
-                onClick={() => markAllReadMutation.mutate()}
-                disabled={markAllReadMutation.isPending}
-                className="flex items-center gap-2 px-3 sm:px-4 py-2 text-sm bg-sky-600 text-white rounded-lg hover:bg-sky-700 transition-colors font-medium disabled:opacity-50"
-              >
-                <CheckCheck size={14} />
-                <span className="hidden sm:inline">Marcar todas como lidas</span>
-                <span className="sm:hidden">Ler todas</span>
-              </button>
-            )}
+      {/* Header — stacked on mobile */}
+      <div className="mb-4">
+        <div className="flex items-center gap-3 mb-2">
+          <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-sky-50 flex-shrink-0">
+            <Bell size={20} className="text-sky-600" />
           </div>
-        }
-      />
+          <div className="flex-1 min-w-0">
+            <h1 className="text-xl font-bold text-gray-900">Notificações</h1>
+            <p className="text-sm text-gray-500">{unreadCount ? `${unreadCount} não ${unreadCount === 1 ? "lida" : "lidas"}` : "Tudo em dia"}</p>
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => refetch()}
+            className="flex items-center gap-2 px-3 py-2 text-sm text-gray-600 hover:text-gray-900 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+          >
+            <RefreshCw size={14} />
+            Atualizar
+          </button>
+          {(unreadCount ?? 0) > 0 && (
+            <button
+              onClick={() => markAllReadMutation.mutate()}
+              disabled={markAllReadMutation.isPending}
+              className="flex items-center gap-2 px-3 py-2 text-sm bg-sky-600 text-white rounded-lg hover:bg-sky-700 transition-colors font-medium disabled:opacity-50"
+            >
+              <CheckCheck size={14} />
+              Ler todas
+            </button>
+          )}
+        </div>
+      </div>
 
       {/* Filter chips — scrollable on mobile */}
       <div className="flex items-center gap-2 mb-6 overflow-x-auto pb-1 -mx-4 px-4 sm:mx-0 sm:px-0">
