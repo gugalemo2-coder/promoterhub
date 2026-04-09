@@ -1,5 +1,4 @@
 "use client";
-import { PageHeader } from "@/components/page-header";
 import {
   UserCog,
   RefreshCw,
@@ -9,7 +8,6 @@ import {
   UserX,
   Trash2,
   Key,
-  ChevronDown,
   Users,
   CheckCircle,
   XCircle,
@@ -46,17 +44,19 @@ const ROLE_COLORS: Record<string, string> = {
 };
 
 function getApiUrl() {
-  // In production, use NEXT_PUBLIC_API_URL env var (set in Vercel)
-  if (typeof window !== "undefined" && process.env.NEXT_PUBLIC_API_URL) {
+  // In production (Vercel), use the env var directly
+  if (process.env.NEXT_PUBLIC_API_URL) {
     return process.env.NEXT_PUBLIC_API_URL;
   }
+  // Dev: try hostname swap (3001→3000, 8082→3000)
   if (typeof window !== "undefined") {
     const { protocol, hostname } = window.location;
     const apiHostname = hostname.replace(/^3001-/, "3000-").replace(/^8082-/, "3000-");
     if (apiHostname !== hostname) return `${protocol}//${apiHostname}`;
-    return "";
+    // Fallback dev: same machine
+    return "http://localhost:3000";
   }
-  return process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000";
+  return "http://localhost:3000";
 }
 
 function Toast({
@@ -264,11 +264,18 @@ export default function MasterUsersPage() {
 
   return (
     <div className="p-4 sm:p-6 max-w-7xl mx-auto">
-      <PageHeader
-        title="Usuários"
-        subtitle="Gerenciamento de contas e permissões"
-        icon={UserCog}
-        actions={
+      {/* Header — manual, sem PageHeader */}
+      <div className="mb-6">
+        <div className="flex items-center gap-3 mb-2">
+          <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-amber-50 flex-shrink-0">
+            <UserCog size={20} className="text-amber-600" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <h1 className="text-xl font-bold text-gray-900">Usuários</h1>
+            <p className="text-sm text-gray-500">Gerenciamento de contas e permissões</p>
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
           <button
             onClick={fetchUsers}
             className="flex items-center gap-2 px-3 py-2 text-sm text-gray-600 hover:text-gray-900 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
@@ -276,8 +283,8 @@ export default function MasterUsersPage() {
             <RefreshCw size={14} />
             Atualizar
           </button>
-        }
-      />
+        </div>
+      </div>
 
       {/* Stats */}
       <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 mb-6">
@@ -350,6 +357,7 @@ export default function MasterUsersPage() {
                   <div className="flex items-center gap-3 mb-3">
                     <div className="w-9 h-9 rounded-full bg-blue-100 flex items-center justify-center text-blue-700 font-bold text-sm flex-shrink-0">
                       {u.avatarUrl ? (
+                        // eslint-disable-next-line @next/next/no-img-element
                         <img src={u.avatarUrl} alt={u.name ?? u.login} className="w-9 h-9 rounded-full object-cover" />
                       ) : (
                         (u.name ?? u.login).charAt(0).toUpperCase()
@@ -395,7 +403,7 @@ export default function MasterUsersPage() {
               </tr>
             </thead>
             <tbody>
-              {filtered.map((u, idx) => (
+              {filtered.map((u) => (
                 <tr
                   key={u.id}
                   className={`border-b border-gray-50 hover:bg-gray-50 transition-colors ${
@@ -407,6 +415,7 @@ export default function MasterUsersPage() {
                     <div className="flex items-center gap-3">
                       <div className="w-9 h-9 rounded-full bg-blue-100 flex items-center justify-center text-blue-700 font-bold text-sm flex-shrink-0">
                         {u.avatarUrl ? (
+                          // eslint-disable-next-line @next/next/no-img-element
                           <img
                             src={u.avatarUrl}
                             alt={u.name ?? u.login}
