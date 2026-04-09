@@ -185,7 +185,19 @@ function CommentPanel({ photoId, onClose }: { photoId: number; onClose: () => vo
 }
 
 
-/* ── iPhone-style Fullscreen Gallery (real carousel) ── */
+/* ══════════════════════════════════════════════════════════════
+   iPhone-style Fullscreen Gallery — zero-flash swipe
+   
+   Strategy: All slides live in the DOM simultaneously with 
+   position:absolute. We translate the entire "track" container
+   so prev/current/next are always pre-rendered and visible 
+   during the drag. On index change we just shift the track 
+   offset — images are never unmounted/remounted.
+   
+   We keep a window of ±2 slides rendered (5 total) for memory.
+   Images outside this window are preloaded via new Image() so 
+   when they enter the window they paint instantly.
+   ══════════════════════════════════════════════════════════════ */
 function FullscreenGallery({
   data, initialIndex, onClose, onApprove, onReject, onComment,
 }: {
@@ -195,17 +207,37 @@ function FullscreenGallery({
   onComment: (id: number) => void;
 }) {
   const [index, setIndex] = useState(initialIndex);
-  const [dragX, setDragX] = useState(0);
-  const [isDragging, setIsDragging] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const [zoomScale, setZoomScale] = useState(1);
+  const trackRef = useRef<HTMLDivElement>(null);
   const imgContainerRef = useRef<HTMLDivElement>(null);
+
+  // We control dragX and transition via ref + direct DOM manipulation
+  // to avoid React re-renders during drag (which cause flicker)
+  const dragState = useRef({
+    x: 0,
+    isDragging: false,
+    transitioning: false,
+  });
 
   useEffect(() => {
     setIsMobile("ontouchstart" in window || navigator.maxTouchPoints > 0);
   }, []);
 
-  // Zoom/pan via ref for performance
+  // Preload images ±3 around current index
+  const preloadedRef = useRef(new Set<string>());
+  useEffect(() => {
+    for (let i = index - 3; i <= index + 3; i++) {
+      const url = data[i]?.photoUrl;
+      if (url && !preloadedRef.current.has(url)) {
+        preloadedRef.current.add(url);
+        const img = new Image();
+        img.src = url;
+      }
+    }
+  }, [index, data]);
+
+  // Zoom state via ref for performance (no re-renders during pinch)
   const zoomRef = useRef({
     scale: 1, tx: 0, ty: 0,
     pinchStartDist: 0, pinchStartScale: 1,
@@ -226,9 +258,21 @@ function FullscreenGallery({
   const dateStr = formatDateTime(photo.createdAt as string);
   const isPending = photo.status === "pending";
 
-  // ── Zoom ──
+  // ── Direct DOM track positioning (no React state) ──
+  const updateTrack = () => {
+    const track = trackRef.current;
+    if (!track) return;
+    const ds = dragState.current;
+    const baseOffset = -index * window.innerWidth + ds.x;
+    track.style.transform = `translateX(${baseOffset}px)`;
+    track.style.transition = ds.isDragging ? "none" : "transform 0.35s cubic-bezier(0.25,0.1,0.25,1)";
+  };
+
+  // ── Zoom helpers ──
   const applyZoom = () => {
-    const img = imgContainerRef.current?.querySelector("img");
+    const container = imgContainerRef.current;
+    if (!container) return;
+    const img = container.querySelector("img");
     if (!img) return;
     const z = zoomRef.current;
     img.style.transform = `translate(${z.tx}px, ${z.ty}px) scale(${z.scale})`;
@@ -273,36 +317,44 @@ function FullscreenGallery({
     setZoomScale(z.scale);
   };
 
-  // Pending transition ref to avoid re-renders during animation
-  const pendingGoRef = useRef<number | null>(null);
+  // ── Navigate to slide ──
+  const transitionLock = useRef(false);
 
-  const goTo = (n: number) => {
-    if (pendingGoRef.current !== null) return; // already transitioning
+  const goTo = useCallback((n: number) => {
+    if (transitionLock.current) return;
+    if (n < 0 || n >= data.length || n === index) return;
+    transitionLock.current = true;
     resetZoom(false);
-    // Calculate slide width (1/3 of container)
-    const slideWidth = window.innerWidth;
-    const direction = n > index ? -slideWidth : slideWidth;
-    // Animate dragX to slide out
-    pendingGoRef.current = n;
-    setIsDragging(false); // enable transition
-    setDragX(direction);
-    // After transition completes, swap index and reset dragX instantly
-    setTimeout(() => {
-      // Temporarily disable transition for the swap
-      setIsDragging(true); // no transition
-      setDragX(0);
-      setIndex(n);
-      pendingGoRef.current = null;
-      // Re-enable transition on next frame
-      requestAnimationFrame(() => {
-        setIsDragging(false);
-      });
-    }, 350);
-  };
+    const ds = dragState.current;
+    ds.isDragging = false;
+    ds.x = 0;
+    // Set index immediately — since all slides are in the DOM,
+    // the track just needs to translate to the new position
+    setIndex(n);
+    // Update track with transition
+    const track = trackRef.current;
+    if (track) {
+      track.style.transition = "transform 0.35s cubic-bezier(0.25,0.1,0.25,1)";
+      track.style.transform = `translateX(${-n * window.innerWidth}px)`;
+    }
+    setTimeout(() => { transitionLock.current = false; }, 360);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data.length, index]);
+
+  // Keep track position in sync after React re-render from setIndex
+  useEffect(() => {
+    const track = trackRef.current;
+    if (track && !dragState.current.isDragging) {
+      // Don't override during an active goTo transition
+      if (!transitionLock.current) {
+        track.style.transform = `translateX(${-index * window.innerWidth}px)`;
+      }
+    }
+  }, [index]);
 
   const getTouchDist = (a: React.Touch, b: React.Touch) => Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
 
-  // ── Touch ──
+  // ── Touch handlers ──
   const handleTouchStart = (e: React.TouchEvent) => {
     const z = zoomRef.current;
     if (e.touches.length === 2) {
@@ -357,7 +409,7 @@ function FullscreenGallery({
     const tr = touchRef.current;
     const dx = t.clientX - tr.startX;
     const dy = t.clientY - tr.startY;
-    // Pan zoomed
+    // Pan zoomed image
     if (z.isPanning && z.scale > 1) {
       e.preventDefault();
       z.tx = z.panStartTx + dx; z.ty = z.panStartTy + dy;
@@ -367,13 +419,18 @@ function FullscreenGallery({
     if (tr.isHorizontal === null && (Math.abs(dx) > 8 || Math.abs(dy) > 8)) {
       tr.isHorizontal = Math.abs(dx) > Math.abs(dy);
     }
-    // Horizontal carousel drag
+    // Horizontal carousel drag — directly update DOM, no setState
     if (tr.isHorizontal && z.scale <= 1.05) {
       e.preventDefault();
+      const ds = dragState.current;
+      ds.isDragging = true;
+      // Rubber-band at edges
       let clamped = dx;
-      if ((index === 0 && dx > 0) || (index === data.length - 1 && dx < 0)) clamped = dx * 0.25;
-      setDragX(clamped);
-      setIsDragging(true);
+      if ((index === 0 && dx > 0) || (index === data.length - 1 && dx < 0)) {
+        clamped = dx * 0.25;
+      }
+      ds.x = clamped;
+      updateTrack();
     }
   };
 
@@ -381,26 +438,37 @@ function FullscreenGallery({
     const z = zoomRef.current;
     if (z.isPinching && e.touches.length < 2) {
       z.isPinching = false;
-      z.scale < 1.05 ? resetZoom(true) : (() => { clampPan(); z.animating = true; applyZoom(); setTimeout(() => { z.animating = false; }, 300); })();
+      if (z.scale < 1.05) { resetZoom(true); }
+      else { clampPan(); z.animating = true; applyZoom(); setTimeout(() => { z.animating = false; }, 300); }
       setZoomScale(z.scale); return;
     }
     z.isPanning = false;
-    if (!isDragging || z.scale > 1.05) {
+    const ds = dragState.current;
+    if (!ds.isDragging || z.scale > 1.05) {
       if (z.scale > 1) { clampPan(); z.animating = true; applyZoom(); setTimeout(() => { z.animating = false; }, 300); }
       return;
     }
     const elapsed = Date.now() - touchRef.current.startTime;
-    const vel = Math.abs(dragX) / Math.max(elapsed, 1);
+    const vel = Math.abs(ds.x) / Math.max(elapsed, 1);
     const threshold = window.innerWidth * 0.18;
-    const ok = Math.abs(dragX) > threshold || vel > 0.4;
-    if (ok && dragX < 0 && index < data.length - 1) goTo(index + 1);
-    else if (ok && dragX > 0 && index > 0) goTo(index - 1);
-    else { setIsDragging(false); setDragX(0); } // snap back with transition
+    const shouldSwipe = Math.abs(ds.x) > threshold || vel > 0.4;
+    ds.isDragging = false;
+    if (shouldSwipe && ds.x < 0 && index < data.length - 1) {
+      ds.x = 0;
+      goTo(index + 1);
+    } else if (shouldSwipe && ds.x > 0 && index > 0) {
+      ds.x = 0;
+      goTo(index - 1);
+    } else {
+      // Snap back
+      ds.x = 0;
+      updateTrack();
+    }
     touchRef.current.isHorizontal = null;
   };
 
   // Desktop
-  const handleWheel = (e: React.WheelEvent) => { e.preventDefault(); const z = zoomRef.current; animateToScale(Math.max(1, Math.min(5, z.scale + (e.deltaY > 0 ? -0.3 : 0.3))), e.clientX, e.clientY); };
+  const handleWheel = (e: React.WheelEvent) => { e.preventDefault(); animateToScale(Math.max(1, Math.min(5, zoomRef.current.scale + (e.deltaY > 0 ? -0.3 : 0.3))), e.clientX, e.clientY); };
   const handleDoubleClick = (e: React.MouseEvent) => { const z = zoomRef.current; z.scale > 1.1 ? resetZoom(true) : animateToScale(2.5, e.clientX, e.clientY); };
 
   // Keyboard
@@ -413,7 +481,7 @@ function FullscreenGallery({
     window.addEventListener("keydown", h);
     return () => window.removeEventListener("keydown", h);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [index, data.length]);
+  }, [index, data.length, goTo]);
 
   // Reset zoom on index change
   useEffect(() => {
@@ -423,9 +491,16 @@ function FullscreenGallery({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [index]);
 
+  // Determine which slides to render (window of ±2)
+  const WINDOW = 2;
+  const renderMin = Math.max(0, index - WINDOW);
+  const renderMax = Math.min(data.length - 1, index + WINDOW);
+  const slidesToRender: number[] = [];
+  for (let i = renderMin; i <= renderMax; i++) slidesToRender.push(i);
+
   return (
     <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.97)", display: "flex", flexDirection: "column", zIndex: 9999, userSelect: "none" }}>
-      {/* Top */}
+      {/* Top bar */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 16px", flexShrink: 0, zIndex: 2 }}>
         <span style={{ color: "white", fontSize: 13, fontWeight: 600 }}>{index + 1} / {data.length}</span>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -436,42 +511,62 @@ function FullscreenGallery({
         </div>
       </div>
 
-      {/* Carousel — 3-slot window (prev, current, next) */}
+      {/* Carousel — absolute positioned slides, all in DOM */}
       <div
         style={{ flex: 1, position: "relative", overflow: "hidden", touchAction: "none" }}
         onTouchStart={handleTouchStart} onTouchMove={handleTouchMove} onTouchEnd={handleTouchEnd}
         onWheel={handleWheel} onDoubleClick={handleDoubleClick}
       >
-        <div style={{
-          display: "flex", height: "100%", width: "300%",
-          transform: `translateX(calc(-33.333% + ${dragX}px))`,
-          transition: isDragging ? "none" : "transform 0.35s cubic-bezier(0.25,0.1,0.25,1)",
-        }}>
-          {/* Slot 0: previous */}
-          <div style={{ width: "33.333%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-            {index > 0 && data[index - 1]?.photoUrl && (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={data[index - 1].photoUrl!} alt="Foto" draggable={false} style={{ maxWidth: "95%", maxHeight: "65vh", objectFit: "contain", borderRadius: 4 }} />
-            )}
-          </div>
-          {/* Slot 1: current */}
-          <div
-            ref={imgContainerRef}
-            style={{ width: "33.333%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}
-          >
-            {photo.photoUrl && (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={photo.photoUrl} alt="Foto" draggable={false} style={{ maxWidth: "95%", maxHeight: "65vh", objectFit: "contain", borderRadius: 4, transformOrigin: "center center", willChange: "transform" }} />
-            )}
-          </div>
-          {/* Slot 2: next */}
-          <div style={{ width: "33.333%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-            {index < data.length - 1 && data[index + 1]?.photoUrl && (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={data[index + 1].photoUrl!} alt="Foto" draggable={false} style={{ maxWidth: "95%", maxHeight: "65vh", objectFit: "contain", borderRadius: 4 }} />
-            )}
-          </div>
+        <div
+          ref={trackRef}
+          style={{
+            position: "absolute", top: 0, bottom: 0,
+            /* width spans all slides */
+            width: data.length * 100 + "vw",
+            transform: `translateX(${-index * window.innerWidth}px)`,
+            transition: "transform 0.35s cubic-bezier(0.25,0.1,0.25,1)",
+            willChange: "transform",
+          }}
+        >
+          {slidesToRender.map((i) => {
+            const p = data[i];
+            const isCurrent = i === index;
+            return (
+              <div
+                key={p.id}
+                ref={isCurrent ? imgContainerRef : undefined}
+                style={{
+                  position: "absolute",
+                  left: i * 100 + "vw",
+                  top: 0,
+                  width: "100vw",
+                  height: "100%",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                {p.photoUrl && (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={p.photoUrl}
+                    alt="Foto"
+                    draggable={false}
+                    style={{
+                      maxWidth: "95%",
+                      maxHeight: "65vh",
+                      objectFit: "contain",
+                      borderRadius: 4,
+                      transformOrigin: "center center",
+                      willChange: isCurrent ? "transform" : "auto",
+                    }}
+                  />
+                )}
+              </div>
+            );
+          })}
         </div>
+
         {/* Desktop arrows */}
         {!isMobile && index > 0 && zoomScale <= 1.05 && (
           <button onClick={() => goTo(index - 1)} style={{ position: "absolute", left: 8, top: "50%", transform: "translateY(-50%)", background: "rgba(255,255,255,0.15)", border: "none", borderRadius: "50%", width: 40, height: 40, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 2 }}>
