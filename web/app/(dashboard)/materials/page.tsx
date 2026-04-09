@@ -2,7 +2,7 @@
 
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/lib/auth-context";
-import { Package, RefreshCw, CheckCircle, XCircle, ShoppingCart, Plus, Minus, X, MapPin } from "lucide-react";
+import { Package, RefreshCw, CheckCircle, XCircle, ShoppingCart, Plus, Minus, X, MapPin, Camera } from "lucide-react";
 import { useState } from "react";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -252,8 +252,19 @@ export default function MaterialsPage() {
   // Filtros (gestor) — "all" = sem filtro
   const [statusFilter, setStatusFilter] = useState<"pending" | "approved" | "rejected" | "delivered" | "all">("all");
 
+  // Modal: criar novo material (gestor)
+  const [showNewMaterial, setShowNewMaterial] = useState(false);
+  const [newMatName, setNewMatName] = useState("");
+  const [newMatDesc, setNewMatDesc] = useState("");
+  const [newMatQty, setNewMatQty] = useState(0);
+  const [newMatBrandId, setNewMatBrandId] = useState<number | null>(null);
+  const [newMatLoading, setNewMatLoading] = useState(false);
+  const [newMatPhotoBase64, setNewMatPhotoBase64] = useState<string | null>(null);
+  const [newMatPhotoName, setNewMatPhotoName] = useState("");
+
   // Queries
   const materials = trpc.materials.list.useQuery({});
+  const brands = trpc.brandsAdmin.listAll.useQuery();
   const myRequests = trpc.materialRequests.list.useQuery({}, { enabled: !isManager });
   const allRequests = trpc.materialRequests.listAll.useQuery(
     { status: statusFilter === "all" ? undefined : statusFilter, limit: 200 },
@@ -266,6 +277,8 @@ export default function MaterialsPage() {
 
   // Mutations
   const createRequest = trpc.materialRequests.create.useMutation();
+  const createMaterial = trpc.materials.create.useMutation();
+  const uploadMaterialPhoto = trpc.materials.uploadPhoto.useMutation();
   const approve = trpc.materialRequests.approve.useMutation({ onSuccess: () => allRequests.refetch() });
   const reject = trpc.materialRequests.reject.useMutation({
     onSuccess: () => { allRequests.refetch(); setRejectId(null); setRejectReason(""); },
@@ -389,6 +402,87 @@ export default function MaterialsPage() {
         </div>
       )}
 
+      {/* Modal: Novo Material (gestor) */}
+      {showNewMaterial && isManager && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000, padding: 16 }}
+          onClick={(e) => { if (e.target === e.currentTarget) setShowNewMaterial(false); }}>
+          <div style={{ background: "white", borderRadius: 16, padding: 24, width: "100%", maxWidth: 420, maxHeight: "90vh", overflowY: "auto" }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
+              <h2 style={{ fontSize: 18, fontWeight: 700, color: "#111827", margin: 0 }}>Novo Material</h2>
+              <button onClick={() => setShowNewMaterial(false)} style={{ background: "none", border: "none", cursor: "pointer", color: "#9ca3af", padding: 4 }}><X size={20} /></button>
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+              <div>
+                <label style={{ fontSize: 13, fontWeight: 600, color: "#374151", display: "block", marginBottom: 6 }}>Nome *</label>
+                <input type="text" value={newMatName} onChange={(e) => setNewMatName(e.target.value)} placeholder="Nome do material" style={{ width: "100%", border: "1px solid #e5e7eb", borderRadius: 8, padding: "10px 12px", fontSize: 14, outline: "none", boxSizing: "border-box" }} />
+              </div>
+              <div>
+                <label style={{ fontSize: 13, fontWeight: 600, color: "#374151", display: "block", marginBottom: 6 }}>Descrição</label>
+                <textarea value={newMatDesc} onChange={(e) => setNewMatDesc(e.target.value)} placeholder="Descrição (opcional)" rows={2} style={{ width: "100%", border: "1px solid #e5e7eb", borderRadius: 8, padding: "10px 12px", fontSize: 14, resize: "none", outline: "none", boxSizing: "border-box" }} />
+              </div>
+              <div>
+                <label style={{ fontSize: 13, fontWeight: 600, color: "#374151", display: "block", marginBottom: 6 }}>Marca *</label>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                  {(brands.data ?? []).map((b: any) => (
+                    <button key={b.id} onClick={() => setNewMatBrandId(b.id)} style={{
+                      padding: "6px 12px", borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: "pointer",
+                      border: `2px solid ${newMatBrandId === b.id ? "#1d4ed8" : "#e5e7eb"}`,
+                      background: newMatBrandId === b.id ? "#eff6ff" : "white",
+                      color: newMatBrandId === b.id ? "#1d4ed8" : "#6b7280",
+                    }}>{b.name}</button>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <label style={{ fontSize: 13, fontWeight: 600, color: "#374151", display: "block", marginBottom: 6 }}>Quantidade disponível *</label>
+                <input type="number" value={newMatQty} onChange={(e) => setNewMatQty(Number(e.target.value))} min={0} style={{ width: 120, border: "1px solid #e5e7eb", borderRadius: 8, padding: "10px 12px", fontSize: 14, outline: "none" }} />
+              </div>
+              <div>
+                <label style={{ fontSize: 13, fontWeight: 600, color: "#374151", display: "block", marginBottom: 6 }}>Foto do material</label>
+                <input type="file" accept="image/*" onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  if (!f) return;
+                  const r = new FileReader();
+                  r.onload = (ev) => { setNewMatPhotoBase64((ev.target?.result as string).split(",")[1]); setNewMatPhotoName(f.name); };
+                  r.readAsDataURL(f);
+                }} style={{ fontSize: 13 }} />
+                {newMatPhotoBase64 && <p style={{ fontSize: 11, color: "#22c55e", marginTop: 4 }}>Foto selecionada: {newMatPhotoName}</p>}
+              </div>
+            </div>
+            <div style={{ display: "flex", gap: 10, marginTop: 20 }}>
+              <button onClick={() => setShowNewMaterial(false)} style={{ flex: 1, padding: "12px", borderRadius: 10, border: "1px solid #e5e7eb", background: "white", color: "#374151", fontSize: 14, fontWeight: 600, cursor: "pointer" }}>Cancelar</button>
+              <button
+                onClick={async () => {
+                  if (!newMatName.trim() || !newMatBrandId || newMatQty < 0) return;
+                  setNewMatLoading(true);
+                  try {
+                    let photoUrl: string | undefined;
+                    if (newMatPhotoBase64) {
+                      const uploadRes = await uploadMaterialPhoto.mutateAsync({ fileBase64: newMatPhotoBase64, fileType: "image/jpeg", fileName: newMatPhotoName });
+                      photoUrl = uploadRes?.url;
+                    }
+                    await createMaterial.mutateAsync({
+                      brandId: newMatBrandId,
+                      name: newMatName.trim(),
+                      description: newMatDesc.trim() || undefined,
+                      quantityAvailable: newMatQty,
+                      photoUrl: photoUrl,
+                    });
+                    setShowNewMaterial(false);
+                    setNewMatName(""); setNewMatDesc(""); setNewMatQty(0); setNewMatBrandId(null); setNewMatPhotoBase64(null); setNewMatPhotoName("");
+                    materials.refetch();
+                  } catch { /* ignore */ } finally { setNewMatLoading(false); }
+                }}
+                disabled={newMatLoading || !newMatName.trim() || !newMatBrandId}
+                style={{ flex: 2, padding: "12px", borderRadius: 10, border: "none", background: !newMatName.trim() || !newMatBrandId ? "#9ca3af" : "#1d4ed8", color: "white", fontSize: 14, fontWeight: 700, cursor: !newMatName.trim() || !newMatBrandId ? "not-allowed" : "pointer" }}
+              >
+                {newMatLoading ? "Criando..." : "Criar Material"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 24 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
@@ -402,17 +496,32 @@ export default function MaterialsPage() {
             </p>
           </div>
         </div>
-        <button
-          onClick={() => { materials.refetch(); allRequests.refetch(); myRequests.refetch(); promoterStores.refetch(); }}
-          style={{
-            display: "flex", alignItems: "center", gap: 6, padding: "8px 14px",
-            background: "white", border: "1px solid #e5e7eb", borderRadius: 8,
-            fontSize: 13, color: "#374151", cursor: "pointer", fontWeight: 500,
-          }}
-        >
-          <RefreshCw size={14} />
-          Atualizar
-        </button>
+        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          {isManager && (
+            <button
+              onClick={() => setShowNewMaterial(true)}
+              style={{
+                display: "flex", alignItems: "center", gap: 6, padding: "8px 14px",
+                background: "#1d4ed8", border: "none", borderRadius: 8,
+                fontSize: 13, color: "white", cursor: "pointer", fontWeight: 600,
+              }}
+            >
+              <Plus size={14} />
+              Novo Material
+            </button>
+          )}
+          <button
+            onClick={() => { materials.refetch(); allRequests.refetch(); myRequests.refetch(); promoterStores.refetch(); }}
+            style={{
+              display: "flex", alignItems: "center", gap: 6, padding: "8px 14px",
+              background: "white", border: "1px solid #e5e7eb", borderRadius: 8,
+              fontSize: 13, color: "#374151", cursor: "pointer", fontWeight: 500,
+            }}
+          >
+            <RefreshCw size={14} />
+            Atualizar
+          </button>
+        </div>
       </div>
 
       {/* Tabs */}
