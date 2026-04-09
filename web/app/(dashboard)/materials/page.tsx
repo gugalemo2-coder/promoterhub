@@ -2,7 +2,7 @@
 
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/lib/auth-context";
-import { Package, RefreshCw, CheckCircle, XCircle, ShoppingCart, Plus, Minus, X, MapPin, Camera } from "lucide-react";
+import { Package, RefreshCw, CheckCircle, XCircle, ShoppingCart, Plus, Minus, X, MapPin, Camera, Pencil } from "lucide-react";
 import { useState } from "react";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -30,7 +30,7 @@ function formatDate(d: string | Date | null | undefined) {
   return new Date(d).toLocaleDateString("pt-BR");
 }
 
-// ─── Modal de solicitação ─────────────────────────────────────────────────────
+// ─── Modal de solicitação (promotor) ─────────────────────────────────────────
 
 function RequestModal({
   material,
@@ -238,7 +238,7 @@ export default function MaterialsPage() {
   // Estado da aba
   const [activeTab, setActiveTab] = useState<"catalog" | "requests">(isManager ? "requests" : "catalog");
 
-  // Modal de solicitação
+  // Modal de solicitação (promotor)
   const [selectedMaterial, setSelectedMaterial] = useState<{
     id: number; name: string; photoUrl?: string | null; quantityAvailable: number;
   } | null>(null);
@@ -252,15 +252,16 @@ export default function MaterialsPage() {
   // Filtros (gestor) — "all" = sem filtro
   const [statusFilter, setStatusFilter] = useState<"pending" | "approved" | "rejected" | "delivered" | "all">("all");
 
-  // Modal: criar novo material (gestor)
-  const [showNewMaterial, setShowNewMaterial] = useState(false);
-  const [newMatName, setNewMatName] = useState("");
-  const [newMatDesc, setNewMatDesc] = useState("");
-  const [newMatQty, setNewMatQty] = useState(0);
-  const [newMatBrandId, setNewMatBrandId] = useState<number | null>(null);
-  const [newMatLoading, setNewMatLoading] = useState(false);
-  const [newMatPhotoBase64, setNewMatPhotoBase64] = useState<string | null>(null);
-  const [newMatPhotoName, setNewMatPhotoName] = useState("");
+  // Modal: criar/editar material (gestor)
+  const [showMaterialModal, setShowMaterialModal] = useState(false);
+  const [editMaterialId, setEditMaterialId] = useState<number | null>(null);
+  const [matName, setMatName] = useState("");
+  const [matDesc, setMatDesc] = useState("");
+  const [matQty, setMatQty] = useState(0);
+  const [matBrandId, setMatBrandId] = useState<number | null>(null);
+  const [matLoading, setMatLoading] = useState(false);
+  const [matPhotoBase64, setMatPhotoBase64] = useState<string | null>(null);
+  const [matPhotoName, setMatPhotoName] = useState("");
 
   // Queries
   const materials = trpc.materials.list.useQuery({});
@@ -313,6 +314,67 @@ export default function MaterialsPage() {
     }
   };
 
+  // Open modal for new material
+  const openNewMaterialModal = () => {
+    setEditMaterialId(null);
+    setMatName("");
+    setMatDesc("");
+    setMatQty(0);
+    setMatBrandId(null);
+    setMatPhotoBase64(null);
+    setMatPhotoName("");
+    setShowMaterialModal(true);
+  };
+
+  // Open modal for editing existing material
+  const openEditMaterialModal = (item: any) => {
+    setEditMaterialId(item.id);
+    setMatName(item.name);
+    setMatDesc(item.description ?? "");
+    setMatQty(item.quantityAvailable);
+    setMatBrandId(item.brandId ?? null);
+    setMatPhotoBase64(null);
+    setMatPhotoName("");
+    setShowMaterialModal(true);
+  };
+
+  // Save material (create or update)
+  const handleSaveMaterial = async () => {
+    if (!matName.trim() || !matBrandId || matQty < 0) return;
+    setMatLoading(true);
+    try {
+      let photoUrl: string | undefined;
+      if (matPhotoBase64) {
+        const uploadRes = await uploadMaterialPhoto.mutateAsync({ fileBase64: matPhotoBase64, fileType: "image/jpeg", fileName: matPhotoName });
+        photoUrl = uploadRes?.url;
+      }
+      if (editMaterialId) {
+        await updateMaterial.mutateAsync({
+          id: editMaterialId,
+          name: matName.trim(),
+          description: matDesc.trim() || undefined,
+          quantityAvailable: matQty,
+          ...(photoUrl ? { photoUrl } : {}),
+        });
+      } else {
+        await createMaterial.mutateAsync({
+          brandId: matBrandId,
+          name: matName.trim(),
+          description: matDesc.trim() || undefined,
+          quantityAvailable: matQty,
+          photoUrl: photoUrl,
+        });
+      }
+      setShowMaterialModal(false);
+      materials.refetch();
+      showToast(editMaterialId ? "Material atualizado!" : "Material criado!");
+    } catch {
+      showToast("Erro ao salvar material.", "error");
+    } finally {
+      setMatLoading(false);
+    }
+  };
+
   const catalogData = materials.data ?? [];
   const requestsData = isManager ? (allRequests.data ?? []) : (myRequests.data ?? []);
   const storesForModal = (promoterStores.data ?? []) as { id: number; name: string; city?: string | null }[];
@@ -355,7 +417,7 @@ export default function MaterialsPage() {
         </div>
       )}
 
-      {/* Modal de solicitação */}
+      {/* Modal de solicitação (promotor) */}
       {selectedMaterial && (
         <RequestModal
           material={selectedMaterial}
@@ -403,40 +465,40 @@ export default function MaterialsPage() {
         </div>
       )}
 
-      {/* Modal: Novo Material (gestor) */}
-      {showNewMaterial && isManager && (
+      {/* Modal: Criar/Editar Material (gestor) */}
+      {showMaterialModal && isManager && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000, padding: 16 }}
-          onClick={(e) => { if (e.target === e.currentTarget) setShowNewMaterial(false); }}>
+          onClick={(e) => { if (e.target === e.currentTarget) setShowMaterialModal(false); }}>
           <div style={{ background: "white", borderRadius: 16, padding: 24, width: "100%", maxWidth: 420, maxHeight: "90vh", overflowY: "auto" }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
-              <h2 style={{ fontSize: 18, fontWeight: 700, color: "#111827", margin: 0 }}>{(window as any).__editMaterialId ? "Editar Material" : "Novo Material"}</h2>
-              <button onClick={() => setShowNewMaterial(false)} style={{ background: "none", border: "none", cursor: "pointer", color: "#9ca3af", padding: 4 }}><X size={20} /></button>
+              <h2 style={{ fontSize: 18, fontWeight: 700, color: "#111827", margin: 0 }}>{editMaterialId ? "Editar Material" : "Novo Material"}</h2>
+              <button onClick={() => setShowMaterialModal(false)} style={{ background: "none", border: "none", cursor: "pointer", color: "#9ca3af", padding: 4 }}><X size={20} /></button>
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
               <div>
                 <label style={{ fontSize: 13, fontWeight: 600, color: "#374151", display: "block", marginBottom: 6 }}>Nome *</label>
-                <input type="text" value={newMatName} onChange={(e) => setNewMatName(e.target.value)} placeholder="Nome do material" style={{ width: "100%", border: "1px solid #e5e7eb", borderRadius: 8, padding: "10px 12px", fontSize: 14, outline: "none", boxSizing: "border-box" }} />
+                <input type="text" value={matName} onChange={(e) => setMatName(e.target.value)} placeholder="Nome do material" style={{ width: "100%", border: "1px solid #e5e7eb", borderRadius: 8, padding: "10px 12px", fontSize: 14, outline: "none", boxSizing: "border-box" }} />
               </div>
               <div>
                 <label style={{ fontSize: 13, fontWeight: 600, color: "#374151", display: "block", marginBottom: 6 }}>Descrição</label>
-                <textarea value={newMatDesc} onChange={(e) => setNewMatDesc(e.target.value)} placeholder="Descrição (opcional)" rows={2} style={{ width: "100%", border: "1px solid #e5e7eb", borderRadius: 8, padding: "10px 12px", fontSize: 14, resize: "none", outline: "none", boxSizing: "border-box" }} />
+                <textarea value={matDesc} onChange={(e) => setMatDesc(e.target.value)} placeholder="Descrição (opcional)" rows={2} style={{ width: "100%", border: "1px solid #e5e7eb", borderRadius: 8, padding: "10px 12px", fontSize: 14, resize: "none", outline: "none", boxSizing: "border-box" }} />
               </div>
               <div>
                 <label style={{ fontSize: 13, fontWeight: 600, color: "#374151", display: "block", marginBottom: 6 }}>Marca *</label>
                 <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
                   {(brands.data ?? []).map((b: any) => (
-                    <button key={b.id} onClick={() => setNewMatBrandId(b.id)} style={{
+                    <button key={b.id} onClick={() => setMatBrandId(b.id)} style={{
                       padding: "6px 12px", borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: "pointer",
-                      border: `2px solid ${newMatBrandId === b.id ? "#1d4ed8" : "#e5e7eb"}`,
-                      background: newMatBrandId === b.id ? "#eff6ff" : "white",
-                      color: newMatBrandId === b.id ? "#1d4ed8" : "#6b7280",
+                      border: `2px solid ${matBrandId === b.id ? "#1d4ed8" : "#e5e7eb"}`,
+                      background: matBrandId === b.id ? "#eff6ff" : "white",
+                      color: matBrandId === b.id ? "#1d4ed8" : "#6b7280",
                     }}>{b.name}</button>
                   ))}
                 </div>
               </div>
               <div>
                 <label style={{ fontSize: 13, fontWeight: 600, color: "#374151", display: "block", marginBottom: 6 }}>Quantidade disponível *</label>
-                <input type="number" value={newMatQty} onChange={(e) => setNewMatQty(Number(e.target.value))} min={0} style={{ width: 120, border: "1px solid #e5e7eb", borderRadius: 8, padding: "10px 12px", fontSize: 14, outline: "none" }} />
+                <input type="number" value={matQty} onChange={(e) => setMatQty(Number(e.target.value))} min={0} style={{ width: 120, border: "1px solid #e5e7eb", borderRadius: 8, padding: "10px 12px", fontSize: 14, outline: "none" }} />
               </div>
               <div>
                 <label style={{ fontSize: 13, fontWeight: 600, color: "#374151", display: "block", marginBottom: 6 }}>Foto do material</label>
@@ -444,54 +506,20 @@ export default function MaterialsPage() {
                   const f = e.target.files?.[0];
                   if (!f) return;
                   const r = new FileReader();
-                  r.onload = (ev) => { setNewMatPhotoBase64((ev.target?.result as string).split(",")[1]); setNewMatPhotoName(f.name); };
+                  r.onload = (ev) => { setMatPhotoBase64((ev.target?.result as string).split(",")[1]); setMatPhotoName(f.name); };
                   r.readAsDataURL(f);
                 }} style={{ fontSize: 13 }} />
-                {newMatPhotoBase64 && <p style={{ fontSize: 11, color: "#22c55e", marginTop: 4 }}>Foto selecionada: {newMatPhotoName}</p>}
+                {matPhotoBase64 && <p style={{ fontSize: 11, color: "#22c55e", marginTop: 4 }}>Foto selecionada: {matPhotoName}</p>}
               </div>
             </div>
             <div style={{ display: "flex", gap: 10, marginTop: 20 }}>
-              <button onClick={() => setShowNewMaterial(false)} style={{ flex: 1, padding: "12px", borderRadius: 10, border: "1px solid #e5e7eb", background: "white", color: "#374151", fontSize: 14, fontWeight: 600, cursor: "pointer" }}>Cancelar</button>
+              <button onClick={() => setShowMaterialModal(false)} style={{ flex: 1, padding: "12px", borderRadius: 10, border: "1px solid #e5e7eb", background: "white", color: "#374151", fontSize: 14, fontWeight: 600, cursor: "pointer" }}>Cancelar</button>
               <button
-                onClick={async () => {
-                  if (!newMatName.trim() || !newMatBrandId || newMatQty < 0) return;
-                  setNewMatLoading(true);
-                  try {
-                    let photoUrl: string | undefined;
-                    if (newMatPhotoBase64) {
-                      const uploadRes = await uploadMaterialPhoto.mutateAsync({ fileBase64: newMatPhotoBase64, fileType: "image/jpeg", fileName: newMatPhotoName });
-                      photoUrl = uploadRes?.url;
-                    }
-                    const editId = (window as any).__editMaterialId;
-                    if (editId) {
-                      // Update existing
-                      await updateMaterial.mutateAsync({
-                        id: editId,
-                        name: newMatName.trim(),
-                        description: newMatDesc.trim() || undefined,
-                        quantityAvailable: newMatQty,
-                        ...(photoUrl ? { photoUrl } : {}),
-                      });
-                    } else {
-                      // Create new
-                      await createMaterial.mutateAsync({
-                        brandId: newMatBrandId,
-                        name: newMatName.trim(),
-                        description: newMatDesc.trim() || undefined,
-                        quantityAvailable: newMatQty,
-                        photoUrl: photoUrl,
-                      });
-                    }
-                    setShowNewMaterial(false);
-                    setNewMatName(""); setNewMatDesc(""); setNewMatQty(0); setNewMatBrandId(null); setNewMatPhotoBase64(null); setNewMatPhotoName("");
-                    (window as any).__editMaterialId = null;
-                    materials.refetch();
-                  } catch { /* ignore */ } finally { setNewMatLoading(false); }
-                }}
-                disabled={newMatLoading || !newMatName.trim() || !newMatBrandId}
-                style={{ flex: 2, padding: "12px", borderRadius: 10, border: "none", background: !newMatName.trim() || !newMatBrandId ? "#9ca3af" : "#1d4ed8", color: "white", fontSize: 14, fontWeight: 700, cursor: !newMatName.trim() || !newMatBrandId ? "not-allowed" : "pointer" }}
+                onClick={handleSaveMaterial}
+                disabled={matLoading || !matName.trim() || !matBrandId}
+                style={{ flex: 2, padding: "12px", borderRadius: 10, border: "none", background: !matName.trim() || !matBrandId ? "#9ca3af" : "#1d4ed8", color: "white", fontSize: 14, fontWeight: 700, cursor: !matName.trim() || !matBrandId ? "not-allowed" : "pointer" }}
               >
-                {newMatLoading ? "Salvando..." : (window as any).__editMaterialId ? "Salvar" : "Criar Material"}
+                {matLoading ? "Salvando..." : editMaterialId ? "Salvar" : "Criar Material"}
               </button>
             </div>
           </div>
@@ -507,14 +535,14 @@ export default function MaterialsPage() {
           <div>
             <h1 style={{ fontSize: 22, fontWeight: 800, color: "#111827", margin: 0 }}>Materiais</h1>
             <p style={{ fontSize: 13, color: "#6b7280", margin: "2px 0 0" }}>
-              {isManager ? "Gerencie as solicitações da equipe" : "Solicite materiais para o seu PDV"}
+              {isManager ? "Gerencie o estoque e solicitações" : "Solicite materiais para o seu PDV"}
             </p>
           </div>
         </div>
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
           {isManager && (
             <button
-              onClick={() => { (window as any).__editMaterialId = null; setShowNewMaterial(true); setNewMatName(""); setNewMatDesc(""); setNewMatQty(0); setNewMatBrandId(null); setNewMatPhotoBase64(null); setNewMatPhotoName(""); }}
+              onClick={openNewMaterialModal}
               style={{
                 display: "flex", alignItems: "center", gap: 6, padding: "8px 14px",
                 background: "#1d4ed8", border: "none", borderRadius: 8,
@@ -541,7 +569,6 @@ export default function MaterialsPage() {
 
       {/* Tabs */}
       <div style={{ display: "flex", gap: 4, marginBottom: 24, borderBottom: "1px solid #e5e7eb" }}>
-        {/* Catálogo tab visible for all roles */}
         <button
           onClick={() => setActiveTab("catalog")}
           style={{
@@ -606,9 +633,9 @@ export default function MaterialsPage() {
                       border: `1px solid ${available ? "#e5e7eb" : "#f3f4f6"}`,
                       overflow: "hidden",
                       transition: "box-shadow 0.15s, transform 0.15s",
-                      opacity: available ? 1 : 0.55,
+                      opacity: isManager ? 1 : (available ? 1 : 0.55),
                     }}
-                    onMouseEnter={(e) => { if (available) { (e.currentTarget as HTMLDivElement).style.boxShadow = "0 8px 24px rgba(0,0,0,0.1)"; (e.currentTarget as HTMLDivElement).style.transform = "translateY(-2px)"; } }}
+                    onMouseEnter={(e) => { (e.currentTarget as HTMLDivElement).style.boxShadow = "0 8px 24px rgba(0,0,0,0.1)"; (e.currentTarget as HTMLDivElement).style.transform = "translateY(-2px)"; }}
                     onMouseLeave={(e) => { (e.currentTarget as HTMLDivElement).style.boxShadow = "none"; (e.currentTarget as HTMLDivElement).style.transform = "none"; }}
                   >
                     {/* Imagem */}
@@ -645,15 +672,7 @@ export default function MaterialsPage() {
                       {/* Buttons: Editar (manager) or Solicitar (promoter) */}
                       {isManager ? (
                         <button
-                          onClick={() => {
-                            setShowNewMaterial(true);
-                            setNewMatName(item.name);
-                            setNewMatDesc(item.description ?? "");
-                            setNewMatQty(item.quantityAvailable);
-                            setNewMatBrandId(item.brandId ?? null);
-                            // Store the editing item id for update
-                            (window as any).__editMaterialId = item.id;
-                          }}
+                          onClick={() => openEditMaterialModal(item)}
                           style={{
                             width: "100%", padding: "8px 0", borderRadius: 8,
                             border: "1px solid #e5e7eb", background: "white",
@@ -661,7 +680,7 @@ export default function MaterialsPage() {
                             display: "flex", alignItems: "center", justifyContent: "center", gap: 4,
                           }}
                         >
-                          Editar
+                          <Pencil size={12} /> Editar
                         </button>
                       ) : available ? (
                         <button
@@ -673,13 +692,12 @@ export default function MaterialsPage() {
                             display: "flex", alignItems: "center", justifyContent: "center", gap: 4,
                           }}
                         >
-                          Solicitar
+                          <ShoppingCart size={12} /> Solicitar
                         </button>
                       ) : null}
-                      </div>
 
-                      {/* Histórico de solicitações */}
-                      {lastReq && lastSs && (
+                      {/* Histórico de solicitações (promotor only) */}
+                      {!isManager && lastReq && lastSs && (
                         <div style={{ marginTop: 10, paddingTop: 10, borderTop: "1px solid #f3f4f6" }}>
                           <p style={{ fontSize: 10, fontWeight: 700, color: "#9ca3af", textTransform: "uppercase", letterSpacing: "0.05em", margin: "0 0 6px" }}>
                             Histórico ({reqs.length} solicitaç{reqs.length === 1 ? "ão" : "ões"})
