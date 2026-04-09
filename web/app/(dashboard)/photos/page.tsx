@@ -184,7 +184,8 @@ function CommentPanel({ photoId, onClose }: { photoId: number; onClose: () => vo
   );
 }
 
-/* ── iPhone-style Fullscreen Gallery ── */
+
+/* ── iPhone-style Fullscreen Gallery (real carousel) ── */
 function FullscreenGallery({
   data, initialIndex, onClose, onApprove, onReject, onComment,
 }: {
@@ -194,38 +195,27 @@ function FullscreenGallery({
   onComment: (id: number) => void;
 }) {
   const [index, setIndex] = useState(initialIndex);
-  const containerRef = useRef<HTMLDivElement>(null);
-  const animRef = useRef<number>(0);
-
-  // Detect mobile (no arrows on touch devices)
+  const [dragX, setDragX] = useState(0);
+  const [isDragging, setIsDragging] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
+  const [zoomScale, setZoomScale] = useState(1);
+  const imgContainerRef = useRef<HTMLDivElement>(null);
+
   useEffect(() => {
     setIsMobile("ontouchstart" in window || navigator.maxTouchPoints > 0);
   }, []);
 
-  // Swipe offset for fluid iPhone-like transition
-  const [swipeOffset, setSwipeOffset] = useState(0);
-  const [swipeTransition, setSwipeTransition] = useState(false);
-
-  // Zoom/pan state via ref for 60fps touch performance
-  const stateRef = useRef({
+  // Zoom/pan via ref for performance
+  const zoomRef = useRef({
     scale: 1, tx: 0, ty: 0,
-    // Pinch
     pinchStartDist: 0, pinchStartScale: 1,
     pinchCenterX: 0, pinchCenterY: 0,
-    // Pan
     panStartX: 0, panStartY: 0, panStartTx: 0, panStartTy: 0,
     isPanning: false, isPinching: false,
-    // Swipe
-    swipeStartX: 0, swipeStartY: 0, swipeStartTime: 0,
-    // Double-tap
     lastTapTime: 0, lastTapX: 0, lastTapY: 0,
-    // Animation
     animating: false,
   });
-
-  // Force re-render for scale display
-  const [, forceUpdate] = useState(0);
+  const touchRef = useRef({ startX: 0, startY: 0, startTime: 0, isHorizontal: null as boolean | null });
 
   const photo = data[index];
   if (!photo) { onClose(); return null; }
@@ -236,386 +226,252 @@ function FullscreenGallery({
   const dateStr = formatDateTime(photo.createdAt as string);
   const isPending = photo.status === "pending";
 
-  const applyTransform = () => {
-    const img = containerRef.current?.querySelector("img");
+  // ── Zoom ──
+  const applyZoom = () => {
+    const img = imgContainerRef.current?.querySelector("img");
     if (!img) return;
-    const s = stateRef.current;
-    img.style.transform = `translate(${s.tx}px, ${s.ty}px) scale(${s.scale})`;
-    img.style.transition = s.animating ? "transform 0.3s cubic-bezier(0.2, 0, 0, 1)" : "none";
+    const z = zoomRef.current;
+    img.style.transform = `translate(${z.tx}px, ${z.ty}px) scale(${z.scale})`;
+    img.style.transition = z.animating ? "transform 0.3s cubic-bezier(0.2,0,0,1)" : "none";
   };
 
   const clampPan = () => {
-    const s = stateRef.current;
-    if (s.scale <= 1) { s.tx = 0; s.ty = 0; return; }
-    const el = containerRef.current;
+    const z = zoomRef.current;
+    if (z.scale <= 1) { z.tx = 0; z.ty = 0; return; }
+    const el = imgContainerRef.current;
     if (!el) return;
-    const img = el.querySelector("img");
-    if (!img) return;
     const rect = el.getBoundingClientRect();
-    const imgW = img.naturalWidth > 0 ? Math.min(img.offsetWidth * s.scale, rect.width * s.scale) : rect.width * s.scale;
-    const imgH = img.naturalHeight > 0 ? Math.min(img.offsetHeight * s.scale, rect.height * s.scale) : rect.height * s.scale;
-    const maxTx = Math.max(0, (imgW - rect.width) / 2);
-    const maxTy = Math.max(0, (imgH - rect.height) / 2);
-    s.tx = Math.max(-maxTx, Math.min(maxTx, s.tx));
-    s.ty = Math.max(-maxTy, Math.min(maxTy, s.ty));
+    const maxTx = Math.max(0, (rect.width * z.scale - rect.width) / 2);
+    const maxTy = Math.max(0, (rect.height * z.scale - rect.height) / 2);
+    z.tx = Math.max(-maxTx, Math.min(maxTx, z.tx));
+    z.ty = Math.max(-maxTy, Math.min(maxTy, z.ty));
   };
 
   const resetZoom = (animate = true) => {
-    const s = stateRef.current;
-    s.scale = 1; s.tx = 0; s.ty = 0;
-    s.animating = animate;
-    applyTransform();
-    if (animate) setTimeout(() => { s.animating = false; }, 300);
-    forceUpdate((n) => n + 1);
+    const z = zoomRef.current;
+    z.scale = 1; z.tx = 0; z.ty = 0; z.animating = animate;
+    applyZoom();
+    if (animate) setTimeout(() => { z.animating = false; }, 300);
+    setZoomScale(1);
   };
 
-  const animateToScale = (newScale: number, focusX: number, focusY: number) => {
-    const s = stateRef.current;
-    const el = containerRef.current;
+  const animateToScale = (newScale: number, fx: number, fy: number) => {
+    const z = zoomRef.current;
+    const el = imgContainerRef.current;
     if (!el) return;
     const rect = el.getBoundingClientRect();
-    const cx = focusX - rect.left - rect.width / 2;
-    const cy = focusY - rect.top - rect.height / 2;
-
-    if (newScale <= 1) {
-      s.scale = 1; s.tx = 0; s.ty = 0;
-    } else {
-      // Zoom towards the tap point
-      const ratio = newScale / s.scale;
-      s.tx = cx - ratio * (cx - s.tx);
-      s.ty = cy - ratio * (cy - s.ty);
-      s.scale = newScale;
-      clampPan();
+    const cx = fx - rect.left - rect.width / 2;
+    const cy = fy - rect.top - rect.height / 2;
+    if (newScale <= 1) { z.scale = 1; z.tx = 0; z.ty = 0; }
+    else {
+      const r = newScale / z.scale;
+      z.tx = cx - r * (cx - z.tx); z.ty = cy - r * (cy - z.ty);
+      z.scale = newScale; clampPan();
     }
-    s.animating = true;
-    applyTransform();
-    setTimeout(() => { s.animating = false; }, 300);
-    forceUpdate((n) => n + 1);
+    z.animating = true; applyZoom();
+    setTimeout(() => { z.animating = false; }, 300);
+    setZoomScale(z.scale);
   };
 
-  const goTo = (newIdx: number) => {
-    resetZoom(false);
-    setIndex(newIdx);
-  };
+  const goTo = (n: number) => { resetZoom(false); setIndex(n); setDragX(0); setIsDragging(false); };
 
-  const getTouchDist = (t1: React.Touch, t2: React.Touch) => {
-    return Math.hypot(t1.clientX - t2.clientX, t1.clientY - t2.clientY);
-  };
+  const getTouchDist = (a: React.Touch, b: React.Touch) => Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
 
+  // ── Touch ──
   const handleTouchStart = (e: React.TouchEvent) => {
-    const s = stateRef.current;
+    const z = zoomRef.current;
     if (e.touches.length === 2) {
-      // Pinch start
-      s.isPinching = true;
-      s.isPanning = false;
-      s.pinchStartDist = getTouchDist(e.touches[0], e.touches[1]);
-      s.pinchStartScale = s.scale;
-      s.pinchCenterX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
-      s.pinchCenterY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
-      // Also record pan start for combined pinch+pan
-      s.panStartTx = s.tx;
-      s.panStartTy = s.ty;
-    } else if (e.touches.length === 1) {
+      z.isPinching = true; z.isPanning = false;
+      z.pinchStartDist = getTouchDist(e.touches[0], e.touches[1]);
+      z.pinchStartScale = z.scale;
+      z.pinchCenterX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+      z.pinchCenterY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+      z.panStartTx = z.tx; z.panStartTy = z.ty;
+      return;
+    }
+    if (e.touches.length === 1) {
       const t = e.touches[0];
-      s.swipeStartX = t.clientX;
-      s.swipeStartY = t.clientY;
-      s.swipeStartTime = Date.now();
-
-      // Double-tap detection
+      touchRef.current = { startX: t.clientX, startY: t.clientY, startTime: Date.now(), isHorizontal: null };
+      // Double-tap
       const now = Date.now();
-      if (now - s.lastTapTime < 300 && Math.abs(t.clientX - s.lastTapX) < 30 && Math.abs(t.clientY - s.lastTapY) < 30) {
-        // Double-tap: toggle between 1x and 2.5x
+      if (now - z.lastTapTime < 300 && Math.abs(t.clientX - z.lastTapX) < 30 && Math.abs(t.clientY - z.lastTapY) < 30) {
         e.preventDefault();
-        if (s.scale > 1.1) {
-          resetZoom(true);
-        } else {
-          animateToScale(2.5, t.clientX, t.clientY);
-        }
-        s.lastTapTime = 0; // Reset so triple-tap doesn't trigger
-        return;
+        z.scale > 1.1 ? resetZoom(true) : animateToScale(2.5, t.clientX, t.clientY);
+        z.lastTapTime = 0; return;
       }
-      s.lastTapTime = now;
-      s.lastTapX = t.clientX;
-      s.lastTapY = t.clientY;
-
-      // Pan start (when zoomed)
-      if (s.scale > 1) {
-        s.isPanning = true;
-        s.panStartX = t.clientX;
-        s.panStartY = t.clientY;
-        s.panStartTx = s.tx;
-        s.panStartTy = s.ty;
-      }
+      z.lastTapTime = now; z.lastTapX = t.clientX; z.lastTapY = t.clientY;
+      if (z.scale > 1) { z.isPanning = true; z.panStartX = t.clientX; z.panStartY = t.clientY; z.panStartTx = z.tx; z.panStartTy = z.ty; }
     }
   };
 
   const handleTouchMove = (e: React.TouchEvent) => {
-    const s = stateRef.current;
-
-    if (e.touches.length === 2 && s.isPinching) {
+    const z = zoomRef.current;
+    // Pinch
+    if (e.touches.length === 2 && z.isPinching) {
       e.preventDefault();
       const dist = getTouchDist(e.touches[0], e.touches[1]);
-      const newScale = Math.max(1, Math.min(5, s.pinchStartScale * (dist / s.pinchStartDist)));
-
-      // Pinch zoom toward center of fingers
-      const el = containerRef.current;
+      const ns = Math.max(1, Math.min(5, z.pinchStartScale * (dist / z.pinchStartDist)));
+      const el = imgContainerRef.current;
       if (el) {
         const rect = el.getBoundingClientRect();
-        const newCenterX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
-        const newCenterY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
-        const cx = s.pinchCenterX - rect.left - rect.width / 2;
-        const cy = s.pinchCenterY - rect.top - rect.height / 2;
-        const ratio = newScale / s.pinchStartScale;
-        s.tx = s.panStartTx + (newCenterX - s.pinchCenterX) + cx * (1 - ratio);
-        s.ty = s.panStartTy + (newCenterY - s.pinchCenterY) + cy * (1 - ratio);
+        const ncx = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+        const ncy = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+        const cx = z.pinchCenterX - rect.left - rect.width / 2;
+        const cy = z.pinchCenterY - rect.top - rect.height / 2;
+        const r = ns / z.pinchStartScale;
+        z.tx = z.panStartTx + (ncx - z.pinchCenterX) + cx * (1 - r);
+        z.ty = z.panStartTy + (ncy - z.pinchCenterY) + cy * (1 - r);
       }
-
-      s.scale = newScale;
-      if (s.scale <= 1) { s.tx = 0; s.ty = 0; }
-      else clampPan();
-      s.animating = false;
-      applyTransform();
-      forceUpdate((n) => n + 1);
-    } else if (e.touches.length === 1 && s.isPanning && s.scale > 1) {
+      z.scale = ns;
+      if (z.scale <= 1) { z.tx = 0; z.ty = 0; } else clampPan();
+      z.animating = false; applyZoom(); setZoomScale(z.scale);
+      return;
+    }
+    if (e.touches.length !== 1) return;
+    const t = e.touches[0];
+    const tr = touchRef.current;
+    const dx = t.clientX - tr.startX;
+    const dy = t.clientY - tr.startY;
+    // Pan zoomed
+    if (z.isPanning && z.scale > 1) {
       e.preventDefault();
-      const t = e.touches[0];
-      s.tx = s.panStartTx + (t.clientX - s.panStartX);
-      s.ty = s.panStartTy + (t.clientY - s.panStartY);
-      clampPan();
-      s.animating = false;
-      applyTransform();
-    } else if (e.touches.length === 1 && s.scale <= 1.05 && !s.isPinching) {
-      // Fluid swipe: move image with finger
-      const t = e.touches[0];
-      const diffX = t.clientX - s.swipeStartX;
-      const diffY = t.clientY - s.swipeStartY;
-      if (Math.abs(diffX) > Math.abs(diffY) * 1.2) {
-        setSwipeOffset(diffX);
-      }
+      z.tx = z.panStartTx + dx; z.ty = z.panStartTy + dy;
+      clampPan(); z.animating = false; applyZoom(); return;
+    }
+    // Direction lock
+    if (tr.isHorizontal === null && (Math.abs(dx) > 8 || Math.abs(dy) > 8)) {
+      tr.isHorizontal = Math.abs(dx) > Math.abs(dy);
+    }
+    // Horizontal carousel drag
+    if (tr.isHorizontal && z.scale <= 1.05) {
+      e.preventDefault();
+      let clamped = dx;
+      if ((index === 0 && dx > 0) || (index === data.length - 1 && dx < 0)) clamped = dx * 0.25;
+      setDragX(clamped);
+      setIsDragging(true);
     }
   };
 
   const handleTouchEnd = (e: React.TouchEvent) => {
-    const s = stateRef.current;
-
-    if (s.isPinching && e.touches.length < 2) {
-      s.isPinching = false;
-      if (s.scale < 1.05) {
-        resetZoom(true);
-      } else {
-        clampPan();
-        s.animating = true;
-        applyTransform();
-        setTimeout(() => { s.animating = false; }, 300);
-      }
-      forceUpdate((n) => n + 1);
+    const z = zoomRef.current;
+    if (z.isPinching && e.touches.length < 2) {
+      z.isPinching = false;
+      z.scale < 1.05 ? resetZoom(true) : (() => { clampPan(); z.animating = true; applyZoom(); setTimeout(() => { z.animating = false; }, 300); })();
+      setZoomScale(z.scale); return;
+    }
+    z.isPanning = false;
+    if (!isDragging || z.scale > 1.05) {
+      if (z.scale > 1) { clampPan(); z.animating = true; applyZoom(); setTimeout(() => { z.animating = false; }, 300); }
       return;
     }
-
-    s.isPanning = false;
-
-    // Swipe with fluid animation (only when not zoomed)
-    if (s.scale <= 1.05 && e.changedTouches.length === 1) {
-      const t = e.changedTouches[0];
-      const diffX = t.clientX - s.swipeStartX;
-      const diffY = t.clientY - s.swipeStartY;
-      const elapsed = Date.now() - s.swipeStartTime;
-      const velocity = Math.abs(diffX) / Math.max(elapsed, 1);
-
-      // Threshold: either big enough swipe or fast enough flick
-      const shouldSwipe = (Math.abs(diffX) > 60 || velocity > 0.4) && Math.abs(diffX) > Math.abs(diffY) * 1.2;
-
-      if (shouldSwipe && diffX < 0 && index < data.length - 1) {
-        // Animate out to the left, then switch
-        setSwipeTransition(true);
-        setSwipeOffset(-window.innerWidth);
-        setTimeout(() => {
-          setSwipeTransition(false);
-          setSwipeOffset(0);
-          goTo(index + 1);
-        }, 250);
-        return;
-      } else if (shouldSwipe && diffX > 0 && index > 0) {
-        // Animate out to the right, then switch
-        setSwipeTransition(true);
-        setSwipeOffset(window.innerWidth);
-        setTimeout(() => {
-          setSwipeTransition(false);
-          setSwipeOffset(0);
-          goTo(index - 1);
-        }, 250);
-        return;
-      }
-
-      // Snap back if swipe not far enough
-      if (swipeOffset !== 0) {
-        setSwipeTransition(true);
-        setSwipeOffset(0);
-        setTimeout(() => setSwipeTransition(false), 250);
-      }
-    } else if (s.scale > 1) {
-      clampPan();
-      s.animating = true;
-      applyTransform();
-      setTimeout(() => { s.animating = false; }, 300);
-    }
+    const elapsed = Date.now() - touchRef.current.startTime;
+    const vel = Math.abs(dragX) / Math.max(elapsed, 1);
+    const threshold = window.innerWidth * 0.18;
+    const ok = Math.abs(dragX) > threshold || vel > 0.4;
+    if (ok && dragX < 0 && index < data.length - 1) goTo(index + 1);
+    else if (ok && dragX > 0 && index > 0) goTo(index - 1);
+    else { setDragX(0); setIsDragging(false); }
+    touchRef.current.isHorizontal = null;
   };
 
-  // Desktop: scroll wheel zoom
-  const handleWheel = (e: React.WheelEvent) => {
-    e.preventDefault();
-    const s = stateRef.current;
-    const delta = e.deltaY > 0 ? -0.3 : 0.3;
-    const newScale = Math.max(1, Math.min(5, s.scale + delta));
-    animateToScale(newScale, e.clientX, e.clientY);
-  };
+  // Desktop
+  const handleWheel = (e: React.WheelEvent) => { e.preventDefault(); const z = zoomRef.current; animateToScale(Math.max(1, Math.min(5, z.scale + (e.deltaY > 0 ? -0.3 : 0.3))), e.clientX, e.clientY); };
+  const handleDoubleClick = (e: React.MouseEvent) => { const z = zoomRef.current; z.scale > 1.1 ? resetZoom(true) : animateToScale(2.5, e.clientX, e.clientY); };
 
-  // Desktop: double click
-  const handleDoubleClick = (e: React.MouseEvent) => {
-    const s = stateRef.current;
-    if (s.scale > 1.1) {
-      resetZoom(true);
-    } else {
-      animateToScale(2.5, e.clientX, e.clientY);
-    }
-  };
-
-  // Keyboard nav
+  // Keyboard
   useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
+    const h = (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose();
       if (e.key === "ArrowLeft" && index > 0) goTo(index - 1);
       if (e.key === "ArrowRight" && index < data.length - 1) goTo(index + 1);
     };
-    window.addEventListener("keydown", handler);
-    return () => window.removeEventListener("keydown", handler);
+    window.addEventListener("keydown", h);
+    return () => window.removeEventListener("keydown", h);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [index, data.length]);
 
-  // Reset zoom and swipe on index change
+  // Reset on index
   useEffect(() => {
-    const s = stateRef.current;
-    s.scale = 1; s.tx = 0; s.ty = 0; s.animating = false;
-    setSwipeOffset(0);
-    setSwipeTransition(false);
-    applyTransform();
-    forceUpdate((n) => n + 1);
+    const z = zoomRef.current;
+    z.scale = 1; z.tx = 0; z.ty = 0; z.animating = false;
+    applyZoom(); setZoomScale(1); setDragX(0); setIsDragging(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [index]);
 
-  const currentScale = stateRef.current.scale;
-
   return (
-    <div style={{
-      position: "fixed", inset: 0, background: "rgba(0,0,0,0.97)",
-      display: "flex", flexDirection: "column",
-      zIndex: 9999, userSelect: "none",
-    }}>
-      {/* Top bar */}
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 16px", flexShrink: 0 }}>
+    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.97)", display: "flex", flexDirection: "column", zIndex: 9999, userSelect: "none" }}>
+      {/* Top */}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 16px", flexShrink: 0, zIndex: 2 }}>
         <span style={{ color: "white", fontSize: 13, fontWeight: 600 }}>{index + 1} / {data.length}</span>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          {currentScale > 1.05 && (
-            <span style={{ color: "rgba(255,255,255,0.6)", fontSize: 11 }}>
-              {Math.round(currentScale * 100)}%
-            </span>
-          )}
+          {zoomScale > 1.05 && <span style={{ color: "rgba(255,255,255,0.6)", fontSize: 11 }}>{Math.round(zoomScale * 100)}%</span>}
           <button onClick={onClose} style={{ background: "rgba(255,255,255,0.15)", border: "none", borderRadius: "50%", width: 36, height: 36, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
             <X size={18} style={{ color: "white" }} />
           </button>
         </div>
       </div>
 
-      {/* Image area */}
+      {/* Carousel */}
       <div
-        ref={containerRef}
-        style={{
-          flex: 1, display: "flex", alignItems: "center", justifyContent: "center",
-          overflow: "hidden", position: "relative",
-          touchAction: "none",
-        }}
-        onTouchStart={handleTouchStart}
-        onTouchMove={handleTouchMove}
-        onTouchEnd={handleTouchEnd}
-        onWheel={handleWheel}
-        onDoubleClick={handleDoubleClick}
+        style={{ flex: 1, position: "relative", overflow: "hidden", touchAction: "none" }}
+        onTouchStart={handleTouchStart} onTouchMove={handleTouchMove} onTouchEnd={handleTouchEnd}
+        onWheel={handleWheel} onDoubleClick={handleDoubleClick}
       >
-        {/* Arrows — desktop only */}
-        {!isMobile && index > 0 && currentScale <= 1.05 && (
+        <div style={{
+          display: "flex", height: "100%",
+          transform: `translateX(calc(${-index * 100}% + ${dragX}px))`,
+          transition: isDragging ? "none" : "transform 0.35s cubic-bezier(0.25,0.1,0.25,1)",
+          width: `${data.length * 100}%`,
+        }}>
+          {data.map((sp, i) => (
+            <div
+              key={sp.id}
+              ref={i === index ? imgContainerRef : undefined}
+              style={{ width: `${100 / data.length}%`, height: "100%", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}
+            >
+              {Math.abs(i - index) <= 1 && sp.photoUrl && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={sp.photoUrl} alt="Foto" draggable={false} style={{ maxWidth: "95%", maxHeight: "65vh", objectFit: "contain", borderRadius: 4, transformOrigin: "center center", willChange: "transform" }} />
+              )}
+            </div>
+          ))}
+        </div>
+        {/* Desktop arrows */}
+        {!isMobile && index > 0 && zoomScale <= 1.05 && (
           <button onClick={() => goTo(index - 1)} style={{ position: "absolute", left: 8, top: "50%", transform: "translateY(-50%)", background: "rgba(255,255,255,0.15)", border: "none", borderRadius: "50%", width: 40, height: 40, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 2 }}>
             <span style={{ color: "white", fontSize: 20 }}>‹</span>
           </button>
         )}
-        {photo.photoUrl && (
-          <div style={{
-            transform: `translateX(${swipeOffset}px)`,
-            transition: swipeTransition ? "transform 0.25s cubic-bezier(0.2, 0, 0, 1)" : "none",
-            display: "flex", alignItems: "center", justifyContent: "center",
-            width: "100%", height: "100%",
-          }}>
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={photo.photoUrl}
-              alt="Foto"
-              draggable={false}
-              style={{
-                maxWidth: "100%", maxHeight: "65vh", objectFit: "contain",
-                borderRadius: 4,
-                transformOrigin: "center center",
-                willChange: "transform",
-              }}
-            />
-          </div>
-        )}
-        {!isMobile && index < data.length - 1 && currentScale <= 1.05 && (
+        {!isMobile && index < data.length - 1 && zoomScale <= 1.05 && (
           <button onClick={() => goTo(index + 1)} style={{ position: "absolute", right: 8, top: "50%", transform: "translateY(-50%)", background: "rgba(255,255,255,0.15)", border: "none", borderRadius: "50%", width: 40, height: 40, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 2 }}>
             <span style={{ color: "white", fontSize: 20 }}>›</span>
           </button>
         )}
       </div>
 
-      {/* Bottom: info + action buttons */}
-      <div style={{ padding: "10px 16px 20px", flexShrink: 0, background: "linear-gradient(transparent, rgba(0,0,0,0.9))" }}>
+      {/* Bottom info + actions */}
+      <div style={{ padding: "10px 16px 20px", flexShrink: 0, background: "linear-gradient(transparent, rgba(0,0,0,0.9))", zIndex: 2 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
           <p style={{ color: "white", fontSize: 14, fontWeight: 600, margin: 0, flex: 1 }}>{storeName}</p>
           <StatusPill status={photo.status ?? "pending"} />
         </div>
-        <p style={{ color: "rgba(255,255,255,0.7)", fontSize: 12, margin: "0 0 2px" }}>
-          {promoterName}{brandName ? ` · ${brandName}` : ""}
-        </p>
+        <p style={{ color: "rgba(255,255,255,0.7)", fontSize: 12, margin: "0 0 2px" }}>{promoterName}{brandName ? ` · ${brandName}` : ""}</p>
         <p style={{ color: "rgba(255,255,255,0.5)", fontSize: 11, margin: "0 0 10px" }}>{dateStr}</p>
-
         <div style={{ display: "flex", gap: 8 }}>
           {isPending && (
             <>
-              <button
-                onClick={async () => {
-                  await onApprove(photo.id);
-                  if (index < data.length - 1) goTo(index);
-                  else if (data.length <= 1) onClose();
-                  else goTo(Math.max(0, index - 1));
-                }}
-                style={{ flex: 1, padding: "10px 0", borderRadius: 10, border: "none", background: "#10b981", color: "white", fontSize: 13, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 5 }}
-              >
+              <button onClick={async () => { await onApprove(photo.id); if (index < data.length - 1) goTo(index); else if (data.length <= 1) onClose(); else goTo(Math.max(0, index - 1)); }}
+                style={{ flex: 1, padding: "10px 0", borderRadius: 10, border: "none", background: "#10b981", color: "white", fontSize: 13, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 5 }}>
                 <CheckCircle size={14} /> Aprovar
               </button>
-              <button
-                onClick={async () => {
-                  await onReject(photo.id);
-                  if (index < data.length - 1) goTo(index);
-                  else if (data.length <= 1) onClose();
-                  else goTo(Math.max(0, index - 1));
-                }}
-                style={{ flex: 1, padding: "10px 0", borderRadius: 10, border: "none", background: "#ef4444", color: "white", fontSize: 13, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 5 }}
-              >
+              <button onClick={async () => { await onReject(photo.id); if (index < data.length - 1) goTo(index); else if (data.length <= 1) onClose(); else goTo(Math.max(0, index - 1)); }}
+                style={{ flex: 1, padding: "10px 0", borderRadius: 10, border: "none", background: "#ef4444", color: "white", fontSize: 13, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 5 }}>
                 <XCircle size={14} /> Recusar
               </button>
             </>
           )}
-          <button
-            onClick={() => { onComment(photo.id); onClose(); }}
-            style={{ flex: isPending ? 0 : 1, minWidth: isPending ? 48 : undefined, padding: "10px 14px", borderRadius: 10, border: "1px solid rgba(255,255,255,0.3)", background: "rgba(255,255,255,0.1)", color: "white", fontSize: 13, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 5 }}
-          >
+          <button onClick={() => { onComment(photo.id); onClose(); }}
+            style={{ flex: isPending ? 0 : 1, minWidth: isPending ? 48 : undefined, padding: "10px 14px", borderRadius: 10, border: "1px solid rgba(255,255,255,0.3)", background: "rgba(255,255,255,0.1)", color: "white", fontSize: 13, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 5 }}>
             <MessageSquare size={14} /> {!isPending && "Comentar"}
           </button>
         </div>
