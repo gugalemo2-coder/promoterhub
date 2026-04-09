@@ -2227,9 +2227,8 @@ export async function getProductExpirations(filters: {
   if (filters.status) conditions.push(eq(productExpirations.status, filters.status));
   if (filters.startDate) conditions.push(gte(productExpirations.createdAt, filters.startDate));
   if (filters.endDate) {
-    const end = new Date(filters.endDate);
-    end.setHours(23, 59, 59, 999);
-    conditions.push(lte(productExpirations.createdAt, end));
+    // endDate already comes with the correct time from the frontend, don't override hours
+    conditions.push(lte(productExpirations.createdAt, filters.endDate));
   }
   const rows = await db
     .select({
