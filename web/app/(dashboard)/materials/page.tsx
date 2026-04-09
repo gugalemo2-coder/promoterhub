@@ -278,6 +278,7 @@ export default function MaterialsPage() {
   // Mutations
   const createRequest = trpc.materialRequests.create.useMutation();
   const createMaterial = trpc.materials.create.useMutation();
+  const updateMaterial = trpc.materials.update.useMutation();
   const uploadMaterialPhoto = trpc.materials.uploadPhoto.useMutation();
   const approve = trpc.materialRequests.approve.useMutation({ onSuccess: () => allRequests.refetch() });
   const reject = trpc.materialRequests.reject.useMutation({
@@ -408,7 +409,7 @@ export default function MaterialsPage() {
           onClick={(e) => { if (e.target === e.currentTarget) setShowNewMaterial(false); }}>
           <div style={{ background: "white", borderRadius: 16, padding: 24, width: "100%", maxWidth: 420, maxHeight: "90vh", overflowY: "auto" }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
-              <h2 style={{ fontSize: 18, fontWeight: 700, color: "#111827", margin: 0 }}>Novo Material</h2>
+              <h2 style={{ fontSize: 18, fontWeight: 700, color: "#111827", margin: 0 }}>{(window as any).__editMaterialId ? "Editar Material" : "Novo Material"}</h2>
               <button onClick={() => setShowNewMaterial(false)} style={{ background: "none", border: "none", cursor: "pointer", color: "#9ca3af", padding: 4 }}><X size={20} /></button>
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
@@ -461,22 +462,36 @@ export default function MaterialsPage() {
                       const uploadRes = await uploadMaterialPhoto.mutateAsync({ fileBase64: newMatPhotoBase64, fileType: "image/jpeg", fileName: newMatPhotoName });
                       photoUrl = uploadRes?.url;
                     }
-                    await createMaterial.mutateAsync({
-                      brandId: newMatBrandId,
-                      name: newMatName.trim(),
-                      description: newMatDesc.trim() || undefined,
-                      quantityAvailable: newMatQty,
-                      photoUrl: photoUrl,
-                    });
+                    const editId = (window as any).__editMaterialId;
+                    if (editId) {
+                      // Update existing
+                      await updateMaterial.mutateAsync({
+                        id: editId,
+                        name: newMatName.trim(),
+                        description: newMatDesc.trim() || undefined,
+                        quantityAvailable: newMatQty,
+                        ...(photoUrl ? { photoUrl } : {}),
+                      });
+                    } else {
+                      // Create new
+                      await createMaterial.mutateAsync({
+                        brandId: newMatBrandId,
+                        name: newMatName.trim(),
+                        description: newMatDesc.trim() || undefined,
+                        quantityAvailable: newMatQty,
+                        photoUrl: photoUrl,
+                      });
+                    }
                     setShowNewMaterial(false);
                     setNewMatName(""); setNewMatDesc(""); setNewMatQty(0); setNewMatBrandId(null); setNewMatPhotoBase64(null); setNewMatPhotoName("");
+                    (window as any).__editMaterialId = null;
                     materials.refetch();
                   } catch { /* ignore */ } finally { setNewMatLoading(false); }
                 }}
                 disabled={newMatLoading || !newMatName.trim() || !newMatBrandId}
                 style={{ flex: 2, padding: "12px", borderRadius: 10, border: "none", background: !newMatName.trim() || !newMatBrandId ? "#9ca3af" : "#1d4ed8", color: "white", fontSize: 14, fontWeight: 700, cursor: !newMatName.trim() || !newMatBrandId ? "not-allowed" : "pointer" }}
               >
-                {newMatLoading ? "Criando..." : "Criar Material"}
+                {newMatLoading ? "Salvando..." : (window as any).__editMaterialId ? "Salvar" : "Criar Material"}
               </button>
             </div>
           </div>
@@ -499,7 +514,7 @@ export default function MaterialsPage() {
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
           {isManager && (
             <button
-              onClick={() => setShowNewMaterial(true)}
+              onClick={() => { (window as any).__editMaterialId = null; setShowNewMaterial(true); setNewMatName(""); setNewMatDesc(""); setNewMatQty(0); setNewMatBrandId(null); setNewMatPhotoBase64(null); setNewMatPhotoName(""); }}
               style={{
                 display: "flex", alignItems: "center", gap: 6, padding: "8px 14px",
                 background: "#1d4ed8", border: "none", borderRadius: 8,
@@ -586,11 +601,10 @@ export default function MaterialsPage() {
                 return (
                   <div
                     key={item.id}
-                    onClick={() => available && setSelectedMaterial(item)}
                     style={{
                       background: "white", borderRadius: 14,
                       border: `1px solid ${available ? "#e5e7eb" : "#f3f4f6"}`,
-                      overflow: "hidden", cursor: available ? "pointer" : "default",
+                      overflow: "hidden",
                       transition: "box-shadow 0.15s, transform 0.15s",
                       opacity: available ? 1 : 0.55,
                     }}
@@ -618,7 +632,7 @@ export default function MaterialsPage() {
                       )}
 
                       {/* Disponibilidade */}
-                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                      <div style={{ marginBottom: 10 }}>
                         <span style={{
                           fontSize: 11, fontWeight: 600, padding: "3px 8px", borderRadius: 20,
                           background: available ? "#d1fae5" : "#fee2e2",
@@ -626,14 +640,42 @@ export default function MaterialsPage() {
                         }}>
                           {available ? `${item.quantityAvailable} disponível${item.quantityAvailable !== 1 ? "is" : ""}` : "Indisponível"}
                         </span>
-                        {available && (
-                          <div style={{
-                            width: 32, height: 32, borderRadius: "50%", background: "#1d4ed8",
-                            display: "flex", alignItems: "center", justifyContent: "center",
-                          }}>
-                            <ShoppingCart size={15} style={{ color: "white" }} />
-                          </div>
-                        )}
+                      </div>
+
+                      {/* Buttons: Editar (manager) or Solicitar (promoter) */}
+                      {isManager ? (
+                        <button
+                          onClick={() => {
+                            setShowNewMaterial(true);
+                            setNewMatName(item.name);
+                            setNewMatDesc(item.description ?? "");
+                            setNewMatQty(item.quantityAvailable);
+                            setNewMatBrandId(item.brandId ?? null);
+                            // Store the editing item id for update
+                            (window as any).__editMaterialId = item.id;
+                          }}
+                          style={{
+                            width: "100%", padding: "8px 0", borderRadius: 8,
+                            border: "1px solid #e5e7eb", background: "white",
+                            color: "#374151", fontSize: 12, fontWeight: 600, cursor: "pointer",
+                            display: "flex", alignItems: "center", justifyContent: "center", gap: 4,
+                          }}
+                        >
+                          Editar
+                        </button>
+                      ) : available ? (
+                        <button
+                          onClick={() => setSelectedMaterial(item)}
+                          style={{
+                            width: "100%", padding: "8px 0", borderRadius: 8,
+                            border: "none", background: "#1d4ed8",
+                            color: "white", fontSize: 12, fontWeight: 600, cursor: "pointer",
+                            display: "flex", alignItems: "center", justifyContent: "center", gap: 4,
+                          }}
+                        >
+                          Solicitar
+                        </button>
+                      ) : null}
                       </div>
 
                       {/* Histórico de solicitações */}
