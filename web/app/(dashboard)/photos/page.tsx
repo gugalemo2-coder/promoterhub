@@ -273,7 +273,32 @@ function FullscreenGallery({
     setZoomScale(z.scale);
   };
 
-  const goTo = (n: number) => { resetZoom(false); setIndex(n); setDragX(0); setIsDragging(false); };
+  // Pending transition ref to avoid re-renders during animation
+  const pendingGoRef = useRef<number | null>(null);
+
+  const goTo = (n: number) => {
+    if (pendingGoRef.current !== null) return; // already transitioning
+    resetZoom(false);
+    // Calculate slide width (1/3 of container)
+    const slideWidth = window.innerWidth;
+    const direction = n > index ? -slideWidth : slideWidth;
+    // Animate dragX to slide out
+    pendingGoRef.current = n;
+    setIsDragging(false); // enable transition
+    setDragX(direction);
+    // After transition completes, swap index and reset dragX instantly
+    setTimeout(() => {
+      // Temporarily disable transition for the swap
+      setIsDragging(true); // no transition
+      setDragX(0);
+      setIndex(n);
+      pendingGoRef.current = null;
+      // Re-enable transition on next frame
+      requestAnimationFrame(() => {
+        setIsDragging(false);
+      });
+    }, 350);
+  };
 
   const getTouchDist = (a: React.Touch, b: React.Touch) => Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
 
@@ -370,7 +395,7 @@ function FullscreenGallery({
     const ok = Math.abs(dragX) > threshold || vel > 0.4;
     if (ok && dragX < 0 && index < data.length - 1) goTo(index + 1);
     else if (ok && dragX > 0 && index > 0) goTo(index - 1);
-    else { setDragX(0); setIsDragging(false); }
+    else { setIsDragging(false); setDragX(0); } // snap back with transition
     touchRef.current.isHorizontal = null;
   };
 
@@ -390,11 +415,11 @@ function FullscreenGallery({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [index, data.length]);
 
-  // Reset on index
+  // Reset zoom on index change
   useEffect(() => {
     const z = zoomRef.current;
     z.scale = 1; z.tx = 0; z.ty = 0; z.animating = false;
-    applyZoom(); setZoomScale(1); setDragX(0); setIsDragging(false);
+    applyZoom(); setZoomScale(1);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [index]);
 
