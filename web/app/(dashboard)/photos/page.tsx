@@ -184,34 +184,38 @@ function CommentPanel({ photoId, onClose }: { photoId: number; onClose: () => vo
   );
 }
 
-/* ── Fullscreen Gallery with real zoom ── */
+/* ── iPhone-style Fullscreen Gallery ── */
 function FullscreenGallery({
-  data,
-  initialIndex,
-  onClose,
-  onApprove,
-  onReject,
-  onComment,
+  data, initialIndex, onClose, onApprove, onReject, onComment,
 }: {
-  data: Photo[];
-  initialIndex: number;
-  onClose: () => void;
+  data: Photo[]; initialIndex: number; onClose: () => void;
   onApprove: (id: number) => Promise<void>;
   onReject: (id: number) => Promise<void>;
   onComment: (id: number) => void;
 }) {
   const [index, setIndex] = useState(initialIndex);
-  const [scale, setScale] = useState(1);
-  const [translate, setTranslate] = useState({ x: 0, y: 0 });
-  const imgRef = useRef<HTMLImageElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const animRef = useRef<number>(0);
 
-  // Pinch state
-  const pinchRef = useRef({ startDist: 0, startScale: 1 });
-  // Pan state
-  const panRef = useRef({ startX: 0, startY: 0, startTx: 0, startTy: 0, isPanning: false });
-  // Swipe state
-  const swipeRef = useRef({ startX: 0, startY: 0, startTime: 0 });
+  // Zoom/pan state via ref for 60fps touch performance
+  const stateRef = useRef({
+    scale: 1, tx: 0, ty: 0,
+    // Pinch
+    pinchStartDist: 0, pinchStartScale: 1,
+    pinchCenterX: 0, pinchCenterY: 0,
+    // Pan
+    panStartX: 0, panStartY: 0, panStartTx: 0, panStartTy: 0,
+    isPanning: false, isPinching: false,
+    // Swipe
+    swipeStartX: 0, swipeStartY: 0, swipeStartTime: 0,
+    // Double-tap
+    lastTapTime: 0, lastTapX: 0, lastTapY: 0,
+    // Animation
+    animating: false,
+  });
+
+  // Force re-render for scale display
+  const [, forceUpdate] = useState(0);
 
   const photo = data[index];
   if (!photo) { onClose(); return null; }
@@ -222,88 +226,212 @@ function FullscreenGallery({
   const dateStr = formatDateTime(photo.createdAt as string);
   const isPending = photo.status === "pending";
 
-  const resetZoom = () => { setScale(1); setTranslate({ x: 0, y: 0 }); };
+  const applyTransform = () => {
+    const img = containerRef.current?.querySelector("img");
+    if (!img) return;
+    const s = stateRef.current;
+    img.style.transform = `translate(${s.tx}px, ${s.ty}px) scale(${s.scale})`;
+    img.style.transition = s.animating ? "transform 0.3s cubic-bezier(0.2, 0, 0, 1)" : "none";
+  };
+
+  const clampPan = () => {
+    const s = stateRef.current;
+    if (s.scale <= 1) { s.tx = 0; s.ty = 0; return; }
+    const el = containerRef.current;
+    if (!el) return;
+    const img = el.querySelector("img");
+    if (!img) return;
+    const rect = el.getBoundingClientRect();
+    const imgW = img.naturalWidth > 0 ? Math.min(img.offsetWidth * s.scale, rect.width * s.scale) : rect.width * s.scale;
+    const imgH = img.naturalHeight > 0 ? Math.min(img.offsetHeight * s.scale, rect.height * s.scale) : rect.height * s.scale;
+    const maxTx = Math.max(0, (imgW - rect.width) / 2);
+    const maxTy = Math.max(0, (imgH - rect.height) / 2);
+    s.tx = Math.max(-maxTx, Math.min(maxTx, s.tx));
+    s.ty = Math.max(-maxTy, Math.min(maxTy, s.ty));
+  };
+
+  const resetZoom = (animate = true) => {
+    const s = stateRef.current;
+    s.scale = 1; s.tx = 0; s.ty = 0;
+    s.animating = animate;
+    applyTransform();
+    if (animate) setTimeout(() => { s.animating = false; }, 300);
+    forceUpdate((n) => n + 1);
+  };
+
+  const animateToScale = (newScale: number, focusX: number, focusY: number) => {
+    const s = stateRef.current;
+    const el = containerRef.current;
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    const cx = focusX - rect.left - rect.width / 2;
+    const cy = focusY - rect.top - rect.height / 2;
+
+    if (newScale <= 1) {
+      s.scale = 1; s.tx = 0; s.ty = 0;
+    } else {
+      // Zoom towards the tap point
+      const ratio = newScale / s.scale;
+      s.tx = cx - ratio * (cx - s.tx);
+      s.ty = cy - ratio * (cy - s.ty);
+      s.scale = newScale;
+      clampPan();
+    }
+    s.animating = true;
+    applyTransform();
+    setTimeout(() => { s.animating = false; }, 300);
+    forceUpdate((n) => n + 1);
+  };
 
   const goTo = (newIdx: number) => {
-    resetZoom();
+    resetZoom(false);
     setIndex(newIdx);
   };
 
-  // Double-tap / double-click zoom
-  const handleDoubleClick = (e: React.MouseEvent) => {
-    if (scale > 1) {
-      resetZoom();
-    } else {
-      const rect = containerRef.current?.getBoundingClientRect();
-      if (rect) {
-        const x = e.clientX - rect.left - rect.width / 2;
-        const y = e.clientY - rect.top - rect.height / 2;
-        setScale(2.5);
-        setTranslate({ x: -x * 0.6, y: -y * 0.6 });
-      } else {
-        setScale(2.5);
-      }
-    }
+  const getTouchDist = (t1: React.Touch, t2: React.Touch) => {
+    return Math.hypot(t1.clientX - t2.clientX, t1.clientY - t2.clientY);
   };
 
-  // Scroll wheel zoom (desktop)
-  const handleWheel = (e: React.WheelEvent) => {
-    e.preventDefault();
-    const delta = e.deltaY > 0 ? -0.25 : 0.25;
-    setScale((s) => {
-      const next = Math.max(1, Math.min(5, s + delta));
-      if (next <= 1) setTranslate({ x: 0, y: 0 });
-      return next;
-    });
-  };
-
-  // Touch handlers: pinch-to-zoom + pan + swipe
   const handleTouchStart = (e: React.TouchEvent) => {
+    const s = stateRef.current;
     if (e.touches.length === 2) {
       // Pinch start
-      const dx = e.touches[0].clientX - e.touches[1].clientX;
-      const dy = e.touches[0].clientY - e.touches[1].clientY;
-      pinchRef.current = { startDist: Math.hypot(dx, dy), startScale: scale };
+      s.isPinching = true;
+      s.isPanning = false;
+      s.pinchStartDist = getTouchDist(e.touches[0], e.touches[1]);
+      s.pinchStartScale = s.scale;
+      s.pinchCenterX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+      s.pinchCenterY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+      // Also record pan start for combined pinch+pan
+      s.panStartTx = s.tx;
+      s.panStartTy = s.ty;
     } else if (e.touches.length === 1) {
       const t = e.touches[0];
-      swipeRef.current = { startX: t.clientX, startY: t.clientY, startTime: Date.now() };
-      if (scale > 1) {
-        // Pan start
-        panRef.current = { startX: t.clientX, startY: t.clientY, startTx: translate.x, startTy: translate.y, isPanning: true };
+      s.swipeStartX = t.clientX;
+      s.swipeStartY = t.clientY;
+      s.swipeStartTime = Date.now();
+
+      // Double-tap detection
+      const now = Date.now();
+      if (now - s.lastTapTime < 300 && Math.abs(t.clientX - s.lastTapX) < 30 && Math.abs(t.clientY - s.lastTapY) < 30) {
+        // Double-tap: toggle between 1x and 2.5x
+        e.preventDefault();
+        if (s.scale > 1.1) {
+          resetZoom(true);
+        } else {
+          animateToScale(2.5, t.clientX, t.clientY);
+        }
+        s.lastTapTime = 0; // Reset so triple-tap doesn't trigger
+        return;
+      }
+      s.lastTapTime = now;
+      s.lastTapX = t.clientX;
+      s.lastTapY = t.clientY;
+
+      // Pan start (when zoomed)
+      if (s.scale > 1) {
+        s.isPanning = true;
+        s.panStartX = t.clientX;
+        s.panStartY = t.clientY;
+        s.panStartTx = s.tx;
+        s.panStartTy = s.ty;
       }
     }
   };
 
   const handleTouchMove = (e: React.TouchEvent) => {
-    if (e.touches.length === 2) {
-      // Pinch move
-      const dx = e.touches[0].clientX - e.touches[1].clientX;
-      const dy = e.touches[0].clientY - e.touches[1].clientY;
-      const dist = Math.hypot(dx, dy);
-      const newScale = Math.max(1, Math.min(5, pinchRef.current.startScale * (dist / pinchRef.current.startDist)));
-      setScale(newScale);
-      if (newScale <= 1) setTranslate({ x: 0, y: 0 });
-    } else if (e.touches.length === 1 && panRef.current.isPanning && scale > 1) {
+    const s = stateRef.current;
+
+    if (e.touches.length === 2 && s.isPinching) {
+      e.preventDefault();
+      const dist = getTouchDist(e.touches[0], e.touches[1]);
+      const newScale = Math.max(1, Math.min(5, s.pinchStartScale * (dist / s.pinchStartDist)));
+
+      // Pinch zoom toward center of fingers
+      const el = containerRef.current;
+      if (el) {
+        const rect = el.getBoundingClientRect();
+        const newCenterX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+        const newCenterY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+        const cx = s.pinchCenterX - rect.left - rect.width / 2;
+        const cy = s.pinchCenterY - rect.top - rect.height / 2;
+        const ratio = newScale / s.pinchStartScale;
+        s.tx = s.panStartTx + (newCenterX - s.pinchCenterX) + cx * (1 - ratio);
+        s.ty = s.panStartTy + (newCenterY - s.pinchCenterY) + cy * (1 - ratio);
+      }
+
+      s.scale = newScale;
+      if (s.scale <= 1) { s.tx = 0; s.ty = 0; }
+      else clampPan();
+      s.animating = false;
+      applyTransform();
+      forceUpdate((n) => n + 1);
+    } else if (e.touches.length === 1 && s.isPanning && s.scale > 1) {
+      e.preventDefault();
       const t = e.touches[0];
-      const dx = t.clientX - panRef.current.startX;
-      const dy = t.clientY - panRef.current.startY;
-      setTranslate({ x: panRef.current.startTx + dx, y: panRef.current.startTy + dy });
+      s.tx = s.panStartTx + (t.clientX - s.panStartX);
+      s.ty = s.panStartTy + (t.clientY - s.panStartY);
+      clampPan();
+      s.animating = false;
+      applyTransform();
     }
   };
 
   const handleTouchEnd = (e: React.TouchEvent) => {
-    panRef.current.isPanning = false;
+    const s = stateRef.current;
 
-    // Detect swipe (only when not zoomed)
-    if (scale <= 1 && e.changedTouches.length === 1) {
+    if (s.isPinching && e.touches.length < 2) {
+      s.isPinching = false;
+      // Snap to 1x if close
+      if (s.scale < 1.05) {
+        resetZoom(true);
+      } else {
+        clampPan();
+        s.animating = true;
+        applyTransform();
+        setTimeout(() => { s.animating = false; }, 300);
+      }
+      forceUpdate((n) => n + 1);
+      return;
+    }
+
+    s.isPanning = false;
+
+    // Swipe detection (only when not zoomed)
+    if (s.scale <= 1.05 && e.changedTouches.length === 1) {
       const t = e.changedTouches[0];
-      const diffX = t.clientX - swipeRef.current.startX;
-      const diffY = t.clientY - swipeRef.current.startY;
-      const elapsed = Date.now() - swipeRef.current.startTime;
-      if (Math.abs(diffX) > 50 && Math.abs(diffX) > Math.abs(diffY) && elapsed < 400) {
+      const diffX = t.clientX - s.swipeStartX;
+      const diffY = t.clientY - s.swipeStartY;
+      const elapsed = Date.now() - s.swipeStartTime;
+      if (Math.abs(diffX) > 50 && Math.abs(diffX) > Math.abs(diffY) * 1.5 && elapsed < 400) {
         if (diffX < 0 && index < data.length - 1) goTo(index + 1);
         if (diffX > 0 && index > 0) goTo(index - 1);
       }
+    } else if (s.scale > 1) {
+      // Snap pan after release
+      clampPan();
+      s.animating = true;
+      applyTransform();
+      setTimeout(() => { s.animating = false; }, 300);
+    }
+  };
+
+  // Desktop: scroll wheel zoom
+  const handleWheel = (e: React.WheelEvent) => {
+    e.preventDefault();
+    const s = stateRef.current;
+    const delta = e.deltaY > 0 ? -0.3 : 0.3;
+    const newScale = Math.max(1, Math.min(5, s.scale + delta));
+    animateToScale(newScale, e.clientX, e.clientY);
+  };
+
+  // Desktop: double click
+  const handleDoubleClick = (e: React.MouseEvent) => {
+    const s = stateRef.current;
+    if (s.scale > 1.1) {
+      resetZoom(true);
+    } else {
+      animateToScale(2.5, e.clientX, e.clientY);
     }
   };
 
@@ -319,9 +447,20 @@ function FullscreenGallery({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [index, data.length]);
 
+  // Reset zoom on index change
+  useEffect(() => {
+    const s = stateRef.current;
+    s.scale = 1; s.tx = 0; s.ty = 0; s.animating = false;
+    applyTransform();
+    forceUpdate((n) => n + 1);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [index]);
+
+  const currentScale = stateRef.current.scale;
+
   return (
     <div style={{
-      position: "fixed", inset: 0, background: "rgba(0,0,0,0.95)",
+      position: "fixed", inset: 0, background: "rgba(0,0,0,0.97)",
       display: "flex", flexDirection: "column",
       zIndex: 9999, userSelect: "none",
     }}>
@@ -329,13 +468,10 @@ function FullscreenGallery({
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 16px", flexShrink: 0 }}>
         <span style={{ color: "white", fontSize: 13, fontWeight: 600 }}>{index + 1} / {data.length}</span>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          {scale > 1 && (
-            <button onClick={resetZoom} style={{
-              background: "rgba(255,255,255,0.15)", border: "none", borderRadius: 8,
-              padding: "6px 12px", cursor: "pointer", color: "white", fontSize: 11, fontWeight: 600,
-            }}>
-              Resetar Zoom
-            </button>
+          {currentScale > 1.05 && (
+            <span style={{ color: "rgba(255,255,255,0.6)", fontSize: 11 }}>
+              {Math.round(currentScale * 100)}%
+            </span>
           )}
           <button onClick={onClose} style={{ background: "rgba(255,255,255,0.15)", border: "none", borderRadius: "50%", width: 36, height: 36, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
             <X size={18} style={{ color: "white" }} />
@@ -343,22 +479,22 @@ function FullscreenGallery({
         </div>
       </div>
 
-      {/* Image area with zoom */}
+      {/* Image area */}
       <div
         ref={containerRef}
         style={{
           flex: 1, display: "flex", alignItems: "center", justifyContent: "center",
           overflow: "hidden", position: "relative",
-          touchAction: "none", cursor: scale > 1 ? "grab" : "default",
+          touchAction: "none",
         }}
-        onDoubleClick={handleDoubleClick}
-        onWheel={handleWheel}
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}
+        onWheel={handleWheel}
+        onDoubleClick={handleDoubleClick}
       >
-        {/* Left arrow */}
-        {index > 0 && scale <= 1 && (
+        {/* Arrows (only when not zoomed) */}
+        {index > 0 && currentScale <= 1.05 && (
           <button onClick={() => goTo(index - 1)} style={{ position: "absolute", left: 8, top: "50%", transform: "translateY(-50%)", background: "rgba(255,255,255,0.15)", border: "none", borderRadius: "50%", width: 40, height: 40, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 2 }}>
             <span style={{ color: "white", fontSize: 20 }}>‹</span>
           </button>
@@ -366,28 +502,25 @@ function FullscreenGallery({
         {photo.photoUrl && (
           // eslint-disable-next-line @next/next/no-img-element
           <img
-            ref={imgRef}
             src={photo.photoUrl}
             alt="Foto"
             draggable={false}
             style={{
               maxWidth: "100%", maxHeight: "65vh", objectFit: "contain",
               borderRadius: 4,
-              transform: `scale(${scale}) translate(${translate.x / scale}px, ${translate.y / scale}px)`,
               transformOrigin: "center center",
-              transition: scale === 1 ? "transform 0.2s ease-out" : "none",
+              willChange: "transform",
             }}
           />
         )}
-        {/* Right arrow */}
-        {index < data.length - 1 && scale <= 1 && (
+        {index < data.length - 1 && currentScale <= 1.05 && (
           <button onClick={() => goTo(index + 1)} style={{ position: "absolute", right: 8, top: "50%", transform: "translateY(-50%)", background: "rgba(255,255,255,0.15)", border: "none", borderRadius: "50%", width: 40, height: 40, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 2 }}>
             <span style={{ color: "white", fontSize: 20 }}>›</span>
           </button>
         )}
       </div>
 
-      {/* Bottom: info + status + action buttons */}
+      {/* Bottom: info + action buttons */}
       <div style={{ padding: "10px 16px 20px", flexShrink: 0, background: "linear-gradient(transparent, rgba(0,0,0,0.9))" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
           <p style={{ color: "white", fontSize: 14, fontWeight: 600, margin: 0, flex: 1 }}>{storeName}</p>
@@ -398,7 +531,6 @@ function FullscreenGallery({
         </p>
         <p style={{ color: "rgba(255,255,255,0.5)", fontSize: 11, margin: "0 0 10px" }}>{dateStr}</p>
 
-        {/* Action buttons */}
         <div style={{ display: "flex", gap: 8 }}>
           {isPending && (
             <>
@@ -548,9 +680,9 @@ export default function PhotosPage() {
           const res = await fetch(photo.photoUrl!);
           const blob = await res.blob();
           const ext = photo.photoUrl!.split(".").pop()?.split("?")[0] ?? "jpg";
-          const promoterName = ((photo.promoterName as string) ?? "promotor").replace(/\s+/g, "-");
+          const pName = ((photo.promoterName as string) ?? "promotor").replace(/\s+/g, "-");
           const date = photo.createdAt ? new Date(photo.createdAt as string).toISOString().slice(0, 10) : "sem-data";
-          zip.file(`foto-${promoterName}-${date}-${idx + 1}.${ext}`, blob);
+          zip.file(`foto-${pName}-${date}-${idx + 1}.${ext}`, blob);
         })
       );
       const content = await zip.generateAsync({ type: "blob" });
@@ -592,104 +724,47 @@ export default function PhotosPage() {
             {data.length} foto(s) · {data.filter((p) => p.status === "pending").length} pendente(s)
           </p>
         </div>
-        <button
-          onClick={() => photos.refetch()}
-          style={{
-            display: "flex", alignItems: "center", gap: 6, padding: "8px 14px",
-            background: "white", border: "1px solid #e5e7eb", borderRadius: 8,
-            fontSize: 13, color: "#374151", cursor: "pointer", fontWeight: 500,
-          }}
-        >
+        <button onClick={() => photos.refetch()} style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 14px", background: "white", border: "1px solid #e5e7eb", borderRadius: 8, fontSize: 13, color: "#374151", cursor: "pointer", fontWeight: 500 }}>
           <RefreshCw size={14} style={{ animation: photos.isFetching ? "spin 0.8s linear infinite" : "none" }} />
           Atualizar
         </button>
       </div>
 
-      <div style={{
-        background: "white", borderRadius: 12, border: "1px solid #e5e7eb",
-        padding: "14px 18px", marginBottom: 20,
-        display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap",
-      }}>
+      <div style={{ background: "white", borderRadius: 12, border: "1px solid #e5e7eb", padding: "14px 18px", marginBottom: 20, display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
         <Filter size={15} style={{ color: "#9ca3af" }} />
         <div style={{ display: "flex", gap: 4 }}>
           {statusTabs.map((tab) => (
-            <button
-              key={tab.key}
-              onClick={() => setStatus(tab.key)}
-              style={{
-                padding: "5px 14px", borderRadius: 20, border: "none", cursor: "pointer",
-                fontSize: 12, fontWeight: 600,
-                background: status === tab.key ? "#1A56DB" : "#f3f4f6",
-                color: status === tab.key ? "white" : "#6b7280",
-              }}
-            >
+            <button key={tab.key} onClick={() => setStatus(tab.key)} style={{ padding: "5px 14px", borderRadius: 20, border: "none", cursor: "pointer", fontSize: 12, fontWeight: 600, background: status === tab.key ? "#1A56DB" : "#f3f4f6", color: status === tab.key ? "white" : "#6b7280" }}>
               {tab.label}
             </button>
           ))}
         </div>
-        <select
-          value={selectedBrand ?? ""}
-          onChange={(e) => setSelectedBrand(e.target.value ? Number(e.target.value) : undefined)}
-          style={{ padding: "6px 10px", borderRadius: 8, border: "1px solid #e5e7eb", fontSize: 12, color: "#374151", background: "white", cursor: "pointer", outline: "none" }}
-        >
+        <select value={selectedBrand ?? ""} onChange={(e) => setSelectedBrand(e.target.value ? Number(e.target.value) : undefined)} style={{ padding: "6px 10px", borderRadius: 8, border: "1px solid #e5e7eb", fontSize: 12, color: "#374151", background: "white", cursor: "pointer", outline: "none" }}>
           <option value="">Todas as marcas</option>
           {brandList.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
         </select>
-        <select
-          value={selectedPromoter ?? ""}
-          onChange={(e) => setSelectedPromoter(e.target.value ? Number(e.target.value) : undefined)}
-          style={{ padding: "6px 10px", borderRadius: 8, border: "1px solid #e5e7eb", fontSize: 12, color: "#374151", background: "white", cursor: "pointer", outline: "none" }}
-        >
+        <select value={selectedPromoter ?? ""} onChange={(e) => setSelectedPromoter(e.target.value ? Number(e.target.value) : undefined)} style={{ padding: "6px 10px", borderRadius: 8, border: "1px solid #e5e7eb", fontSize: 12, color: "#374151", background: "white", cursor: "pointer", outline: "none" }}>
           <option value="">Todos promotores</option>
           {promoterList.map((p: any) => <option key={p.id} value={p.id}>{p.name}</option>)}
         </select>
-        <select
-          value={selectedStore ?? ""}
-          onChange={(e) => setSelectedStore(e.target.value ? Number(e.target.value) : undefined)}
-          style={{ padding: "6px 10px", borderRadius: 8, border: "1px solid #e5e7eb", fontSize: 12, color: "#374151", background: "white", cursor: "pointer", outline: "none" }}
-        >
+        <select value={selectedStore ?? ""} onChange={(e) => setSelectedStore(e.target.value ? Number(e.target.value) : undefined)} style={{ padding: "6px 10px", borderRadius: 8, border: "1px solid #e5e7eb", fontSize: 12, color: "#374151", background: "white", cursor: "pointer", outline: "none" }}>
           <option value="">Todas as lojas</option>
           {storeList.map((s: any) => <option key={s.id} value={s.id}>{s.name}</option>)}
         </select>
         {data.length > 0 && (
-          <button
-            onClick={selectAll}
-            style={{
-              marginLeft: "auto", padding: "5px 12px", borderRadius: 8, border: "1px solid #e5e7eb",
-              fontSize: 12, color: "#374151", background: "white", cursor: "pointer", fontWeight: 500,
-              display: "flex", alignItems: "center", gap: 5,
-            }}
-          >
+          <button onClick={selectAll} style={{ marginLeft: "auto", padding: "5px 12px", borderRadius: 8, border: "1px solid #e5e7eb", fontSize: 12, color: "#374151", background: "white", cursor: "pointer", fontWeight: 500, display: "flex", alignItems: "center", gap: 5 }}>
             <CheckSquare size={13} /> Selecionar todas
           </button>
         )}
       </div>
 
       {selectMode && (
-        <div style={{
-          background: "#1e3a8a", borderRadius: 12, padding: "12px 16px",
-          marginBottom: 16, display: "flex", alignItems: "center", gap: 8,
-          boxShadow: "0 4px 16px rgba(30,58,138,0.25)", flexWrap: "wrap",
-        }}>
-          <span style={{ color: "white", fontSize: 13, fontWeight: 600, flex: 1 }}>
-            {selected.size} foto(s) selecionada(s)
-          </span>
-          <button onClick={handleBatchApprove} disabled={batchLoading}
-            style={{ background: "#10b981", border: "none", color: "white", padding: "6px 14px", borderRadius: 7, fontSize: 12, cursor: "pointer", fontWeight: 600, display: "flex", alignItems: "center", gap: 5 }}>
-            <CheckCircle size={13} /> Aprovar
-          </button>
-          <button onClick={handleBatchReject} disabled={batchLoading}
-            style={{ background: "#ef4444", border: "none", color: "white", padding: "6px 14px", borderRadius: 7, fontSize: 12, cursor: "pointer", fontWeight: 600, display: "flex", alignItems: "center", gap: 5 }}>
-            <XCircle size={13} /> Rejeitar
-          </button>
-          <button onClick={handleBatchDownload} disabled={batchLoading}
-            style={{ background: "#7c3aed", border: "none", color: "white", padding: "6px 14px", borderRadius: 7, fontSize: 12, cursor: "pointer", fontWeight: 600, display: "flex", alignItems: "center", gap: 5 }}>
-            <Archive size={13} /> Baixar ZIP
-          </button>
-          <button onClick={clearSelection}
-            style={{ background: "transparent", border: "1px solid rgba(255,255,255,0.3)", color: "white", padding: "6px 10px", borderRadius: 7, fontSize: 12, cursor: "pointer" }}>
-            <X size={13} />
-          </button>
+        <div style={{ background: "#1e3a8a", borderRadius: 12, padding: "12px 16px", marginBottom: 16, display: "flex", alignItems: "center", gap: 8, boxShadow: "0 4px 16px rgba(30,58,138,0.25)", flexWrap: "wrap" }}>
+          <span style={{ color: "white", fontSize: 13, fontWeight: 600, flex: 1 }}>{selected.size} foto(s) selecionada(s)</span>
+          <button onClick={handleBatchApprove} disabled={batchLoading} style={{ background: "#10b981", border: "none", color: "white", padding: "6px 14px", borderRadius: 7, fontSize: 12, cursor: "pointer", fontWeight: 600, display: "flex", alignItems: "center", gap: 5 }}><CheckCircle size={13} /> Aprovar</button>
+          <button onClick={handleBatchReject} disabled={batchLoading} style={{ background: "#ef4444", border: "none", color: "white", padding: "6px 14px", borderRadius: 7, fontSize: 12, cursor: "pointer", fontWeight: 600, display: "flex", alignItems: "center", gap: 5 }}><XCircle size={13} /> Rejeitar</button>
+          <button onClick={handleBatchDownload} disabled={batchLoading} style={{ background: "#7c3aed", border: "none", color: "white", padding: "6px 14px", borderRadius: 7, fontSize: 12, cursor: "pointer", fontWeight: 600, display: "flex", alignItems: "center", gap: 5 }}><Archive size={13} /> Baixar ZIP</button>
+          <button onClick={clearSelection} style={{ background: "transparent", border: "1px solid rgba(255,255,255,0.3)", color: "white", padding: "6px 10px", borderRadius: 7, fontSize: 12, cursor: "pointer" }}><X size={13} /></button>
         </div>
       )}
 
@@ -707,15 +782,10 @@ export default function PhotosPage() {
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))", gap: 12 }}>
           {data.map((photo, idx) => (
             <PhotoCard
-              key={photo.id}
-              photo={photo}
-              idx={idx}
-              selected={selected.has(photo.id)}
-              onSelect={toggleSelect}
-              onApprove={handleApprove}
-              onReject={handleReject}
-              onDownload={downloadSingle}
-              downloading={downloading}
+              key={photo.id} photo={photo} idx={idx}
+              selected={selected.has(photo.id)} onSelect={toggleSelect}
+              onApprove={handleApprove} onReject={handleReject}
+              onDownload={downloadSingle} downloading={downloading}
               selectMode={selectMode}
               onOpenComments={(id) => setCommentPhotoId(commentPhotoId === id ? null : id)}
               commentPhotoId={commentPhotoId}
@@ -731,19 +801,14 @@ export default function PhotosPage() {
         </p>
       )}
 
-      {/* Fullscreen Gallery */}
       {galleryIndex !== null && data[galleryIndex] && (
         <FullscreenGallery
-          data={data}
-          initialIndex={galleryIndex}
-          onClose={() => setGalleryIndex(null)}
-          onApprove={handleApprove}
-          onReject={handleReject}
+          data={data} initialIndex={galleryIndex} onClose={() => setGalleryIndex(null)}
+          onApprove={handleApprove} onReject={handleReject}
           onComment={(id) => setCommentPhotoId(id)}
         />
       )}
 
-      {/* Comment Side Panel */}
       {commentPhotoId && <CommentPanel photoId={commentPhotoId} onClose={() => setCommentPhotoId(null)} />}
     </div>
   );
