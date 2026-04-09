@@ -46,6 +46,10 @@ const ROLE_COLORS: Record<string, string> = {
 };
 
 function getApiUrl() {
+  // In production, use NEXT_PUBLIC_API_URL env var (set in Vercel)
+  if (typeof window !== "undefined" && process.env.NEXT_PUBLIC_API_URL) {
+    return process.env.NEXT_PUBLIC_API_URL;
+  }
   if (typeof window !== "undefined") {
     const { protocol, hostname } = window.location;
     const apiHostname = hostname.replace(/^3001-/, "3000-").replace(/^8082-/, "3000-");
