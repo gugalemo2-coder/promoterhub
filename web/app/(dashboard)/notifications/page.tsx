@@ -165,67 +165,69 @@ export default function NotificationsPage() {
               <div
                 key={`${notif.id}-${idx}`}
                 style={{
-                  display: "flex", alignItems: "flex-start", gap: 12,
                   padding: "14px 16px",
-                  borderBottom: idx < filtered.length - 1 ? "1px solid #f9fafb" : "none",
+                  borderBottom: idx < filtered.length - 1 ? "1px solid #f3f4f6" : "none",
                   background: !notif.isRead ? "rgba(219,234,254,0.15)" : "transparent",
-                  transition: "background 0.15s",
                 }}
               >
-                {/* Icon */}
-                <div style={{
-                  width: 40, height: 40, borderRadius: "50%",
-                  display: "flex", alignItems: "center", justifyContent: "center",
-                  flexShrink: 0, fontSize: 18, backgroundColor: config.bg,
-                }}>
-                  {config.icon}
+                {/* Row 1: Icon + Title + Time */}
+                <div style={{ display: "flex", alignItems: "flex-start", gap: 10, marginBottom: 6 }}>
+                  <div style={{
+                    width: 36, height: 36, minWidth: 36, borderRadius: "50%",
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                    fontSize: 16, backgroundColor: config.bg,
+                  }}>
+                    {config.icon}
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 6 }}>
+                      <p style={{
+                        fontSize: 14, lineHeight: 1.4, margin: 0,
+                        fontWeight: !notif.isRead ? 700 : 500,
+                        color: !notif.isRead ? "#111827" : "#374151",
+                      }}>
+                        {notif.title}
+                      </p>
+                      <span style={{ fontSize: 10, color: "#9ca3af", flexShrink: 0, whiteSpace: "nowrap", marginTop: 2 }}>
+                        {timeAgo(notif.createdAt)}
+                      </span>
+                    </div>
+                  </div>
                 </div>
 
-                {/* Content — all info vertical, no clipping */}
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 8, marginBottom: 2 }}>
-                    <p style={{
-                      fontSize: 14, lineHeight: 1.4, margin: 0,
-                      fontWeight: !notif.isRead ? 700 : 500,
-                      color: !notif.isRead ? "#111827" : "#374151",
-                      wordBreak: "break-word",
-                    }}>
-                      {notif.title}
-                    </p>
-                    <span style={{ fontSize: 11, color: "#9ca3af", flexShrink: 0, marginTop: 2 }}>
-                      {timeAgo(notif.createdAt)}
-                    </span>
-                  </div>
-                  <p style={{
-                    fontSize: 13, lineHeight: 1.5, margin: "0 0 6px",
-                    color: !notif.isRead ? "#374151" : "#9ca3af",
-                    wordBreak: "break-word",
+                {/* Row 2: Body — full width, no clipping */}
+                <p style={{
+                  fontSize: 13, lineHeight: 1.5, margin: "0 0 8px",
+                  color: !notif.isRead ? "#374151" : "#6b7280",
+                  paddingLeft: 46,
+                  whiteSpace: "pre-wrap", wordBreak: "break-word",
+                }}>
+                  {notif.body}
+                </p>
+
+                {/* Row 3: Badge + mark read */}
+                <div style={{ display: "flex", alignItems: "center", gap: 8, paddingLeft: 46, flexWrap: "wrap" }}>
+                  <span style={{
+                    display: "inline-flex", alignItems: "center",
+                    padding: "2px 8px", borderRadius: 20,
+                    fontSize: 11, fontWeight: 600,
+                    backgroundColor: config.bg, color: config.color,
                   }}>
-                    {notif.body}
-                  </p>
-                  <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-                    <span style={{
-                      display: "inline-flex", alignItems: "center",
-                      padding: "2px 8px", borderRadius: 20,
-                      fontSize: 11, fontWeight: 600,
-                      backgroundColor: config.bg, color: config.color,
-                    }}>
-                      {config.label}
-                    </span>
-                    {!notif.isRead && (
-                      <button
-                        onClick={() => markReadMutation.mutate({ id: notif.id })}
-                        disabled={markReadMutation.isPending}
-                        style={{
-                          fontSize: 11, fontWeight: 600, color: "#0284c7",
-                          background: "none", border: "none", cursor: "pointer",
-                          padding: 0, opacity: markReadMutation.isPending ? 0.5 : 1,
-                        }}
-                      >
-                        Marcar lida
-                      </button>
-                    )}
-                  </div>
+                    {config.label}
+                  </span>
+                  {!notif.isRead && (
+                    <button
+                      onClick={() => markReadMutation.mutate({ id: notif.id })}
+                      disabled={markReadMutation.isPending}
+                      style={{
+                        fontSize: 11, fontWeight: 600, color: "#0284c7",
+                        background: "none", border: "none", cursor: "pointer",
+                        padding: 0, opacity: markReadMutation.isPending ? 0.5 : 1,
+                      }}
+                    >
+                      Marcar lida
+                    </button>
+                  )}
                 </div>
               </div>
             );
