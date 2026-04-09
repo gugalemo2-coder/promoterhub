@@ -2,7 +2,7 @@
 
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/lib/auth-context";
-import { Package, RefreshCw, CheckCircle, XCircle, ShoppingCart, Plus, Minus, X, MapPin, Camera, Pencil } from "lucide-react";
+import { Package, RefreshCw, CheckCircle, XCircle, ShoppingCart, Plus, Minus, X, MapPin, Camera, Pencil, Trash2 } from "lucide-react";
 import { useState } from "react";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -281,6 +281,7 @@ export default function MaterialsPage() {
   const createMaterial = trpc.materials.create.useMutation();
   const updateMaterial = trpc.materials.update.useMutation();
   const uploadMaterialPhoto = trpc.materials.uploadPhoto.useMutation();
+  const deleteMaterial = trpc.materials.delete.useMutation();
   const approve = trpc.materialRequests.approve.useMutation({ onSuccess: () => allRequests.refetch() });
   const reject = trpc.materialRequests.reject.useMutation({
     onSuccess: () => { allRequests.refetch(); setRejectId(null); setRejectReason(""); },
@@ -669,19 +670,42 @@ export default function MaterialsPage() {
                         </span>
                       </div>
 
-                      {/* Buttons: Editar (manager) or Solicitar (promoter) */}
+                      {/* Buttons: Editar + Excluir (manager) or Solicitar (promoter) */}
                       {isManager ? (
-                        <button
-                          onClick={() => openEditMaterialModal(item)}
-                          style={{
-                            width: "100%", padding: "8px 0", borderRadius: 8,
-                            border: "1px solid #e5e7eb", background: "white",
-                            color: "#374151", fontSize: 12, fontWeight: 600, cursor: "pointer",
-                            display: "flex", alignItems: "center", justifyContent: "center", gap: 4,
-                          }}
-                        >
-                          <Pencil size={12} /> Editar
-                        </button>
+                        <div style={{ display: "flex", gap: 6 }}>
+                          <button
+                            onClick={() => openEditMaterialModal(item)}
+                            style={{
+                              flex: 1, padding: "8px 0", borderRadius: 8,
+                              border: "1px solid #e5e7eb", background: "white",
+                              color: "#374151", fontSize: 12, fontWeight: 600, cursor: "pointer",
+                              display: "flex", alignItems: "center", justifyContent: "center", gap: 4,
+                            }}
+                          >
+                            <Pencil size={12} /> Editar
+                          </button>
+                          <button
+                            onClick={async () => {
+                              if (!window.confirm(`Excluir "${item.name}"? Isso marcará o material como descontinuado.`)) return;
+                              try {
+                                await deleteMaterial.mutateAsync({ id: item.id });
+                                materials.refetch();
+                                showToast(`"${item.name}" excluído com sucesso.`);
+                              } catch {
+                                showToast("Erro ao excluir material.", "error");
+                              }
+                            }}
+                            style={{
+                              padding: "8px 10px", borderRadius: 8,
+                              border: "1px solid #fecaca", background: "#fff5f5",
+                              color: "#dc2626", fontSize: 12, fontWeight: 600, cursor: "pointer",
+                              display: "flex", alignItems: "center", justifyContent: "center",
+                            }}
+                            title="Excluir material"
+                          >
+                            <Trash2 size={12} />
+                          </button>
+                        </div>
                       ) : available ? (
                         <button
                           onClick={() => setSelectedMaterial(item)}
