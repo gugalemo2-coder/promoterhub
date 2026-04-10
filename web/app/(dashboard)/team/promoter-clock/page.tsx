@@ -5,9 +5,18 @@ import { formatDateTime, formatHours } from "@/lib/utils";
 import { Clock, MapPin, ChevronLeft, ChevronRight, Camera, LogIn, LogOut, X } from "lucide-react";
 import { useState, useRef, useCallback, useMemo } from "react";
 
+// Helper: retorna a data LOCAL no formato YYYY-MM-DD (sem converter para UTC)
+function getLocalDateStr(d?: Date): string {
+  const date = d ?? new Date();
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
 export default function PromoterClockPage() {
   const { user } = useAuth();
-  const [selectedDate, setSelectedDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [selectedDate, setSelectedDate] = useState(() => getLocalDateStr());
   const [showModal, setShowModal] = useState(false);
   const [entryType, setEntryType] = useState<"entry" | "exit">("entry");
   const [selectedStore, setSelectedStore] = useState<number | null>(null);
@@ -16,8 +25,6 @@ export default function PromoterClockPage() {
   const [toast, setToast] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
-  // FIX: Envia datas com horário explícito para garantir que o backend
-  // busque o dia correto independente do timezone do servidor
   const dayStartISO = `${selectedDate}T00:00:00`;
   const dayEndISO = `${selectedDate}T23:59:59`;
 
@@ -27,6 +34,7 @@ export default function PromoterClockPage() {
   const lastOpen = trpc.timeEntries.lastOpenEntry.useQuery({ dayStart: dayStartISO }, {
     refetchOnMount: "always",
     staleTime: 0,
+    refetchInterval: 5000,
   });
   const createEntry = trpc.timeEntries.create.useMutation();
 
@@ -36,7 +44,6 @@ export default function PromoterClockPage() {
   const openEntryStoreId = (lastOpen.data as any)?.storeId ?? null;
   const summaryData = dailySummary.data as any;
 
-  // Build a storeId → storeName map from the loaded stores list
   const storeMap = useMemo(() => {
     const map = new Map<number, string>();
     for (const s of storeList as any[]) {
@@ -45,10 +52,8 @@ export default function PromoterClockPage() {
     return map;
   }, [storeList]);
 
-  // Resolve store name for the open entry
   const openEntryStoreName = openEntryStoreId ? (storeMap.get(openEntryStoreId) ?? null) : null;
 
-  // Resolve store name for any entry in the list
   const getStoreName = (entry: any): string => {
     if (entry.storeName) return entry.storeName;
     if (entry.storeId && storeMap.has(entry.storeId)) return storeMap.get(entry.storeId)!;
@@ -60,10 +65,10 @@ export default function PromoterClockPage() {
   const navigateDate = (dir: -1 | 1) => {
     const d = new Date(selectedDate + "T12:00:00");
     d.setDate(d.getDate() + dir);
-    setSelectedDate(d.toISOString().slice(0, 10));
+    setSelectedDate(getLocalDateStr(d));
   };
 
-  const isToday = selectedDate === new Date().toISOString().slice(0, 10);
+  const isToday = selectedDate === getLocalDateStr();
 
   const openModal = (type: "entry" | "exit") => {
     setEntryType(type);
@@ -267,7 +272,6 @@ export default function PromoterClockPage() {
               </button>
             </div>
 
-            {/* Store Selection */}
             <label style={{ fontSize: 12, fontWeight: 600, color: "#374151", marginBottom: 8, display: "block" }}>Selecione a Loja</label>
             {entryType === "exit" && openEntryStoreId ? (
               <div style={{
@@ -300,7 +304,6 @@ export default function PromoterClockPage() {
               </div>
             )}
 
-            {/* Photo — no capture attr → mobile shows native picker (Camera / Gallery / Files) */}
             <label style={{ fontSize: 12, fontWeight: 600, color: "#374151", marginBottom: 8, display: "block" }}>Foto (opcional)</label>
             <div style={{ marginBottom: 20 }}>
               {photoBase64 ? (
@@ -319,7 +322,6 @@ export default function PromoterClockPage() {
               <input ref={fileRef} type="file" accept="image/*" onChange={handlePhoto} style={{ display: "none" }} />
             </div>
 
-            {/* Submit */}
             <button
               onClick={handleSubmit}
               disabled={submitting || !selectedStore}
