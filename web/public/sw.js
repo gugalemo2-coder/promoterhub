@@ -1,7 +1,7 @@
 // PromoterHub Service Worker
 // Network-first para assets Next.js (evita cache stale após deploys), Network-first para API
 
-const CACHE_VERSION = "v4";
+const CACHE_VERSION = "v5";
 const CACHE_NAME = `promoterhub-${CACHE_VERSION}`;
 const STATIC_CACHE = `promoterhub-static-${CACHE_VERSION}`;
 const API_CACHE = `promoterhub-api-${CACHE_VERSION}`;
@@ -17,7 +17,7 @@ const PRECACHE_ASSETS = [
   "/icons/apple-touch-icon.png",
 ];
 
-// Instalação: pré-cacheia assets essenciais
+// Instalação: pré-cacheia assets essenciais e ativa imediatamente
 self.addEventListener("install", (event) => {
   event.waitUntil(
     caches
@@ -31,7 +31,7 @@ self.addEventListener("install", (event) => {
   );
 });
 
-// Ativação: limpa caches antigos
+// Ativação: limpa TODOS os caches antigos e assume controle
 self.addEventListener("activate", (event) => {
   event.waitUntil(
     caches
@@ -77,7 +77,6 @@ self.addEventListener("fetch", (event) => {
   }
 
   // Assets estáticos (_next/static/): Network-first para garantir versão atualizada
-  // O Turbopack pode reutilizar hashes de arquivo, então cache-first causaria stale content
   if (url.pathname.startsWith("/_next/static/")) {
     event.respondWith(
       fetch(request)
