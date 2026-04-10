@@ -3,7 +3,7 @@ import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/lib/auth-context";
 import { formatDateTime, formatHours } from "@/lib/utils";
 import { Clock, MapPin, ChevronLeft, ChevronRight, Camera, LogIn, LogOut, X } from "lucide-react";
-import { useState, useRef, useCallback, useMemo } from "react";
+import { useState, useRef, useCallback, useMemo, useEffect } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 
 // Helper: retorna a data LOCAL no formato YYYY-MM-DD (sem converter para UTC)
@@ -27,6 +27,12 @@ export default function PromoterClockPage() {
   const [toast, setToast] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
+  // --- Optimistic state for open entry ---
+  // null = "use server data", otherwise use this override
+  const [optimisticOpen, setOptimisticOpen] = useState<
+    { hasOpen: boolean; storeId: number | null } | null
+  >(null);
+
   const dayStartISO = `${selectedDate}T00:00:00`;
   const dayEndISO = `${selectedDate}T23:59:59`;
 
@@ -41,9 +47,28 @@ export default function PromoterClockPage() {
 
   const storeList = stores.data ?? [];
   const entryList = (entries.data ?? []) as any[];
-  const hasOpenEntry = !!(lastOpen.data as any)?.id;
-  const openEntryStoreId = (lastOpen.data as any)?.storeId ?? null;
+
+  // Use optimistic override if available, otherwise use server data
+  const serverHasOpen = !!(lastOpen.data as any)?.id;
+  const serverOpenStoreId = (lastOpen.data as any)?.storeId ?? null;
+
+  const hasOpenEntry = optimisticOpen !== null ? optimisticOpen.hasOpen : serverHasOpen;
+  const openEntryStoreId = optimisticOpen !== null ? optimisticOpen.storeId : serverOpenStoreId;
+
   const summaryData = dailySummary.data as any;
+
+  // Clear optimistic override once lastOpen finishes refetching and is consistent
+  useEffect(() => {
+    if (optimisticOpen !== null && !lastOpen.isFetching) {
+      // Server caught up — clear override so we go back to server truth
+      setOptimisticOpen(null);
+    }
+  }, [lastOpen.isFetching, optimisticOpen]);
+
+  // Clear optimistic state when navigating dates
+  useEffect(() => {
+    setOptimisticOpen(null);
+  }, [selectedDate]);
 
   const storeMap = useMemo(() => {
     const map = new Map<number, string>();
@@ -107,18 +132,38 @@ export default function PromoterClockPage() {
       showToast(entryType === "entry" ? "Entrada registrada!" : "Saída registrada!");
       setShowModal(false);
 
-      // Invalidate ALL timeEntries queries to force fresh fetch from server
-      // (ignores staleTime and cache completely)
-      await queryClient.invalidateQueries({ queryKey: [["timeEntries"]] });
+      // *** OPTIMISTIC UPDATE: instantly flip button state ***
+      if (entryType === "entry") {
+        setOptimisticOpen({ hasOpen: true, storeId: selectedStore });
+      } else {
+        setOptimisticOpen({ hasOpen: false, storeId: null });
+      }
 
-      // Small delay to ensure DB has committed, then refetch
-      await new Promise((r) => setTimeout(r, 500));
-      await Promise.all([
-        entries.refetch(),
-        dailySummary.refetch(),
-        lastOpen.refetch(),
-      ]);
+      // Background refetch — entries list and summary update visually,
+      // and when lastOpen finishes, the useEffect clears optimisticOpen
+      queryClient.invalidateQueries({ queryKey: [["timeEntries"]] });
+
+      // Also try broader invalidation in case tRPC key structure differs
+      queryClient.invalidateQueries({
+        predicate: (query) => {
+          const key = query.queryKey as any[];
+          return Array.isArray(key) && key.some(
+            (k) => typeof k === "string" && k.includes("timeEntries")
+          ) || (Array.isArray(key[0]) && key[0].some(
+            (k: any) => typeof k === "string" && k.includes("timeEntries")
+          ));
+        },
+      });
+
+      // Refetch in background (no await — UI already updated optimistically)
+      setTimeout(() => {
+        entries.refetch();
+        dailySummary.refetch();
+        lastOpen.refetch();
+      }, 600);
     } catch (err: any) {
+      // On error, clear optimistic state so it reverts to server truth
+      setOptimisticOpen(null);
       showToast(err?.message ?? "Erro ao registrar");
     } finally {
       setSubmitting(false);
