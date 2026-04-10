@@ -2,8 +2,8 @@
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/lib/auth-context";
 import { formatDateTime, formatHours } from "@/lib/utils";
-import { Clock, MapPin, ChevronLeft, ChevronRight, Camera, ImagePlus, LogIn, LogOut, X } from "lucide-react";
-import { useState, useRef, useCallback } from "react";
+import { Clock, MapPin, ChevronLeft, ChevronRight, Camera, LogIn, LogOut, X } from "lucide-react";
+import { useState, useRef, useCallback, useMemo } from "react";
 
 export default function PromoterClockPage() {
   const { user } = useAuth();
@@ -14,9 +14,7 @@ export default function PromoterClockPage() {
   const [photoBase64, setPhotoBase64] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
-  const [showPhotoOptions, setShowPhotoOptions] = useState(false);
-  const cameraRef = useRef<HTMLInputElement>(null);
-  const galleryRef = useRef<HTMLInputElement>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
 
   // FIX: Envia datas com horário explícito para garantir que o backend
   // busque o dia correto independente do timezone do servidor
@@ -26,15 +24,36 @@ export default function PromoterClockPage() {
   const stores = trpc.stores.listForPromoter.useQuery();
   const entries = trpc.timeEntries.list.useQuery({ startDate: dayStartISO, endDate: dayEndISO });
   const dailySummary = trpc.timeEntries.dailySummary.useQuery({ startDate: dayStartISO, endDate: dayEndISO });
-  const lastOpen = trpc.timeEntries.lastOpenEntry.useQuery({ dayStart: dayStartISO });
+  const lastOpen = trpc.timeEntries.lastOpenEntry.useQuery({ dayStart: dayStartISO }, {
+    refetchOnMount: "always",
+    staleTime: 0,
+  });
   const createEntry = trpc.timeEntries.create.useMutation();
 
   const storeList = stores.data ?? [];
   const entryList = (entries.data ?? []) as any[];
   const hasOpenEntry = !!(lastOpen.data as any)?.id;
   const openEntryStoreId = (lastOpen.data as any)?.storeId ?? null;
-  const openEntryStoreName = (lastOpen.data as any)?.storeName ?? null;
   const summaryData = dailySummary.data as any;
+
+  // Build a storeId → storeName map from the loaded stores list
+  const storeMap = useMemo(() => {
+    const map = new Map<number, string>();
+    for (const s of storeList as any[]) {
+      map.set(s.id, s.name);
+    }
+    return map;
+  }, [storeList]);
+
+  // Resolve store name for the open entry
+  const openEntryStoreName = openEntryStoreId ? (storeMap.get(openEntryStoreId) ?? null) : null;
+
+  // Resolve store name for any entry in the list
+  const getStoreName = (entry: any): string => {
+    if (entry.storeName) return entry.storeName;
+    if (entry.storeId && storeMap.has(entry.storeId)) return storeMap.get(entry.storeId)!;
+    return "Loja desconhecida";
+  };
 
   const showToast = (msg: string) => { setToast(msg); setTimeout(() => setToast(null), 3000); };
 
@@ -48,7 +67,6 @@ export default function PromoterClockPage() {
 
   const openModal = (type: "entry" | "exit") => {
     setEntryType(type);
-    // Se for saída e tem entrada aberta, pré-selecionar a loja da entrada
     if (type === "exit" && openEntryStoreId) {
       setSelectedStore(openEntryStoreId);
     } else {
@@ -82,9 +100,12 @@ export default function PromoterClockPage() {
       });
       showToast(entryType === "entry" ? "Entrada registrada!" : "Saída registrada!");
       setShowModal(false);
-      entries.refetch();
-      dailySummary.refetch();
-      lastOpen.refetch();
+      // Refetch ALL queries and await them to ensure UI updates
+      await Promise.all([
+        entries.refetch(),
+        dailySummary.refetch(),
+        lastOpen.refetch(),
+      ]);
     } catch (err: any) {
       showToast(err?.message ?? "Erro ao registrar");
     } finally {
@@ -219,7 +240,7 @@ export default function PromoterClockPage() {
                   {entry.entryType === "entry" ? "Entrada" : "Saída"}
                 </p>
                 <p style={{ fontSize: 11, color: "#6b7280", margin: "2px 0 0" }}>
-                  {entry.storeName ?? "Loja"} · {formatDateTime(entry.entryTime ?? entry.timestamp)}
+                  {getStoreName(entry)} · {formatDateTime(entry.entryTime ?? entry.timestamp)}
                 </p>
               </div>
               {entry.photoUrl && (
@@ -249,14 +270,13 @@ export default function PromoterClockPage() {
             {/* Store Selection */}
             <label style={{ fontSize: 12, fontWeight: 600, color: "#374151", marginBottom: 8, display: "block" }}>Selecione a Loja</label>
             {entryType === "exit" && openEntryStoreId ? (
-              /* Se for saída, mostra a loja fixa da entrada aberta */
               <div style={{
                 display: "flex", alignItems: "center", gap: 10, padding: "12px 14px",
                 borderRadius: 10, border: "2px solid #1A56DB", background: "#eff6ff", marginBottom: 20,
               }}>
                 <MapPin size={16} style={{ color: "#1A56DB" }} />
                 <span style={{ fontSize: 13, fontWeight: 500, color: "#111827" }}>
-                  {openEntryStoreName ?? storeList.find((s: any) => s.id === openEntryStoreId)?.name ?? "Loja"}
+                  {openEntryStoreName ?? "Loja"}
                 </span>
                 <span style={{ fontSize: 10, color: "#6b7280", marginLeft: "auto" }}>Mesma da entrada</span>
               </div>
@@ -280,24 +300,23 @@ export default function PromoterClockPage() {
               </div>
             )}
 
-            {/* Photo */}
+            {/* Photo — no capture attr → mobile shows native picker (Camera / Gallery / Files) */}
             <label style={{ fontSize: 12, fontWeight: 600, color: "#374151", marginBottom: 8, display: "block" }}>Foto (opcional)</label>
             <div style={{ marginBottom: 20 }}>
               {photoBase64 ? (
                 <div style={{ position: "relative", width: 120, height: 90, borderRadius: 10, overflow: "hidden" }}>
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img src={`data:image/jpeg;base64,${photoBase64}`} alt="Preview" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                  <button onClick={() => { setPhotoBase64(null); if (cameraRef.current) cameraRef.current.value = ""; if (galleryRef.current) galleryRef.current.value = ""; }} style={{ position: "absolute", top: 4, right: 4, width: 22, height: 22, borderRadius: "50%", background: "rgba(0,0,0,0.6)", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  <button onClick={() => { setPhotoBase64(null); if (fileRef.current) fileRef.current.value = ""; }} style={{ position: "absolute", top: 4, right: 4, width: 22, height: 22, borderRadius: "50%", background: "rgba(0,0,0,0.6)", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
                     <X size={12} style={{ color: "white" }} />
                   </button>
                 </div>
               ) : (
-                <button onClick={() => setShowPhotoOptions(true)} style={{ display: "flex", alignItems: "center", gap: 8, padding: "12px 16px", borderRadius: 10, border: "1px dashed #d1d5db", background: "#f9fafb", cursor: "pointer", fontSize: 13, color: "#6b7280" }}>
+                <button onClick={() => fileRef.current?.click()} style={{ display: "flex", alignItems: "center", gap: 8, padding: "12px 16px", borderRadius: 10, border: "1px dashed #d1d5db", background: "#f9fafb", cursor: "pointer", fontSize: 13, color: "#6b7280" }}>
                   <Camera size={16} /> Tirar foto / Selecionar
                 </button>
               )}
-              <input ref={cameraRef} type="file" accept="image/*" capture="environment" onChange={handlePhoto} style={{ display: "none" }} />
-              <input ref={galleryRef} type="file" accept="image/*" onChange={handlePhoto} style={{ display: "none" }} />
+              <input ref={fileRef} type="file" accept="image/*" onChange={handlePhoto} style={{ display: "none" }} />
             </div>
 
             {/* Submit */}
@@ -313,42 +332,6 @@ export default function PromoterClockPage() {
             >
               {submitting ? "Registrando..." : entryType === "entry" ? "Confirmar Entrada" : "Confirmar Saída"}
             </button>
-          </div>
-        </div>
-      )}
-
-      {/* Photo Options Bottom Sheet */}
-      {showPhotoOptions && (
-        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", zIndex: 200, display: "flex", alignItems: "flex-end", justifyContent: "center" }}
-          onClick={() => setShowPhotoOptions(false)}
-        >
-          <div onClick={(e) => e.stopPropagation()} style={{ background: "white", borderRadius: "20px 20px 0 0", width: "100%", maxWidth: 500, padding: "20px 20px", paddingBottom: "calc(20px + env(safe-area-inset-bottom, 0px))" }}>
-            <div style={{ width: 36, height: 4, borderRadius: 2, background: "#d1d5db", margin: "0 auto 16px" }} />
-            <p style={{ fontSize: 15, fontWeight: 700, color: "#111827", margin: "0 0 14px", textAlign: "center" }}>Adicionar Foto</p>
-            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-              <button onClick={() => { setShowPhotoOptions(false); setTimeout(() => cameraRef.current?.click(), 100); }} style={{
-                display: "flex", alignItems: "center", gap: 12, padding: "14px 16px", borderRadius: 12,
-                border: "1px solid #e5e7eb", background: "white", cursor: "pointer", fontSize: 14, fontWeight: 600, color: "#111827", width: "100%",
-              }}>
-                <div style={{ width: 40, height: 40, borderRadius: 10, background: "#1A56DB", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                  <Camera size={18} style={{ color: "white" }} />
-                </div>
-                Tirar Foto com Câmera
-              </button>
-              <button onClick={() => { setShowPhotoOptions(false); setTimeout(() => galleryRef.current?.click(), 100); }} style={{
-                display: "flex", alignItems: "center", gap: 12, padding: "14px 16px", borderRadius: 12,
-                border: "1px solid #e5e7eb", background: "white", cursor: "pointer", fontSize: 14, fontWeight: 600, color: "#111827", width: "100%",
-              }}>
-                <div style={{ width: 40, height: 40, borderRadius: 10, background: "#7c3aed", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                  <ImagePlus size={18} style={{ color: "white" }} />
-                </div>
-                Escolher da Galeria
-              </button>
-            </div>
-            <button onClick={() => setShowPhotoOptions(false)} style={{
-              width: "100%", padding: "12px", borderRadius: 12, border: "none",
-              background: "#f3f4f6", color: "#6b7280", fontSize: 14, fontWeight: 600, cursor: "pointer", marginTop: 10,
-            }}>Cancelar</button>
           </div>
         </div>
       )}
