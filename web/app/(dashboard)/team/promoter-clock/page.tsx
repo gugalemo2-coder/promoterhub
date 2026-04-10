@@ -4,6 +4,7 @@ import { useAuth } from "@/lib/auth-context";
 import { formatDateTime, formatHours } from "@/lib/utils";
 import { Clock, MapPin, ChevronLeft, ChevronRight, Camera, LogIn, LogOut, X } from "lucide-react";
 import { useState, useRef, useCallback, useMemo } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 
 // Helper: retorna a data LOCAL no formato YYYY-MM-DD (sem converter para UTC)
 function getLocalDateStr(d?: Date): string {
@@ -16,6 +17,7 @@ function getLocalDateStr(d?: Date): string {
 
 export default function PromoterClockPage() {
   const { user } = useAuth();
+  const queryClient = useQueryClient();
   const [selectedDate, setSelectedDate] = useState(() => getLocalDateStr());
   const [showModal, setShowModal] = useState(false);
   const [entryType, setEntryType] = useState<"entry" | "exit">("entry");
@@ -34,7 +36,6 @@ export default function PromoterClockPage() {
   const lastOpen = trpc.timeEntries.lastOpenEntry.useQuery({ dayStart: dayStartISO }, {
     refetchOnMount: "always",
     staleTime: 0,
-    refetchInterval: 5000,
   });
   const createEntry = trpc.timeEntries.create.useMutation();
 
@@ -105,7 +106,13 @@ export default function PromoterClockPage() {
       });
       showToast(entryType === "entry" ? "Entrada registrada!" : "Saída registrada!");
       setShowModal(false);
-      // Refetch ALL queries and await them to ensure UI updates
+
+      // Invalidate ALL timeEntries queries to force fresh fetch from server
+      // (ignores staleTime and cache completely)
+      await queryClient.invalidateQueries({ queryKey: [["timeEntries"]] });
+
+      // Small delay to ensure DB has committed, then refetch
+      await new Promise((r) => setTimeout(r, 500));
       await Promise.all([
         entries.refetch(),
         dailySummary.refetch(),
