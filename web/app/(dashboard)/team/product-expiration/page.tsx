@@ -3,7 +3,7 @@ import { trpc } from "@/lib/trpc";
 import { formatDateTime } from "@/lib/utils";
 import { useState, useRef, useCallback } from "react";
 import {
-  AlertTriangle, Camera, ImagePlus, X, Upload, Loader2, MapPin, Trash2,
+  AlertTriangle, Camera, X, Upload, Loader2, MapPin, Trash2,
 } from "lucide-react";
 
 type PickedPhoto = { base64: string; fileType: string; preview: string };
@@ -16,9 +16,7 @@ export default function ProductExpirationPage() {
   const [pickedPhotos, setPickedPhotos] = useState<PickedPhoto[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
-  const [showPhotoOptions, setShowPhotoOptions] = useState(false);
-  const cameraRef = useRef<HTMLInputElement>(null);
-  const galleryRef = useRef<HTMLInputElement>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
 
   const { data: brands } = trpc.brands.list.useQuery();
   const { data: stores } = trpc.stores.listForPromoter.useQuery();
@@ -95,9 +93,8 @@ export default function ProductExpirationPage() {
 
   return (
     <div style={{ minHeight: "100vh", background: "#f9fafb", position: "relative" }}>
-      {/* Hidden file inputs — camera vs gallery */}
-      <input type="file" ref={cameraRef} accept="image/*" capture="environment" multiple style={{ display: "none" }} onChange={handleFileSelect} />
-      <input type="file" ref={galleryRef} accept="image/*" multiple style={{ display: "none" }} onChange={handleFileSelect} />
+      {/* Single file input — no capture attr → mobile shows native picker (Camera / Gallery / Files) */}
+      <input type="file" ref={fileRef} accept="image/*" multiple style={{ display: "none" }} onChange={handleFileSelect} />
 
       {toast && (
         <div style={{
@@ -230,10 +227,10 @@ export default function ProductExpirationPage() {
                 />
               </div>
 
-              {/* Photos — single button that opens option sheet */}
+              {/* Photos — single button, no capture → native picker (Camera / Gallery / Files) */}
               <div>
                 <p style={{ fontSize: 13, fontWeight: 700, color: "#111827", margin: "0 0 6px" }}>Fotos ({pickedPhotos.length})</p>
-                <button onClick={() => setShowPhotoOptions(true)} style={{
+                <button onClick={() => fileRef.current?.click()} style={{
                   width: "100%", padding: "12px 16px", borderRadius: 12,
                   border: "1px dashed #d1d5db", background: "#f9fafb",
                   cursor: "pointer", fontSize: 13, color: "#6b7280",
@@ -273,43 +270,6 @@ export default function ProductExpirationPage() {
           </div>
         </div>
       )}
-
-      {/* Photo Options Bottom Sheet */}
-      {showPhotoOptions && (
-        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", zIndex: 200, display: "flex", alignItems: "flex-end", justifyContent: "center" }}
-          onClick={() => setShowPhotoOptions(false)}
-        >
-          <div onClick={(e) => e.stopPropagation()} style={{ background: "white", borderRadius: "20px 20px 0 0", width: "100%", maxWidth: 500, padding: "20px 20px", paddingBottom: "calc(20px + env(safe-area-inset-bottom, 0px))" }}>
-            <div style={{ width: 36, height: 4, borderRadius: 2, background: "#d1d5db", margin: "0 auto 16px" }} />
-            <p style={{ fontSize: 15, fontWeight: 700, color: "#111827", margin: "0 0 14px", textAlign: "center" }}>Adicionar Foto</p>
-            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-              <button onClick={() => { setShowPhotoOptions(false); setTimeout(() => cameraRef.current?.click(), 100); }} style={{
-                display: "flex", alignItems: "center", gap: 12, padding: "14px 16px", borderRadius: 12,
-                border: "1px solid #e5e7eb", background: "white", cursor: "pointer", fontSize: 14, fontWeight: 600, color: "#111827", width: "100%",
-              }}>
-                <div style={{ width: 40, height: 40, borderRadius: 10, background: "#1A56DB", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                  <Camera size={18} style={{ color: "white" }} />
-                </div>
-                Tirar Foto com Câmera
-              </button>
-              <button onClick={() => { setShowPhotoOptions(false); setTimeout(() => galleryRef.current?.click(), 100); }} style={{
-                display: "flex", alignItems: "center", gap: 12, padding: "14px 16px", borderRadius: 12,
-                border: "1px solid #e5e7eb", background: "white", cursor: "pointer", fontSize: 14, fontWeight: 600, color: "#111827", width: "100%",
-              }}>
-                <div style={{ width: 40, height: 40, borderRadius: 10, background: "#7c3aed", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                  <ImagePlus size={18} style={{ color: "white" }} />
-                </div>
-                Escolher da Galeria
-              </button>
-            </div>
-            <button onClick={() => setShowPhotoOptions(false)} style={{
-              width: "100%", padding: "12px", borderRadius: 12, border: "none",
-              background: "#f3f4f6", color: "#6b7280", fontSize: 14, fontWeight: 600, cursor: "pointer", marginTop: 10,
-            }}>Cancelar</button>
-          </div>
-        </div>
-      )}
-
       <style>{"@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }"}</style>
     </div>
   );
