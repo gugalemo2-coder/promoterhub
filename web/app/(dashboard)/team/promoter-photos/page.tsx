@@ -2,7 +2,7 @@
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/lib/auth-context";
 import { formatDateTime } from "@/lib/utils";
-import { Camera, ImagePlus, Plus, X, MessageSquare, Send, Filter } from "lucide-react";
+import { Camera, Plus, X, MessageSquare, Send, Filter } from "lucide-react";
 import { useState, useRef, useCallback } from "react";
 
 type TabKey = "photos" | "comments";
@@ -30,9 +30,7 @@ export default function PromoterPhotosPage() {
   const [toast, setToast] = useState<string | null>(null);
   const [commentText, setCommentText] = useState("");
   const [selectedPhotoId, setSelectedPhotoId] = useState<number | null>(null);
-  const [showPhotoOptions, setShowPhotoOptions] = useState(false);
-  const cameraRef = useRef<HTMLInputElement>(null);
-  const galleryRef = useRef<HTMLInputElement>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
 
   const photos = trpc.photos.list.useQuery({
     status: statusFilter === "all" ? undefined : (statusFilter as any),
@@ -229,56 +227,19 @@ export default function PromoterPhotosPage() {
               <div style={{ position: "relative", width: 140, height: 105, borderRadius: 10, overflow: "hidden", marginBottom: 14 }}>
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img src={`data:image/jpeg;base64,${uploadBase64}`} alt="Preview" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                <button onClick={() => { setUploadBase64(null); if (cameraRef.current) cameraRef.current.value = ""; if (galleryRef.current) galleryRef.current.value = ""; }} style={{ position: "absolute", top: 4, right: 4, width: 22, height: 22, borderRadius: "50%", background: "rgba(0,0,0,0.6)", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}><X size={12} style={{ color: "white" }} /></button>
+                <button onClick={() => { setUploadBase64(null); if (fileRef.current) fileRef.current.value = ""; }} style={{ position: "absolute", top: 4, right: 4, width: 22, height: 22, borderRadius: "50%", background: "rgba(0,0,0,0.6)", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}><X size={12} style={{ color: "white" }} /></button>
               </div>
             ) : (
-              <button onClick={() => setShowPhotoOptions(true)} style={{ display: "flex", alignItems: "center", gap: 8, padding: "14px 16px", borderRadius: 10, border: "1px dashed #d1d5db", background: "#f9fafb", cursor: "pointer", fontSize: 13, color: "#6b7280", marginBottom: 14, width: "100%" }}>
+              <button onClick={() => fileRef.current?.click()} style={{ display: "flex", alignItems: "center", gap: 8, padding: "14px 16px", borderRadius: 10, border: "1px dashed #d1d5db", background: "#f9fafb", cursor: "pointer", fontSize: 13, color: "#6b7280", marginBottom: 14, width: "100%" }}>
                 <Camera size={16} /> Tirar foto / Selecionar
               </button>
             )}
-            {/* Hidden file inputs — camera vs gallery */}
-            <input ref={cameraRef} type="file" accept="image/*" capture="environment" onChange={handleFileChange} style={{ display: "none" }} />
-            <input ref={galleryRef} type="file" accept="image/*" onChange={handleFileChange} style={{ display: "none" }} />
+            {/* No capture attribute → mobile shows native picker with Camera / Gallery / Files options */}
+            <input ref={fileRef} type="file" accept="image/*" onChange={handleFileChange} style={{ display: "none" }} />
 
             <button onClick={handleUpload} disabled={uploading || !uploadBrand || !uploadStore || !uploadBase64} style={{ width: "100%", padding: "14px", borderRadius: 12, border: "none", background: "#1A56DB", color: "white", fontSize: 15, fontWeight: 700, cursor: uploading ? "not-allowed" : "pointer", opacity: uploading || !uploadBrand || !uploadStore || !uploadBase64 ? 0.6 : 1 }}>
               {uploading ? "Enviando..." : "Enviar Foto"}
             </button>
-          </div>
-        </div>
-      )}
-
-      {/* Photo Options Bottom Sheet */}
-      {showPhotoOptions && (
-        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", zIndex: 200, display: "flex", alignItems: "flex-end", justifyContent: "center" }}
-          onClick={() => setShowPhotoOptions(false)}
-        >
-          <div onClick={(e) => e.stopPropagation()} style={{ background: "white", borderRadius: "20px 20px 0 0", width: "100%", maxWidth: 500, padding: "20px 20px", paddingBottom: "calc(20px + env(safe-area-inset-bottom, 0px))" }}>
-            <div style={{ width: 36, height: 4, borderRadius: 2, background: "#d1d5db", margin: "0 auto 16px" }} />
-            <p style={{ fontSize: 15, fontWeight: 700, color: "#111827", margin: "0 0 14px", textAlign: "center" }}>Adicionar Foto</p>
-            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-              <button onClick={() => { setShowPhotoOptions(false); setTimeout(() => cameraRef.current?.click(), 100); }} style={{
-                display: "flex", alignItems: "center", gap: 12, padding: "14px 16px", borderRadius: 12,
-                border: "1px solid #e5e7eb", background: "white", cursor: "pointer", fontSize: 14, fontWeight: 600, color: "#111827", width: "100%",
-              }}>
-                <div style={{ width: 40, height: 40, borderRadius: 10, background: "#1A56DB", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                  <Camera size={18} style={{ color: "white" }} />
-                </div>
-                Tirar Foto com Câmera
-              </button>
-              <button onClick={() => { setShowPhotoOptions(false); setTimeout(() => galleryRef.current?.click(), 100); }} style={{
-                display: "flex", alignItems: "center", gap: 12, padding: "14px 16px", borderRadius: 12,
-                border: "1px solid #e5e7eb", background: "white", cursor: "pointer", fontSize: 14, fontWeight: 600, color: "#111827", width: "100%",
-              }}>
-                <div style={{ width: 40, height: 40, borderRadius: 10, background: "#7c3aed", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                  <ImagePlus size={18} style={{ color: "white" }} />
-                </div>
-                Escolher da Galeria
-              </button>
-            </div>
-            <button onClick={() => setShowPhotoOptions(false)} style={{
-              width: "100%", padding: "12px", borderRadius: 12, border: "none",
-              background: "#f3f4f6", color: "#6b7280", fontSize: 14, fontWeight: 600, cursor: "pointer", marginTop: 10,
-            }}>Cancelar</button>
           </div>
         </div>
       )}
