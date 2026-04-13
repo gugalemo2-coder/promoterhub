@@ -33,6 +33,10 @@ export default function PromoterClockPage() {
     { hasOpen: boolean; storeId: number | null } | null
   >(null);
 
+  // Retry counter for consistency checks
+  const retryCountRef = useRef(0);
+  const retryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   const dayStartISO = `${selectedDate}T00:00:00`;
   const dayEndISO = `${selectedDate}T23:59:59`;
 
@@ -57,18 +61,61 @@ export default function PromoterClockPage() {
 
   const summaryData = dailySummary.data as any;
 
-  // Clear optimistic override once lastOpen finishes refetching and is consistent
+  // FIX: Clear optimistic override only when server data is CONSISTENT with
+  // what we expect. If TiDB still returns stale data, keep the override and retry.
   useEffect(() => {
-    if (optimisticOpen !== null && !lastOpen.isFetching) {
-      // Server caught up — clear override so we go back to server truth
+    if (optimisticOpen === null) return;
+    if (lastOpen.isFetching) return;
+
+    // Check consistency: does server data match what we set optimistically?
+    const serverConfirmsNoOpen = !(lastOpen.data as any)?.id;
+    const serverConfirmsOpen = !!(lastOpen.data as any)?.id;
+
+    const isConsistent =
+      (optimisticOpen.hasOpen === false && serverConfirmsNoOpen) ||
+      (optimisticOpen.hasOpen === true && serverConfirmsOpen);
+
+    if (isConsistent) {
+      // Server caught up — clear override
       setOptimisticOpen(null);
+      retryCountRef.current = 0;
+      if (retryTimerRef.current) {
+        clearTimeout(retryTimerRef.current);
+        retryTimerRef.current = null;
+      }
+    } else {
+      // Server still stale — schedule another refetch (max 10 retries)
+      if (retryCountRef.current < 10) {
+        retryCountRef.current += 1;
+        if (retryTimerRef.current) clearTimeout(retryTimerRef.current);
+        retryTimerRef.current = setTimeout(() => {
+          lastOpen.refetch();
+        }, 1000);
+      } else {
+        // Give up after 10 retries — accept server truth
+        setOptimisticOpen(null);
+        retryCountRef.current = 0;
+      }
     }
-  }, [lastOpen.isFetching, optimisticOpen]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lastOpen.isFetching, lastOpen.data, optimisticOpen]);
 
   // Clear optimistic state when navigating dates
   useEffect(() => {
     setOptimisticOpen(null);
+    retryCountRef.current = 0;
+    if (retryTimerRef.current) {
+      clearTimeout(retryTimerRef.current);
+      retryTimerRef.current = null;
+    }
   }, [selectedDate]);
+
+  // Cleanup timer on unmount
+  useEffect(() => {
+    return () => {
+      if (retryTimerRef.current) clearTimeout(retryTimerRef.current);
+    };
+  }, []);
 
   const storeMap = useMemo(() => {
     const map = new Map<number, string>();
@@ -133,6 +180,8 @@ export default function PromoterClockPage() {
       setShowModal(false);
 
       // *** OPTIMISTIC UPDATE: instantly flip button state ***
+      retryCountRef.current = 0;
+      if (retryTimerRef.current) clearTimeout(retryTimerRef.current);
       if (entryType === "entry") {
         setOptimisticOpen({ hasOpen: true, storeId: selectedStore });
       } else {
@@ -140,7 +189,7 @@ export default function PromoterClockPage() {
       }
 
       // Background refetch — entries list and summary update visually,
-      // and when lastOpen finishes, the useEffect clears optimisticOpen
+      // and when lastOpen finishes, the useEffect checks consistency before clearing
       queryClient.invalidateQueries({ queryKey: [["timeEntries"]] });
 
       // Also try broader invalidation in case tRPC key structure differs
@@ -164,6 +213,7 @@ export default function PromoterClockPage() {
     } catch (err: any) {
       // On error, clear optimistic state so it reverts to server truth
       setOptimisticOpen(null);
+      retryCountRef.current = 0;
       showToast(err?.message ?? "Erro ao registrar");
     } finally {
       setSubmitting(false);
