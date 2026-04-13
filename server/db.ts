@@ -232,7 +232,10 @@ export async function getLastOpenEntry(userId: number, dayStartISO?: string): Pr
   // FIX fuso horário: usa dayStart enviado pelo cliente (fuso local) se disponível
   // senão cai para o comportamento antigo com setHours no servidor (UTC)
   const today = dayStartISO ? new Date(dayStartISO) : (() => { const d = new Date(); d.setHours(0, 0, 0, 0); return d; })();
-  const result = await db.select().from(timeEntries).where(and(eq(timeEntries.userId, userId), gte(timeEntries.entryTime, today))).orderBy(desc(timeEntries.entryTime)).limit(1);
+  // FIX: ordenar por id DESC (não apenas entryTime DESC) para desempatar
+  // quando entrada e saída têm o mesmo timestamp (ex: registradas no mesmo minuto).
+  // Como id é autoincrement, a saída criada depois sempre terá id maior.
+  const result = await db.select().from(timeEntries).where(and(eq(timeEntries.userId, userId), gte(timeEntries.entryTime, today))).orderBy(desc(timeEntries.id)).limit(1);
   if (result.length === 0) return undefined;
   return result[0].entryType === "entry" ? result[0] : undefined;
 }
