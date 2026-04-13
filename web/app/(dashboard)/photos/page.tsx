@@ -169,7 +169,7 @@ function CommentPanel({ photoId, onClose }: { photoId: number; onClose: () => vo
                     <X size={12} style={{ color: "#d1d5db" }} />
                   </button>
                 </div>
-                <p style={{ fontSize: 12, color: "#6b7280", margin: 0 }}>{c.text}</p>
+                <p style={{ fontSize: 12, color: "#6b7280", margin: 0 }}>{c.comment}</p>
                 <p style={{ fontSize: 9, color: "#9ca3af", margin: "4px 0 0" }}>{formatDateTime(c.createdAt)}</p>
               </div>
             ))}
