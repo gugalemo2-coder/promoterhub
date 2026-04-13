@@ -3,7 +3,7 @@ import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/lib/auth-context";
 import { formatDateTime, formatHours } from "@/lib/utils";
 import { Clock, MapPin, ChevronLeft, ChevronRight, Camera, LogIn, LogOut, X } from "lucide-react";
-import { useState, useRef, useCallback, useMemo, useEffect } from "react";
+import { useState, useRef, useCallback, useMemo } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 
 // Helper: retorna a data LOCAL no formato YYYY-MM-DD (sem converter para UTC)
@@ -27,95 +27,17 @@ export default function PromoterClockPage() {
   const [toast, setToast] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
-  // --- Optimistic state for open entry ---
-  // null = "use server data", otherwise use this override
-  const [optimisticOpen, setOptimisticOpen] = useState<
-    { hasOpen: boolean; storeId: number | null } | null
-  >(null);
-
-  // Retry counter for consistency checks
-  const retryCountRef = useRef(0);
-  const retryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
   const dayStartISO = `${selectedDate}T00:00:00`;
   const dayEndISO = `${selectedDate}T23:59:59`;
 
   const stores = trpc.stores.listForPromoter.useQuery();
   const entries = trpc.timeEntries.list.useQuery({ startDate: dayStartISO, endDate: dayEndISO });
   const dailySummary = trpc.timeEntries.dailySummary.useQuery({ startDate: dayStartISO, endDate: dayEndISO });
-  const lastOpen = trpc.timeEntries.lastOpenEntry.useQuery({ dayStart: dayStartISO }, {
-    refetchOnMount: "always",
-    staleTime: 0,
-  });
   const createEntry = trpc.timeEntries.create.useMutation();
 
   const storeList = stores.data ?? [];
   const entryList = (entries.data ?? []) as any[];
-
-  // Use optimistic override if available, otherwise use server data
-  const serverHasOpen = !!(lastOpen.data as any)?.id;
-  const serverOpenStoreId = (lastOpen.data as any)?.storeId ?? null;
-
-  const hasOpenEntry = optimisticOpen !== null ? optimisticOpen.hasOpen : serverHasOpen;
-  const openEntryStoreId = optimisticOpen !== null ? optimisticOpen.storeId : serverOpenStoreId;
-
   const summaryData = dailySummary.data as any;
-
-  // FIX: Clear optimistic override only when server data is CONSISTENT with
-  // what we expect. If TiDB still returns stale data, keep the override and retry.
-  useEffect(() => {
-    if (optimisticOpen === null) return;
-    if (lastOpen.isFetching) return;
-
-    // Check consistency: does server data match what we set optimistically?
-    const serverConfirmsNoOpen = !(lastOpen.data as any)?.id;
-    const serverConfirmsOpen = !!(lastOpen.data as any)?.id;
-
-    const isConsistent =
-      (optimisticOpen.hasOpen === false && serverConfirmsNoOpen) ||
-      (optimisticOpen.hasOpen === true && serverConfirmsOpen);
-
-    if (isConsistent) {
-      // Server caught up — clear override
-      setOptimisticOpen(null);
-      retryCountRef.current = 0;
-      if (retryTimerRef.current) {
-        clearTimeout(retryTimerRef.current);
-        retryTimerRef.current = null;
-      }
-    } else {
-      // Server still stale — schedule another refetch (max 10 retries)
-      if (retryCountRef.current < 10) {
-        retryCountRef.current += 1;
-        if (retryTimerRef.current) clearTimeout(retryTimerRef.current);
-        retryTimerRef.current = setTimeout(() => {
-          lastOpen.refetch();
-        }, 1000);
-      } else {
-        // Give up after 10 retries — accept server truth
-        setOptimisticOpen(null);
-        retryCountRef.current = 0;
-      }
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [lastOpen.isFetching, lastOpen.data, optimisticOpen]);
-
-  // Clear optimistic state when navigating dates
-  useEffect(() => {
-    setOptimisticOpen(null);
-    retryCountRef.current = 0;
-    if (retryTimerRef.current) {
-      clearTimeout(retryTimerRef.current);
-      retryTimerRef.current = null;
-    }
-  }, [selectedDate]);
-
-  // Cleanup timer on unmount
-  useEffect(() => {
-    return () => {
-      if (retryTimerRef.current) clearTimeout(retryTimerRef.current);
-    };
-  }, []);
 
   const storeMap = useMemo(() => {
     const map = new Map<number, string>();
@@ -124,8 +46,6 @@ export default function PromoterClockPage() {
     }
     return map;
   }, [storeList]);
-
-  const openEntryStoreName = openEntryStoreId ? (storeMap.get(openEntryStoreId) ?? null) : null;
 
   const getStoreName = (entry: any): string => {
     if (entry.storeName) return entry.storeName;
@@ -145,11 +65,7 @@ export default function PromoterClockPage() {
 
   const openModal = (type: "entry" | "exit") => {
     setEntryType(type);
-    if (type === "exit" && openEntryStoreId) {
-      setSelectedStore(openEntryStoreId);
-    } else {
-      setSelectedStore(null);
-    }
+    setSelectedStore(null);
     setPhotoBase64(null);
     setShowModal(true);
   };
@@ -179,20 +95,8 @@ export default function PromoterClockPage() {
       showToast(entryType === "entry" ? "Entrada registrada!" : "Saída registrada!");
       setShowModal(false);
 
-      // *** OPTIMISTIC UPDATE: instantly flip button state ***
-      retryCountRef.current = 0;
-      if (retryTimerRef.current) clearTimeout(retryTimerRef.current);
-      if (entryType === "entry") {
-        setOptimisticOpen({ hasOpen: true, storeId: selectedStore });
-      } else {
-        setOptimisticOpen({ hasOpen: false, storeId: null });
-      }
-
-      // Background refetch — entries list and summary update visually,
-      // and when lastOpen finishes, the useEffect checks consistency before clearing
+      // Refetch para atualizar lista e resumo
       queryClient.invalidateQueries({ queryKey: [["timeEntries"]] });
-
-      // Also try broader invalidation in case tRPC key structure differs
       queryClient.invalidateQueries({
         predicate: (query) => {
           const key = query.queryKey as any[];
@@ -204,16 +108,11 @@ export default function PromoterClockPage() {
         },
       });
 
-      // Refetch in background (no await — UI already updated optimistically)
       setTimeout(() => {
         entries.refetch();
         dailySummary.refetch();
-        lastOpen.refetch();
       }, 600);
     } catch (err: any) {
-      // On error, clear optimistic state so it reverts to server truth
-      setOptimisticOpen(null);
-      retryCountRef.current = 0;
       showToast(err?.message ?? "Erro ao registrar");
     } finally {
       setSubmitting(false);
@@ -261,61 +160,29 @@ export default function PromoterClockPage() {
         </div>
       </div>
 
-      {/* Open Entry Banner */}
-      {isToday && hasOpenEntry && (
-        <div style={{
-          background: "#FEF3C7", borderRadius: 12, padding: "12px 16px", marginBottom: 16,
-          border: "1px solid #F59E0B", display: "flex", alignItems: "center", gap: 10,
-        }}>
-          <div style={{ width: 32, height: 32, borderRadius: 8, background: "#F59E0B20", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-            <LogIn size={16} style={{ color: "#D97706" }} />
-          </div>
-          <div style={{ flex: 1 }}>
-            <p style={{ fontSize: 12, fontWeight: 700, color: "#92400E", margin: 0 }}>Entrada aberta</p>
-            <p style={{ fontSize: 11, color: "#B45309", margin: "2px 0 0" }}>
-              {openEntryStoreName ? `Loja: ${openEntryStoreName}` : "Registre a saída antes de uma nova entrada"}
-            </p>
-          </div>
-        </div>
-      )}
-
-      {/* Action Buttons */}
+      {/* Action Buttons — sempre ativos */}
       {isToday && (
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 24 }}>
           <button
-            onClick={() => {
-              if (hasOpenEntry) {
-                showToast("Registre a saída antes de uma nova entrada");
-                return;
-              }
-              openModal("entry");
-            }}
-            disabled={hasOpenEntry}
+            onClick={() => openModal("entry")}
             style={{
               display: "flex", alignItems: "center", justifyContent: "center", gap: 8, padding: "14px 16px",
               borderRadius: 12, border: "none",
-              background: hasOpenEntry ? "#d1d5db" : "#1A56DB",
+              background: "#1A56DB",
               color: "white", fontSize: 14, fontWeight: 700,
-              cursor: hasOpenEntry ? "not-allowed" : "pointer",
+              cursor: "pointer",
             }}
           >
             <LogIn size={18} /> Entrada
           </button>
           <button
-            onClick={() => {
-              if (!hasOpenEntry) {
-                showToast("Registre a entrada primeiro");
-                return;
-              }
-              openModal("exit");
-            }}
-            disabled={!hasOpenEntry}
+            onClick={() => openModal("exit")}
             style={{
               display: "flex", alignItems: "center", justifyContent: "center", gap: 8, padding: "14px 16px",
               borderRadius: 12, border: "none",
-              background: hasOpenEntry ? "#ef4444" : "#d1d5db",
+              background: "#ef4444",
               color: "white", fontSize: 14, fontWeight: 700,
-              cursor: hasOpenEntry ? "pointer" : "not-allowed",
+              cursor: "pointer",
             }}
           >
             <LogOut size={18} /> Saída
@@ -375,36 +242,23 @@ export default function PromoterClockPage() {
             </div>
 
             <label style={{ fontSize: 12, fontWeight: 600, color: "#374151", marginBottom: 8, display: "block" }}>Selecione a Loja</label>
-            {entryType === "exit" && openEntryStoreId ? (
-              <div style={{
-                display: "flex", alignItems: "center", gap: 10, padding: "12px 14px",
-                borderRadius: 10, border: "2px solid #1A56DB", background: "#eff6ff", marginBottom: 20,
-              }}>
-                <MapPin size={16} style={{ color: "#1A56DB" }} />
-                <span style={{ fontSize: 13, fontWeight: 500, color: "#111827" }}>
-                  {openEntryStoreName ?? "Loja"}
-                </span>
-                <span style={{ fontSize: 10, color: "#6b7280", marginLeft: "auto" }}>Mesma da entrada</span>
-              </div>
-            ) : (
-              <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 20, maxHeight: 200, overflow: "auto" }}>
-                {storeList.map((store: any) => (
-                  <button
-                    key={store.id}
-                    onClick={() => setSelectedStore(store.id)}
-                    style={{
-                      display: "flex", alignItems: "center", gap: 10, padding: "12px 14px",
-                      borderRadius: 10, border: selectedStore === store.id ? "2px solid #1A56DB" : "1px solid #e5e7eb",
-                      background: selectedStore === store.id ? "#eff6ff" : "white",
-                      cursor: "pointer", textAlign: "left",
-                    }}
-                  >
-                    <MapPin size={16} style={{ color: selectedStore === store.id ? "#1A56DB" : "#9ca3af" }} />
-                    <span style={{ fontSize: 13, fontWeight: 500, color: "#111827" }}>{store.name}</span>
-                  </button>
-                ))}
-              </div>
-            )}
+            <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 20, maxHeight: 200, overflow: "auto" }}>
+              {storeList.map((store: any) => (
+                <button
+                  key={store.id}
+                  onClick={() => setSelectedStore(store.id)}
+                  style={{
+                    display: "flex", alignItems: "center", gap: 10, padding: "12px 14px",
+                    borderRadius: 10, border: selectedStore === store.id ? "2px solid #1A56DB" : "1px solid #e5e7eb",
+                    background: selectedStore === store.id ? "#eff6ff" : "white",
+                    cursor: "pointer", textAlign: "left",
+                  }}
+                >
+                  <MapPin size={16} style={{ color: selectedStore === store.id ? "#1A56DB" : "#9ca3af" }} />
+                  <span style={{ fontSize: 13, fontWeight: 500, color: "#111827" }}>{store.name}</span>
+                </button>
+              ))}
+            </div>
 
             <label style={{ fontSize: 12, fontWeight: 600, color: "#374151", marginBottom: 8, display: "block" }}>Foto (opcional)</label>
             <div style={{ marginBottom: 20 }}>
