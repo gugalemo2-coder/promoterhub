@@ -2,10 +2,8 @@
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/lib/auth-context";
 import { formatDateTime } from "@/lib/utils";
-import { Camera, Plus, X, MessageSquare, Send, Filter } from "lucide-react";
+import { Camera, Plus, X, MessageSquare, Filter } from "lucide-react";
 import { useState, useRef, useCallback } from "react";
-
-type TabKey = "photos" | "comments";
 
 function StatusPill({ status }: { status: string }) {
   const map: Record<string, { label: string; bg: string; color: string }> = {
@@ -17,9 +15,59 @@ function StatusPill({ status }: { status: string }) {
   return <span style={{ background: s.bg, color: s.color, fontSize: 10, fontWeight: 700, padding: "2px 7px", borderRadius: 20 }}>{s.label}</span>;
 }
 
+/* ── Read-only Comment Panel (modal) for promoter ── */
+function ReadOnlyCommentPanel({ photoId, onClose }: { photoId: number; onClose: () => void }) {
+  const comments = trpc.photos.listComments.useQuery({ photoId });
+  const list = (comments.data ?? []) as any[];
+
+  return (
+    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 100, display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
+      <div style={{
+        background: "white", borderRadius: "20px 20px 0 0", width: "100%", maxWidth: 500,
+        maxHeight: "70vh", display: "flex", flexDirection: "column",
+        paddingBottom: "env(safe-area-inset-bottom, 0px)",
+      }}>
+        {/* Header */}
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 20px", borderBottom: "1px solid #e5e7eb", flexShrink: 0 }}>
+          <h3 style={{ fontSize: 15, fontWeight: 700, color: "#111827", margin: 0 }}>Comentários</h3>
+          <button onClick={onClose} style={{ width: 30, height: 30, borderRadius: 8, border: "none", background: "#f3f4f6", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <X size={14} style={{ color: "#6b7280" }} />
+          </button>
+        </div>
+
+        {/* Comment list */}
+        <div style={{ flex: 1, overflow: "auto", padding: "12px 20px" }}>
+          {comments.isLoading ? (
+            <div style={{ textAlign: "center", padding: 30, color: "#9ca3af", fontSize: 12 }}>
+              <div style={{ width: 20, height: 20, border: "2px solid #e5e7eb", borderTopColor: "#1A56DB", borderRadius: "50%", animation: "spin 0.8s linear infinite", margin: "0 auto 8px" }} />
+              Carregando...
+            </div>
+          ) : list.length === 0 ? (
+            <div style={{ textAlign: "center", padding: 30, color: "#9ca3af", fontSize: 12 }}>
+              <MessageSquare size={28} style={{ color: "#d1d5db", margin: "0 auto 8px" }} />
+              <p style={{ margin: 0 }}>Nenhum comentário nesta foto</p>
+            </div>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              {list.map((c: any) => (
+                <div key={c.id} style={{ padding: "10px 12px", background: "#f9fafb", borderRadius: 10 }}>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
+                    <span style={{ fontSize: 12, fontWeight: 600, color: "#374151" }}>{c.userName ?? "Gestor"}</span>
+                    <span style={{ fontSize: 9, color: "#9ca3af" }}>{formatDateTime(c.createdAt)}</span>
+                  </div>
+                  <p style={{ fontSize: 12, color: "#6b7280", margin: 0, lineHeight: 1.4 }}>{c.comment}</p>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function PromoterPhotosPage() {
   const { user } = useAuth();
-  const [tab, setTab] = useState<TabKey>("photos");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [selectedBrand, setSelectedBrand] = useState<number | undefined>(undefined);
   const [showUpload, setShowUpload] = useState(false);
@@ -28,8 +76,7 @@ export default function PromoterPhotosPage() {
   const [uploadBase64, setUploadBase64] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
-  const [commentText, setCommentText] = useState("");
-  const [selectedPhotoId, setSelectedPhotoId] = useState<number | null>(null);
+  const [commentPhotoId, setCommentPhotoId] = useState<number | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const photos = trpc.photos.list.useQuery({
@@ -40,12 +87,6 @@ export default function PromoterPhotosPage() {
   const brands = trpc.brands.list.useQuery();
   const stores = trpc.stores.listForPromoter.useQuery();
   const upload = trpc.photos.upload.useMutation();
-
-  const comments = trpc.photos.listComments.useQuery(
-    { photoId: selectedPhotoId! },
-    { enabled: !!selectedPhotoId }
-  );
-  const addComment = trpc.photos.addComment.useMutation();
 
   const photoList = (photos.data ?? []) as any[];
   const brandList = (brands.data ?? []) as any[];
@@ -83,15 +124,6 @@ export default function PromoterPhotosPage() {
     }
   };
 
-  const handleAddComment = async () => {
-    if (!selectedPhotoId || !commentText.trim()) return;
-    try {
-      await addComment.mutateAsync({ photoId: selectedPhotoId, comment: commentText.trim() });
-      setCommentText("");
-      comments.refetch();
-    } catch { showToast("Erro ao comentar"); }
-  };
-
   return (
     <div style={{ padding: "24px 20px", maxWidth: 600, margin: "0 auto" }}>
       <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
@@ -110,95 +142,59 @@ export default function PromoterPhotosPage() {
         </button>
       </div>
 
-      {/* Tabs */}
-      <div style={{ display: "flex", gap: 4, marginBottom: 16 }}>
-        {[{ key: "photos" as TabKey, label: "Fotos" }, { key: "comments" as TabKey, label: "Comentários" }].map((t) => (
-          <button key={t.key} onClick={() => setTab(t.key)} style={{ padding: "7px 16px", borderRadius: 20, border: "none", cursor: "pointer", fontSize: 12, fontWeight: 600, background: tab === t.key ? "#1A56DB" : "#f3f4f6", color: tab === t.key ? "white" : "#6b7280" }}>
-            {t.label}
+      {/* Filters */}
+      <div style={{ display: "flex", gap: 8, marginBottom: 16, flexWrap: "wrap", alignItems: "center" }}>
+        <Filter size={14} style={{ color: "#9ca3af" }} />
+        {["all", "pending", "approved", "rejected"].map((s) => (
+          <button key={s} onClick={() => setStatusFilter(s)} style={{ padding: "4px 12px", borderRadius: 16, border: "none", cursor: "pointer", fontSize: 11, fontWeight: 600, background: statusFilter === s ? "#1A56DB" : "#f3f4f6", color: statusFilter === s ? "white" : "#6b7280" }}>
+            {s === "all" ? "Todas" : s === "pending" ? "Pendentes" : s === "approved" ? "Aprovadas" : "Rejeitadas"}
           </button>
         ))}
+        <select value={selectedBrand ?? ""} onChange={(e) => setSelectedBrand(e.target.value ? Number(e.target.value) : undefined)} style={{ padding: "5px 8px", borderRadius: 8, border: "1px solid #e5e7eb", fontSize: 11, color: "#374151", background: "white", cursor: "pointer" }}>
+          <option value="">Todas marcas</option>
+          {brandList.map((b: any) => <option key={b.id} value={b.id}>{b.name}</option>)}
+        </select>
       </div>
 
-      {tab === "photos" && (
-        <>
-          {/* Filters */}
-          <div style={{ display: "flex", gap: 8, marginBottom: 16, flexWrap: "wrap", alignItems: "center" }}>
-            <Filter size={14} style={{ color: "#9ca3af" }} />
-            {["all", "pending", "approved", "rejected"].map((s) => (
-              <button key={s} onClick={() => setStatusFilter(s)} style={{ padding: "4px 12px", borderRadius: 16, border: "none", cursor: "pointer", fontSize: 11, fontWeight: 600, background: statusFilter === s ? "#1A56DB" : "#f3f4f6", color: statusFilter === s ? "white" : "#6b7280" }}>
-                {s === "all" ? "Todas" : s === "pending" ? "Pendentes" : s === "approved" ? "Aprovadas" : "Rejeitadas"}
-              </button>
-            ))}
-            <select value={selectedBrand ?? ""} onChange={(e) => setSelectedBrand(e.target.value ? Number(e.target.value) : undefined)} style={{ padding: "5px 8px", borderRadius: 8, border: "1px solid #e5e7eb", fontSize: 11, color: "#374151", background: "white", cursor: "pointer" }}>
-              <option value="">Todas marcas</option>
-              {brandList.map((b: any) => <option key={b.id} value={b.id}>{b.name}</option>)}
-            </select>
-          </div>
-
-          {/* Photo Grid */}
-          {photos.isLoading ? (
-            <div style={{ textAlign: "center", padding: 60, color: "#9ca3af", fontSize: 13 }}>
-              <div style={{ width: 24, height: 24, border: "2px solid #e5e7eb", borderTopColor: "#1A56DB", borderRadius: "50%", animation: "spin 0.8s linear infinite", margin: "0 auto 8px" }} />
-              Carregando...
+      {/* Photo Grid */}
+      {photos.isLoading ? (
+        <div style={{ textAlign: "center", padding: 60, color: "#9ca3af", fontSize: 13 }}>
+          <div style={{ width: 24, height: 24, border: "2px solid #e5e7eb", borderTopColor: "#1A56DB", borderRadius: "50%", animation: "spin 0.8s linear infinite", margin: "0 auto 8px" }} />
+          Carregando...
+        </div>
+      ) : photoList.length === 0 ? (
+        <div style={{ textAlign: "center", padding: 60, color: "#9ca3af", fontSize: 13 }}>
+          <Camera size={36} style={{ color: "#d1d5db", margin: "0 auto 8px" }} />
+          Nenhuma foto encontrada
+        </div>
+      ) : (
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))", gap: 12 }}>
+          {photoList.map((photo: any) => (
+            <div key={photo.id} style={{ background: "white", borderRadius: 12, overflow: "hidden", border: "1px solid #e5e7eb" }}>
+              <div style={{ position: "relative", aspectRatio: "4/3", background: "#f3f4f6" }}>
+                {photo.photoUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={photo.photoUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+                ) : (
+                  <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}><Camera size={24} style={{ color: "#d1d5db" }} /></div>
+                )}
+                <div style={{ position: "absolute", top: 6, right: 6 }}><StatusPill status={photo.status ?? "pending"} /></div>
+              </div>
+              <div style={{ padding: "8px 10px" }}>
+                <p style={{ fontSize: 11, color: "#6b7280", margin: 0 }}>{photo.brandName ?? ""}{photo.storeName ? ` · ${photo.storeName}` : ""}</p>
+                <p style={{ fontSize: 10, color: "#9ca3af", margin: "2px 0 0" }}>{formatDateTime(photo.createdAt)}</p>
+                <button onClick={() => setCommentPhotoId(photo.id)} style={{ marginTop: 6, display: "flex", alignItems: "center", gap: 4, padding: 0, border: "none", background: "none", cursor: "pointer", fontSize: 11, color: "#6b7280" }}>
+                  <MessageSquare size={12} /> Comentários
+                </button>
+              </div>
             </div>
-          ) : photoList.length === 0 ? (
-            <div style={{ textAlign: "center", padding: 60, color: "#9ca3af", fontSize: 13 }}>
-              <Camera size={36} style={{ color: "#d1d5db", margin: "0 auto 8px" }} />
-              Nenhuma foto encontrada
-            </div>
-          ) : (
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))", gap: 12 }}>
-              {photoList.map((photo: any) => (
-                <div key={photo.id} style={{ background: "white", borderRadius: 12, overflow: "hidden", border: "1px solid #e5e7eb" }}>
-                  <div style={{ position: "relative", aspectRatio: "4/3", background: "#f3f4f6" }}>
-                    {photo.photoUrl ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img src={photo.photoUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
-                    ) : (
-                      <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}><Camera size={24} style={{ color: "#d1d5db" }} /></div>
-                    )}
-                    <div style={{ position: "absolute", top: 6, right: 6 }}><StatusPill status={photo.status ?? "pending"} /></div>
-                  </div>
-                  <div style={{ padding: "8px 10px" }}>
-                    <p style={{ fontSize: 11, color: "#6b7280", margin: 0 }}>{photo.brandName ?? ""}{photo.storeName ? ` · ${photo.storeName}` : ""}</p>
-                    <p style={{ fontSize: 10, color: "#9ca3af", margin: "2px 0 0" }}>{formatDateTime(photo.createdAt)}</p>
-                    <button onClick={() => setSelectedPhotoId(selectedPhotoId === photo.id ? null : photo.id)} style={{ marginTop: 6, display: "flex", alignItems: "center", gap: 4, padding: 0, border: "none", background: "none", cursor: "pointer", fontSize: 11, color: "#6b7280" }}>
-                      <MessageSquare size={12} /> Comentários
-                    </button>
-                  </div>
-                  {selectedPhotoId === photo.id && (
-                    <div style={{ borderTop: "1px solid #f3f4f6", padding: "8px 10px" }}>
-                      {comments.isLoading ? (
-                        <p style={{ fontSize: 11, color: "#9ca3af" }}>Carregando...</p>
-                      ) : (comments.data ?? []).length === 0 ? (
-                        <p style={{ fontSize: 11, color: "#9ca3af" }}>Sem comentários</p>
-                      ) : (
-                        <div style={{ display: "flex", flexDirection: "column", gap: 4, marginBottom: 6, maxHeight: 120, overflow: "auto" }}>
-                          {(comments.data ?? []).map((c: any) => (
-                            <div key={c.id} style={{ fontSize: 11, color: "#374151" }}>
-                              <span style={{ fontWeight: 600 }}>{c.userName ?? "Usuário"}</span>: {c.text}
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                      <div style={{ display: "flex", gap: 6 }}>
-                        <input value={commentText} onChange={(e) => setCommentText(e.target.value)} placeholder="Comentar..." style={{ flex: 1, padding: "6px 8px", borderRadius: 6, border: "1px solid #e5e7eb", fontSize: 11, outline: "none" }} onKeyDown={(e) => e.key === "Enter" && handleAddComment()} />
-                        <button onClick={handleAddComment} style={{ width: 28, height: 28, borderRadius: 6, border: "none", background: "#1A56DB", color: "white", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}><Send size={12} /></button>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
-        </>
+          ))}
+        </div>
       )}
 
-      {tab === "comments" && (
-        <div style={{ textAlign: "center", padding: 40, color: "#9ca3af", fontSize: 13 }}>
-          <MessageSquare size={32} style={{ color: "#d1d5db", margin: "0 auto 8px" }} />
-          <p style={{ margin: 0 }}>Clique em &quot;Comentários&quot; em qualquer foto na aba Fotos para ver e adicionar comentários.</p>
-        </div>
+      {/* Read-only Comment Modal */}
+      {commentPhotoId && (
+        <ReadOnlyCommentPanel photoId={commentPhotoId} onClose={() => setCommentPhotoId(null)} />
       )}
 
       {/* Upload Modal */}
