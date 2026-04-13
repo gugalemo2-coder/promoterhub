@@ -1601,8 +1601,13 @@ export async function getStoreVisitHistory(
 
   const { and, gte, lte, eq, count } = await import("drizzle-orm");
 
-  const startDate = new Date(year, month - 1, 1);
-  const endDate = new Date(year, month, 0, 23, 59, 59);
+  // FIX fuso horário: usar strings ISO explícitas para evitar conversão UTC
+  // Railway roda em UTC; Brasil é UTC-3. Usando new Date(year, month) o JS usaria
+  // o fuso do servidor (UTC) e as datas ficariam deslocadas.
+  const mm = String(month).padStart(2, "0");
+  const lastDay = new Date(year, month, 0).getDate(); // último dia do mês
+  const startDate = new Date(`${year}-${mm}-01T00:00:00`);
+  const endDate = new Date(`${year}-${mm}-${String(lastDay).padStart(2, "0")}T23:59:59`);
 
   // Get all entries for this store in the period
   // NOTE: timeEntries.userId references app_users.id, NOT users.id (OAuth table)
@@ -1630,11 +1635,15 @@ export async function getStoreVisitHistory(
   const visitMap = new Map<string, StoreVisitEntry>();
 
   for (const row of entries) {
-    const dateKey = `${row.userId}-${new Date(row.entryTime).toISOString().split("T")[0]}`;
+    // FIX fuso horário: extrair data local em vez de toISOString() que converte para UTC
+    // Uma entrada às 23h BRT viraria dia seguinte em UTC
+    const d = new Date(row.entryTime);
+    const localDate = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    const dateKey = `${row.userId}-${localDate}`;
 
     if (row.entryType === "entry") {
       visitMap.set(dateKey, {
-        visitDate: new Date(row.entryTime).toISOString().split("T")[0],
+        visitDate: localDate,
         userId: row.userId,
         userName: (row.userName ?? row.userEmail) as string,
         entryTime: new Date(row.entryTime),
