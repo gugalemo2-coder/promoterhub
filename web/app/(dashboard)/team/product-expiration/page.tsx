@@ -3,7 +3,7 @@ import { trpc } from "@/lib/trpc";
 import { formatDateTime } from "@/lib/utils";
 import { useState, useRef, useCallback } from "react";
 import {
-  AlertTriangle, Camera, X, Upload, Loader2, MapPin, Trash2,
+  AlertTriangle, Camera, ImagePlus, X, Upload, Loader2, MapPin, Trash2,
 } from "lucide-react";
 
 type PickedPhoto = { base64: string; fileType: string; preview: string };
@@ -16,7 +16,8 @@ export default function ProductExpirationPage() {
   const [pickedPhotos, setPickedPhotos] = useState<PickedPhoto[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
-  const fileRef = useRef<HTMLInputElement>(null);
+  const cameraRef = useRef<HTMLInputElement>(null);
+  const galleryRef = useRef<HTMLInputElement>(null);
 
   const { data: brands } = trpc.brands.list.useQuery();
   const { data: stores } = trpc.stores.listForPromoter.useQuery();
@@ -93,8 +94,9 @@ export default function ProductExpirationPage() {
 
   return (
     <div style={{ minHeight: "100vh", background: "#f9fafb", position: "relative" }}>
-      {/* Single file input — no capture attr → mobile shows native picker (Camera / Gallery / Files) */}
-      <input type="file" ref={fileRef} accept="image/*" multiple style={{ display: "none" }} onChange={handleFileSelect} />
+      {/* Hidden file inputs — camera has capture, gallery has multiple */}
+      <input type="file" ref={cameraRef} accept="image/*" capture="environment" style={{ display: "none" }} onChange={handleFileSelect} />
+      <input type="file" ref={galleryRef} accept="image/*" multiple style={{ display: "none" }} onChange={handleFileSelect} />
 
       {toast && (
         <div style={{
@@ -227,17 +229,27 @@ export default function ProductExpirationPage() {
                 />
               </div>
 
-              {/* Photos — single button, no capture → native picker (Camera / Gallery / Files) */}
+              {/* Photos — two buttons: Camera and Gallery */}
               <div>
                 <p style={{ fontSize: 13, fontWeight: 700, color: "#111827", margin: "0 0 6px" }}>Fotos ({pickedPhotos.length})</p>
-                <button onClick={() => fileRef.current?.click()} style={{
-                  width: "100%", padding: "12px 16px", borderRadius: 12,
-                  border: "1px dashed #d1d5db", background: "#f9fafb",
-                  cursor: "pointer", fontSize: 13, color: "#6b7280",
-                  display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
-                }}>
-                  <Camera size={16} /> Tirar foto / Selecionar da galeria
-                </button>
+                <div style={{ display: "flex", gap: 8 }}>
+                  <button onClick={() => cameraRef.current?.click()} style={{
+                    flex: 1, padding: "12px 10px", borderRadius: 12,
+                    border: "1px solid #bfdbfe", background: "#eff6ff",
+                    cursor: "pointer", fontSize: 13, fontWeight: 600, color: "#1d4ed8",
+                    display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+                  }}>
+                    <Camera size={16} /> Câmera
+                  </button>
+                  <button onClick={() => galleryRef.current?.click()} style={{
+                    flex: 1, padding: "12px 10px", borderRadius: 12,
+                    border: "1px solid #e5e7eb", background: "#f9fafb",
+                    cursor: "pointer", fontSize: 13, fontWeight: 600, color: "#6b7280",
+                    display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+                  }}>
+                    <ImagePlus size={16} /> Galeria
+                  </button>
+                </div>
                 {pickedPhotos.length > 0 && (
                   <div style={{ display: "flex", gap: 6, marginTop: 8, overflowX: "auto" }}>
                     {pickedPhotos.map((p, i) => (
