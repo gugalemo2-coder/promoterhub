@@ -136,6 +136,17 @@ export default function LoginPage() {
             </button>
           </form>
 
+          {/* Link para criar conta */}
+          <div className="text-center mb-4">
+            <button
+              type="button"
+              onClick={() => router.push("/register")}
+              className="text-sm text-blue-600 hover:text-blue-700 font-semibold hover:underline"
+            >
+              Criar conta
+            </button>
+          </div>
+
           <p className="text-center text-xs text-gray-400 mt-5">
             Dados seguros · Dinâmica Corretora v1.0
           </p>
