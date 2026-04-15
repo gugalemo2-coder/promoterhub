@@ -2,7 +2,7 @@
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/lib/auth-context";
 import { formatDateTime, formatHours } from "@/lib/utils";
-import { Clock, MapPin, ChevronLeft, ChevronRight, Camera, LogIn, LogOut, X } from "lucide-react";
+import { Clock, MapPin, ChevronLeft, ChevronRight, Camera, ImagePlus, LogIn, LogOut, X } from "lucide-react";
 import { useState, useRef, useCallback, useMemo } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 
@@ -25,7 +25,8 @@ export default function PromoterClockPage() {
   const [photoBase64, setPhotoBase64] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
-  const fileRef = useRef<HTMLInputElement>(null);
+  const cameraRef = useRef<HTMLInputElement>(null);
+  const galleryRef = useRef<HTMLInputElement>(null);
 
   const dayStartISO = `${selectedDate}T00:00:00`;
   const dayEndISO = `${selectedDate}T23:59:59`;
@@ -117,6 +118,12 @@ export default function PromoterClockPage() {
     } finally {
       setSubmitting(false);
     }
+  };
+
+  const clearPhoto = () => {
+    setPhotoBase64(null);
+    if (cameraRef.current) cameraRef.current.value = "";
+    if (galleryRef.current) galleryRef.current.value = "";
   };
 
   return (
@@ -266,16 +273,22 @@ export default function PromoterClockPage() {
                 <div style={{ position: "relative", width: 120, height: 90, borderRadius: 10, overflow: "hidden" }}>
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img src={`data:image/jpeg;base64,${photoBase64}`} alt="Preview" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                  <button onClick={() => { setPhotoBase64(null); if (fileRef.current) fileRef.current.value = ""; }} style={{ position: "absolute", top: 4, right: 4, width: 22, height: 22, borderRadius: "50%", background: "rgba(0,0,0,0.6)", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  <button onClick={clearPhoto} style={{ position: "absolute", top: 4, right: 4, width: 22, height: 22, borderRadius: "50%", background: "rgba(0,0,0,0.6)", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
                     <X size={12} style={{ color: "white" }} />
                   </button>
                 </div>
               ) : (
-                <button onClick={() => fileRef.current?.click()} style={{ display: "flex", alignItems: "center", gap: 8, padding: "12px 16px", borderRadius: 10, border: "1px dashed #d1d5db", background: "#f9fafb", cursor: "pointer", fontSize: 13, color: "#6b7280" }}>
-                  <Camera size={16} /> Tirar foto / Selecionar
-                </button>
+                <div style={{ display: "flex", gap: 8 }}>
+                  <button onClick={() => cameraRef.current?.click()} style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "12px 10px", borderRadius: 10, border: "1px solid #bfdbfe", background: "#eff6ff", cursor: "pointer", fontSize: 13, fontWeight: 600, color: "#1d4ed8" }}>
+                    <Camera size={16} /> Câmera
+                  </button>
+                  <button onClick={() => galleryRef.current?.click()} style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "12px 10px", borderRadius: 10, border: "1px solid #e5e7eb", background: "#f9fafb", cursor: "pointer", fontSize: 13, fontWeight: 600, color: "#6b7280" }}>
+                    <ImagePlus size={16} /> Galeria
+                  </button>
+                </div>
               )}
-              <input ref={fileRef} type="file" accept="image/*" onChange={handlePhoto} style={{ display: "none" }} />
+              <input ref={cameraRef} type="file" accept="image/*" capture="environment" onChange={handlePhoto} style={{ display: "none" }} />
+              <input ref={galleryRef} type="file" accept="image/*" onChange={handlePhoto} style={{ display: "none" }} />
             </div>
 
             <button
