@@ -5,6 +5,8 @@ import { formatDateTime } from "@/lib/utils";
 import { Camera, ImagePlus, Plus, X, MessageSquare, Filter } from "lucide-react";
 import { useState, useRef, useCallback } from "react";
 
+type PickedPhoto = { base64: string; fileType: string; preview: string };
+
 function StatusPill({ status }: { status: string }) {
   const map: Record<string, { label: string; bg: string; color: string }> = {
     approved: { label: "Aprovada", bg: "#d1fae5", color: "#065f46" },
@@ -73,7 +75,7 @@ export default function PromoterPhotosPage() {
   const [showUpload, setShowUpload] = useState(false);
   const [uploadBrand, setUploadBrand] = useState<number | null>(null);
   const [uploadStore, setUploadStore] = useState<number | null>(null);
-  const [uploadBase64, setUploadBase64] = useState<string | null>(null);
+  const [pickedPhotos, setPickedPhotos] = useState<PickedPhoto[]>([]);
   const [uploading, setUploading] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const [commentPhotoId, setCommentPhotoId] = useState<number | null>(null);
@@ -95,26 +97,33 @@ export default function PromoterPhotosPage() {
 
   const showToast = (msg: string) => { setToast(msg); setTimeout(() => setToast(null), 3000); };
 
-  const handleFileChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => {
-      const result = reader.result as string;
-      setUploadBase64(result.split(",")[1] ?? result);
-    };
-    reader.readAsDataURL(file);
+  const handleFileSelect = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files ?? []);
+    files.forEach((file) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const result = reader.result as string;
+        setPickedPhotos((prev) => [...prev, {
+          base64: result.split(",")[1],
+          fileType: file.type || "image/jpeg",
+          preview: result,
+        }]);
+      };
+      reader.readAsDataURL(file);
+    });
     e.target.value = "";
   }, []);
 
   const handleUpload = async () => {
-    if (!uploadBrand || !uploadStore || !uploadBase64) { showToast("Preencha todos os campos"); return; }
+    if (!uploadBrand || !uploadStore || pickedPhotos.length === 0) { showToast("Preencha todos os campos e adicione pelo menos uma foto"); return; }
     setUploading(true);
     try {
-      await upload.mutateAsync({ brandId: uploadBrand, storeId: uploadStore, fileBase64: uploadBase64, fileType: "image/jpeg" });
-      showToast("Foto enviada com sucesso!");
+      for (const photo of pickedPhotos) {
+        await upload.mutateAsync({ brandId: uploadBrand, storeId: uploadStore, fileBase64: photo.base64, fileType: photo.fileType });
+      }
+      showToast(pickedPhotos.length === 1 ? "Foto enviada com sucesso!" : `${pickedPhotos.length} fotos enviadas com sucesso!`);
       setShowUpload(false);
-      setUploadBase64(null);
+      setPickedPhotos([]);
       setUploadBrand(null);
       setUploadStore(null);
       photos.refetch();
@@ -123,12 +132,6 @@ export default function PromoterPhotosPage() {
     } finally {
       setUploading(false);
     }
-  };
-
-  const clearUploadPhoto = () => {
-    setUploadBase64(null);
-    if (cameraRef.current) cameraRef.current.value = "";
-    if (galleryRef.current) galleryRef.current.value = "";
   };
 
   return (
@@ -209,8 +212,8 @@ export default function PromoterPhotosPage() {
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 100, display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
           <div style={{ background: "white", borderRadius: "20px 20px 0 0", width: "100%", maxWidth: 500, padding: "24px 20px", paddingBottom: "calc(24px + env(safe-area-inset-bottom, 0px))", maxHeight: "85vh", overflow: "auto" }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
-              <h3 style={{ fontSize: 17, fontWeight: 700, color: "#111827", margin: 0 }}>Enviar Foto</h3>
-              <button onClick={() => setShowUpload(false)} style={{ width: 32, height: 32, borderRadius: 8, border: "none", background: "#f3f4f6", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}><X size={16} style={{ color: "#6b7280" }} /></button>
+              <h3 style={{ fontSize: 17, fontWeight: 700, color: "#111827", margin: 0 }}>Enviar Fotos</h3>
+              <button onClick={() => { setShowUpload(false); setPickedPhotos([]); }} style={{ width: 32, height: 32, borderRadius: 8, border: "none", background: "#f3f4f6", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}><X size={16} style={{ color: "#6b7280" }} /></button>
             </div>
 
             <label style={{ fontSize: 12, fontWeight: 600, color: "#374151", marginBottom: 6, display: "block" }}>Marca</label>
@@ -225,28 +228,35 @@ export default function PromoterPhotosPage() {
               {storeList.map((s: any) => <option key={s.id} value={s.id}>{s.name}</option>)}
             </select>
 
-            <label style={{ fontSize: 12, fontWeight: 600, color: "#374151", marginBottom: 6, display: "block" }}>Foto</label>
-            {uploadBase64 ? (
-              <div style={{ position: "relative", width: 140, height: 105, borderRadius: 10, overflow: "hidden", marginBottom: 14 }}>
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={`data:image/jpeg;base64,${uploadBase64}`} alt="Preview" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                <button onClick={clearUploadPhoto} style={{ position: "absolute", top: 4, right: 4, width: 22, height: 22, borderRadius: "50%", background: "rgba(0,0,0,0.6)", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}><X size={12} style={{ color: "white" }} /></button>
-              </div>
-            ) : (
-              <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
-                <button onClick={() => cameraRef.current?.click()} style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "14px 10px", borderRadius: 10, border: "1px solid #bfdbfe", background: "#eff6ff", cursor: "pointer", fontSize: 13, fontWeight: 600, color: "#1d4ed8" }}>
-                  <Camera size={16} /> Câmera
-                </button>
-                <button onClick={() => galleryRef.current?.click()} style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "14px 10px", borderRadius: 10, border: "1px solid #e5e7eb", background: "#f9fafb", cursor: "pointer", fontSize: 13, fontWeight: 600, color: "#6b7280" }}>
-                  <ImagePlus size={16} /> Galeria
-                </button>
+            <label style={{ fontSize: 12, fontWeight: 600, color: "#374151", marginBottom: 6, display: "block" }}>Fotos ({pickedPhotos.length})</label>
+            <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
+              <button onClick={() => cameraRef.current?.click()} style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "14px 10px", borderRadius: 10, border: "1px solid #bfdbfe", background: "#eff6ff", cursor: "pointer", fontSize: 13, fontWeight: 600, color: "#1d4ed8" }}>
+                <Camera size={16} /> Câmera
+              </button>
+              <button onClick={() => galleryRef.current?.click()} style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "14px 10px", borderRadius: 10, border: "1px solid #e5e7eb", background: "#f9fafb", cursor: "pointer", fontSize: 13, fontWeight: 600, color: "#6b7280" }}>
+                <ImagePlus size={16} /> Galeria
+              </button>
+            </div>
+            {pickedPhotos.length > 0 && (
+              <div style={{ display: "flex", gap: 6, marginBottom: 14, overflowX: "auto", paddingBottom: 4 }}>
+                {pickedPhotos.map((p, i) => (
+                  <div key={i} style={{ position: "relative", flexShrink: 0 }}>
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={p.preview} alt="" style={{ width: 64, height: 64, borderRadius: 8, objectFit: "cover" }} />
+                    <button onClick={() => setPickedPhotos((prev) => prev.filter((_, idx) => idx !== i))} style={{
+                      position: "absolute", top: -4, right: -4, background: "#EF4444", border: "none",
+                      borderRadius: "50%", width: 18, height: 18, cursor: "pointer",
+                      display: "flex", alignItems: "center", justifyContent: "center",
+                    }}><X size={10} style={{ color: "white" }} /></button>
+                  </div>
+                ))}
               </div>
             )}
-            <input ref={cameraRef} type="file" accept="image/*" capture="environment" onChange={handleFileChange} style={{ display: "none" }} />
-            <input ref={galleryRef} type="file" accept="image/*" onChange={handleFileChange} style={{ display: "none" }} />
+            <input ref={cameraRef} type="file" accept="image/*" capture="environment" onChange={handleFileSelect} style={{ display: "none" }} />
+            <input ref={galleryRef} type="file" accept="image/*" multiple onChange={handleFileSelect} style={{ display: "none" }} />
 
-            <button onClick={handleUpload} disabled={uploading || !uploadBrand || !uploadStore || !uploadBase64} style={{ width: "100%", padding: "14px", borderRadius: 12, border: "none", background: "#1A56DB", color: "white", fontSize: 15, fontWeight: 700, cursor: uploading ? "not-allowed" : "pointer", opacity: uploading || !uploadBrand || !uploadStore || !uploadBase64 ? 0.6 : 1 }}>
-              {uploading ? "Enviando..." : "Enviar Foto"}
+            <button onClick={handleUpload} disabled={uploading || !uploadBrand || !uploadStore || pickedPhotos.length === 0} style={{ width: "100%", padding: "14px", borderRadius: 12, border: "none", background: "#1A56DB", color: "white", fontSize: 15, fontWeight: 700, cursor: uploading ? "not-allowed" : "pointer", opacity: uploading || !uploadBrand || !uploadStore || pickedPhotos.length === 0 ? 0.6 : 1 }}>
+              {uploading ? "Enviando..." : pickedPhotos.length <= 1 ? "Enviar Foto" : `Enviar ${pickedPhotos.length} Fotos`}
             </button>
           </div>
         </div>
