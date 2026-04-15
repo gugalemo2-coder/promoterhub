@@ -81,7 +81,7 @@ export function registerCustomAuthRoutes(app: Express) {
   // ── POST /api/auth/app-register ──────────────────────────────────────────
   app.post("/api/auth/app-register", async (req: Request, res: Response) => {
     try {
-      const { name, password } = req.body as { name?: string; password?: string };
+      const { name, password, login: customLogin } = req.body as { name?: string; password?: string; login?: string };
       if (!name || name.trim().length < 2) {
         res.status(400).json({ error: "Nome deve ter pelo menos 2 caracteres." });
         return;
@@ -93,9 +93,16 @@ export function registerCustomAuthRoutes(app: Express) {
       const db = await getDb();
       if (!db) { res.status(503).json({ error: "Banco de dados indisponível." }); return; }
 
-      const login = nameToLogin(name.trim());
+      // If a custom login was provided, normalize it; otherwise generate from name
+      let login: string;
+      if (customLogin && customLogin.trim().length > 0) {
+        login = nameToLogin(customLogin.trim());
+      } else {
+        login = nameToLogin(name.trim());
+      }
+
       if (login.length < 2) {
-        res.status(400).json({ error: "Nome inválido para gerar login." });
+        res.status(400).json({ error: "Login inválido (mínimo 2 caracteres alfanuméricos)." });
         return;
       }
 
