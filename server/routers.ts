@@ -7,6 +7,7 @@ import { protectedProcedure, publicProcedure, router } from "./_core/trpc";
 import * as db from "./db";
 import * as push from "./notifications";
 import { storagePut } from "./storage";
+import * as clock from "./clock";
 
 // haversineDistance removed — geolocation no longer used
 
@@ -66,29 +67,68 @@ export const appRouter = router({
   }),
   timeEntries: router({
     create: protectedProcedure
-      .input(z.object({ storeId: z.number(), entryType: z.enum(["entry", "exit"]), latitude: z.number().optional(), longitude: z.number().optional(), deviceId: z.string().optional(), notes: z.string().optional(), photoBase64: z.string().optional(), photoFileType: z.string().optional() }))
+      .input(z.object({ storeId: z.number().optional(), entryType: z.enum(["entry", "exit"]), latitude: z.number().optional(), longitude: z.number().optional(), deviceId: z.string().optional(), notes: z.string().optional(), photoBase64: z.string().optional(), photoFileType: z.string().optional() }))
       .mutation(async ({ ctx, input }) => {
-        const store = await db.getStoreById(input.storeId);
-        if (!store) throw new Error("Store not found");
-        let photoUrl: string | undefined;
-        if (input.photoBase64) {
-          const buffer = Buffer.from(input.photoBase64, "base64");
-          const fileKey = `timeentries/${getAppUserId(ctx.user)}/${Date.now()}.jpg`;
-          const { url } = await storagePut(fileKey, buffer, input.photoFileType ?? "image/jpeg");
-          photoUrl = url;
+        const userId = getAppUserId(ctx.user);
+
+        // Trava contra toque duplo / reenvio: só um registro por vez para cada promotor
+        if (!clock.tryLockClock(userId)) {
+          throw new TRPCError({ code: "CONFLICT", message: "Aguarde, seu registro anterior ainda está sendo processado." });
         }
-        const id = await db.createTimeEntry({ userId: getAppUserId(ctx.user), storeId: input.storeId, entryType: input.entryType, entryTime: new Date(), latitude: "0", longitude: "0", distanceFromStore: "0", isWithinRadius: true, deviceId: input.deviceId, notes: input.notes, photoUrl });
-        // Notifica gestores sobre o registro de ponto
-        Promise.all([
-          db.getAppUserById(getAppUserId(ctx.user)),
-          db.getStoreById(input.storeId),
-        ]).then(([promoter, store]) => {
-          const promoterName = promoter?.name ?? ctx.user.name ?? "Promotor";
-          const storeName = store?.name ?? `Loja ${input.storeId}`;
-          const time = new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
-          push.notifyClockEntry(promoterName, input.entryType, storeName, time).catch(() => {});
-        }).catch(() => {});
-        return { id, photoUrl };
+
+        try {
+          // Regra do ponto: verifica no servidor se existe entrada aberta hoje
+          const openEntry = await clock.getOpenEntryToday(userId);
+          let storeId: number;
+
+          if (input.entryType === "entry") {
+            if (openEntry) {
+              const loja = openEntry.storeName ?? "outra loja";
+              throw new TRPCError({
+                code: "CONFLICT",
+                message: `Você já tem uma entrada aberta em ${loja} desde ${clock.formatBrasiliaTime(openEntry.entryTime)}. Registre a saída antes de uma nova entrada.`,
+              });
+            }
+            if (!input.storeId) {
+              throw new TRPCError({ code: "BAD_REQUEST", message: "Selecione a loja da entrada." });
+            }
+            storeId = input.storeId;
+          } else {
+            if (!openEntry) {
+              throw new TRPCError({ code: "BAD_REQUEST", message: "Você não tem nenhuma entrada aberta hoje. Registre a entrada primeiro." });
+            }
+            // A saída é SEMPRE na mesma loja da entrada aberta, ignorando o que o app enviar
+            storeId = openEntry.storeId;
+          }
+
+          const store = await db.getStoreById(storeId);
+          if (!store) throw new TRPCError({ code: "NOT_FOUND", message: "Loja não encontrada." });
+
+          let photoUrl: string | undefined;
+          if (input.photoBase64) {
+            const buffer = Buffer.from(input.photoBase64, "base64");
+            const fileKey = `timeentries/${userId}/${Date.now()}.jpg`;
+            const { url } = await storagePut(fileKey, buffer, input.photoFileType ?? "image/jpeg");
+            photoUrl = url;
+          }
+
+          const now = new Date();
+          const id = await db.createTimeEntry({ userId, storeId, entryType: input.entryType, entryTime: now, latitude: "0", longitude: "0", distanceFromStore: "0", isWithinRadius: true, deviceId: input.deviceId, notes: input.notes, photoUrl });
+
+          // Notifica gestores sobre o registro de ponto (horário de Brasília)
+          db.getAppUserById(userId).then((promoter) => {
+            const promoterName = promoter?.name ?? ctx.user.name ?? "Promotor";
+            push.notifyClockEntry(promoterName, input.entryType, store.name, clock.formatBrasiliaTime(now)).catch(() => {});
+          }).catch(() => {});
+
+          // Devolve o novo estado do ponto para o app atualizar a tela na hora
+          const newOpenEntry: clock.OpenEntryInfo | null =
+            input.entryType === "entry" ? { id, storeId, storeName: store.name, entryTime: now } : null;
+
+          return { id, photoUrl, openEntry: newOpenEntry };
+        } finally {
+          clock.unlockClock(userId);
+        }
       }),
     list: protectedProcedure.input(z.object({ startDate: z.string().optional(), endDate: z.string().optional() })).query(({ ctx, input }) => db.getTimeEntriesByUser(getAppUserId(ctx.user), input.startDate ? new Date(input.startDate) : undefined, input.endDate ? new Date(input.endDate) : undefined)),
     dailySummary: protectedProcedure.input(z.object({ date: z.string().optional(), startDate: z.string().optional(), endDate: z.string().optional() })).query(async ({ ctx, input }) => {
@@ -99,9 +139,11 @@ export const appRouter = router({
       }
       return db.getDailySummary(userId, input.date ? new Date(input.date) : new Date());
     }),
+    // Entrada aberta de hoje (horário de Brasília, calculado no servidor).
+    // O parâmetro dayStart é mantido só por compatibilidade e não é mais usado.
     lastOpenEntry: protectedProcedure
-      .input(z.object({ dayStart: z.string().optional() }))
-      .query(({ ctx, input }) => db.getLastOpenEntry(getAppUserId(ctx.user), input.dayStart)),
+      .input(z.object({ dayStart: z.string().optional() }).optional())
+      .query(({ ctx }) => clock.getOpenEntryToday(getAppUserId(ctx.user))),
     allForDate: protectedProcedure.input(z.object({ date: z.string().optional() })).query(({ input }) => db.getAllTimeEntriesForDateWithNames(input.date ? new Date(input.date) : new Date())),
     allForRange: protectedProcedure.input(z.object({ startDate: z.string(), endDate: z.string() })).query(({ input }) => db.getAllTimeEntriesForRangeWithNames(new Date(input.startDate), new Date(input.endDate))),
     forUser: protectedProcedure.input(z.object({ userId: z.number(), startDate: z.string().optional(), endDate: z.string().optional() })).query(({ input }) => db.getTimeEntriesByUser(input.userId, input.startDate ? new Date(input.startDate) : undefined, input.endDate ? new Date(input.endDate) : undefined)),
