@@ -2,9 +2,8 @@
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/lib/auth-context";
 import { formatDateTime, formatHours } from "@/lib/utils";
-import { Clock, MapPin, ChevronLeft, ChevronRight, Camera, ImagePlus, LogIn, LogOut, X } from "lucide-react";
-import { useState, useRef, useCallback, useMemo } from "react";
-import { useQueryClient } from "@tanstack/react-query";
+import { Clock, MapPin, ChevronLeft, ChevronRight, Camera, ImagePlus, LogIn, LogOut, X, RefreshCw } from "lucide-react";
+import { useState, useRef, useCallback, useMemo, useEffect } from "react";
 
 // Helper: retorna a data LOCAL no formato YYYY-MM-DD (sem converter para UTC)
 function getLocalDateStr(d?: Date): string {
@@ -15,16 +14,33 @@ function getLocalDateStr(d?: Date): string {
   return `${year}-${month}-${day}`;
 }
 
+// Helper: horário no formato 08:05
+function formatTime(d: Date | string): string {
+  return new Date(d).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+}
+
+// Helper: tempo decorrido desde a entrada (ex.: "3h 58min")
+function formatElapsed(from: Date | string, now: number): string {
+  const totalMin = Math.max(0, Math.floor((now - new Date(from).getTime()) / 60000));
+  const h = Math.floor(totalMin / 60);
+  const m = totalMin % 60;
+  if (h === 0) return `${m}min`;
+  return m > 0 ? `${h}h ${m}min` : `${h}h`;
+}
+
+type OpenEntry = { id: number; storeId: number; storeName: string | null; entryTime: Date | string } | null;
+
 export default function PromoterClockPage() {
-  const { user } = useAuth();
-  const queryClient = useQueryClient();
+  useAuth();
+  const utils = trpc.useUtils();
   const [selectedDate, setSelectedDate] = useState(() => getLocalDateStr());
   const [showModal, setShowModal] = useState(false);
   const [entryType, setEntryType] = useState<"entry" | "exit">("entry");
   const [selectedStore, setSelectedStore] = useState<number | null>(null);
   const [photoBase64, setPhotoBase64] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
-  const [toast, setToast] = useState<string | null>(null);
+  const [toast, setToast] = useState<{ msg: string; error?: boolean } | null>(null);
+  const [now, setNow] = useState(() => Date.now());
   const cameraRef = useRef<HTMLInputElement>(null);
   const galleryRef = useRef<HTMLInputElement>(null);
 
@@ -35,6 +51,40 @@ export default function PromoterClockPage() {
   const entries = trpc.timeEntries.list.useQuery({ startDate: dayStartISO, endDate: dayEndISO });
   const dailySummary = trpc.timeEntries.dailySummary.useQuery({ startDate: dayStartISO, endDate: dayEndISO });
   const createEntry = trpc.timeEntries.create.useMutation();
+
+  // Situação do ponto (entrada aberta ou não) — SEMPRE buscada do servidor.
+  // O promotor costuma abrir o app horas depois (ex.: entrada 08h, saída 12h),
+  // então rebusca ao abrir a tela, ao voltar para o app e a cada minuto.
+  const openQuery = trpc.timeEntries.lastOpenEntry.useQuery(undefined, {
+    staleTime: 0,
+    refetchOnMount: "always",
+    refetchOnWindowFocus: true,
+    refetchOnReconnect: true,
+    refetchInterval: 60_000,
+  });
+  const openEntry = (openQuery.data ?? null) as OpenEntry;
+
+  // Atualiza o contador "há X horas" a cada 30 segundos
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), 30_000);
+    return () => clearInterval(t);
+  }, []);
+
+  // Ao voltar para o app (PWA reaberto), atualiza tudo imediatamente
+  useEffect(() => {
+    const onVisible = () => {
+      if (document.visibilityState === "visible") {
+        setNow(Date.now());
+        utils.timeEntries.invalidate();
+      }
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    window.addEventListener("pageshow", onVisible);
+    return () => {
+      document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("pageshow", onVisible);
+    };
+  }, [utils]);
 
   const storeList = stores.data ?? [];
   const entryList = (entries.data ?? []) as any[];
@@ -54,7 +104,14 @@ export default function PromoterClockPage() {
     return "Loja desconhecida";
   };
 
-  const showToast = (msg: string) => { setToast(msg); setTimeout(() => setToast(null), 3000); };
+  const openStoreName = openEntry
+    ? openEntry.storeName ?? storeMap.get(openEntry.storeId) ?? "Loja desconhecida"
+    : "";
+
+  const showToast = (msg: string, error = false) => {
+    setToast({ msg, error });
+    setTimeout(() => setToast(null), error ? 5000 : 3000);
+  };
 
   const navigateDate = (dir: -1 | 1) => {
     const d = new Date(selectedDate + "T12:00:00");
@@ -84,39 +141,30 @@ export default function PromoterClockPage() {
   }, []);
 
   const handleSubmit = async () => {
-    if (!selectedStore) { showToast("Selecione uma loja"); return; }
+    if (submitting) return; // evita toque duplo
+    if (entryType === "entry" && !selectedStore) { showToast("Selecione uma loja", true); return; }
     setSubmitting(true);
     try {
-      await createEntry.mutateAsync({
-        storeId: selectedStore,
+      const result = await createEntry.mutateAsync({
+        // Na saída, a loja é definida pelo servidor (mesma loja da entrada)
+        storeId: entryType === "entry" ? selectedStore! : undefined,
         entryType,
         photoBase64: photoBase64 ?? undefined,
         photoFileType: "image/jpeg",
       });
+
+      // Atualiza a tela na hora com o novo estado devolvido pelo servidor
+      utils.timeEntries.lastOpenEntry.setData(undefined, result.openEntry as any);
       showToast(entryType === "entry" ? "Entrada registrada!" : "Saída registrada!");
       setShowModal(false);
-
-      // Refetch para atualizar lista e resumo
-      queryClient.invalidateQueries({ queryKey: [["timeEntries"]] });
-      queryClient.invalidateQueries({
-        predicate: (query) => {
-          const key = query.queryKey as any[];
-          return Array.isArray(key) && key.some(
-            (k) => typeof k === "string" && k.includes("timeEntries")
-          ) || (Array.isArray(key[0]) && key[0].some(
-            (k: any) => typeof k === "string" && k.includes("timeEntries")
-          ));
-        },
-      });
-
-      setTimeout(() => {
-        entries.refetch();
-        dailySummary.refetch();
-      }, 600);
     } catch (err: any) {
-      showToast(err?.message ?? "Erro ao registrar");
+      // Ex.: já existe entrada aberta — mostra o motivo e corrige a tela
+      showToast(err?.message ?? "Erro ao registrar", true);
+      setShowModal(false);
     } finally {
       setSubmitting(false);
+      // Confirma tudo com o servidor (lista, resumo e situação do ponto)
+      utils.timeEntries.invalidate();
     }
   };
 
@@ -126,13 +174,19 @@ export default function PromoterClockPage() {
     if (galleryRef.current) galleryRef.current.value = "";
   };
 
+  const bigButton = (color: string): React.CSSProperties => ({
+    width: "100%", display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+    padding: "16px", borderRadius: 12, border: "none", background: color,
+    color: "white", fontSize: 15, fontWeight: 700, cursor: "pointer",
+  });
+
   return (
     <div style={{ padding: "24px 20px", maxWidth: 600, margin: "0 auto", paddingBottom: 100 }}>
       <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
 
       {toast && (
-        <div style={{ position: "fixed", top: 20, left: "50%", transform: "translateX(-50%)", zIndex: 9999, background: "#065f46", color: "white", padding: "10px 20px", borderRadius: 10, fontSize: 13, fontWeight: 600, boxShadow: "0 4px 16px rgba(0,0,0,0.15)" }}>
-          {toast}
+        <div style={{ position: "fixed", top: 20, left: "50%", transform: "translateX(-50%)", zIndex: 9999, background: toast.error ? "#b91c1c" : "#065f46", color: "white", padding: "10px 20px", borderRadius: 10, fontSize: 13, fontWeight: 600, boxShadow: "0 4px 16px rgba(0,0,0,0.15)", maxWidth: "90vw", textAlign: "center" }}>
+          {toast.msg}
         </div>
       )}
 
@@ -167,33 +221,40 @@ export default function PromoterClockPage() {
         </div>
       </div>
 
-      {/* Action Buttons — sempre ativos */}
+      {/* Ação do ponto — mostra SÓ o botão permitido no momento */}
       {isToday && (
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 24 }}>
-          <button
-            onClick={() => openModal("entry")}
-            style={{
-              display: "flex", alignItems: "center", justifyContent: "center", gap: 8, padding: "14px 16px",
-              borderRadius: 12, border: "none",
-              background: "#1A56DB",
-              color: "white", fontSize: 14, fontWeight: 700,
-              cursor: "pointer",
-            }}
-          >
-            <LogIn size={18} /> Entrada
-          </button>
-          <button
-            onClick={() => openModal("exit")}
-            style={{
-              display: "flex", alignItems: "center", justifyContent: "center", gap: 8, padding: "14px 16px",
-              borderRadius: 12, border: "none",
-              background: "#ef4444",
-              color: "white", fontSize: 14, fontWeight: 700,
-              cursor: "pointer",
-            }}
-          >
-            <LogOut size={18} /> Saída
-          </button>
+        <div style={{ marginBottom: 24 }}>
+          {openQuery.isLoading ? (
+            <div style={{ textAlign: "center", padding: 20, color: "#9ca3af", fontSize: 13, background: "white", borderRadius: 12, border: "1px solid #e5e7eb" }}>
+              <div style={{ width: 20, height: 20, border: "2px solid #e5e7eb", borderTopColor: "#1A56DB", borderRadius: "50%", animation: "spin 0.8s linear infinite", margin: "0 auto 8px" }} />
+              Verificando seu ponto...
+            </div>
+          ) : openQuery.isError ? (
+            <div style={{ textAlign: "center", padding: 16, background: "#fef2f2", borderRadius: 12, border: "1px solid #fecaca" }}>
+              <p style={{ fontSize: 13, color: "#b91c1c", margin: "0 0 10px", fontWeight: 600 }}>Não foi possível verificar seu ponto. Confira sua internet.</p>
+              <button onClick={() => openQuery.refetch()} style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "10px 16px", borderRadius: 10, border: "none", background: "#b91c1c", color: "white", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
+                <RefreshCw size={14} /> Tentar novamente
+              </button>
+            </div>
+          ) : openEntry ? (
+            <div style={{ background: "#f0fdf4", borderRadius: 14, border: "1px solid #bbf7d0", padding: 16 }}>
+              <p style={{ fontSize: 11, fontWeight: 700, color: "#16a34a", margin: "0 0 6px", letterSpacing: 0.5 }}>● VOCÊ ESTÁ EM EXPEDIENTE</p>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+                <MapPin size={16} style={{ color: "#16a34a" }} />
+                <p style={{ fontSize: 16, fontWeight: 800, color: "#111827", margin: 0 }}>{openStoreName}</p>
+              </div>
+              <p style={{ fontSize: 13, color: "#374151", margin: "0 0 14px" }}>
+                Entrada às {formatTime(openEntry.entryTime)} · há {formatElapsed(openEntry.entryTime, now)}
+              </p>
+              <button onClick={() => openModal("exit")} style={bigButton("#ef4444")}>
+                <LogOut size={18} /> Registrar Saída
+              </button>
+            </div>
+          ) : (
+            <button onClick={() => openModal("entry")} style={bigButton("#1A56DB")}>
+              <LogIn size={18} /> Registrar Entrada
+            </button>
+          )}
         </div>
       )}
 
@@ -248,24 +309,40 @@ export default function PromoterClockPage() {
               </button>
             </div>
 
-            <label style={{ fontSize: 12, fontWeight: 600, color: "#374151", marginBottom: 8, display: "block" }}>Selecione a Loja</label>
-            <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 20, maxHeight: 200, overflow: "auto" }}>
-              {storeList.map((store: any) => (
-                <button
-                  key={store.id}
-                  onClick={() => setSelectedStore(store.id)}
-                  style={{
-                    display: "flex", alignItems: "center", gap: 10, padding: "12px 14px",
-                    borderRadius: 10, border: selectedStore === store.id ? "2px solid #1A56DB" : "1px solid #e5e7eb",
-                    background: selectedStore === store.id ? "#eff6ff" : "white",
-                    cursor: "pointer", textAlign: "left",
-                  }}
-                >
-                  <MapPin size={16} style={{ color: selectedStore === store.id ? "#1A56DB" : "#9ca3af" }} />
-                  <span style={{ fontSize: 13, fontWeight: 500, color: "#111827" }}>{store.name}</span>
-                </button>
-              ))}
-            </div>
+            {entryType === "entry" ? (
+              <>
+                <label style={{ fontSize: 12, fontWeight: 600, color: "#374151", marginBottom: 8, display: "block" }}>Selecione a Loja</label>
+                <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 20, maxHeight: 200, overflow: "auto" }}>
+                  {storeList.map((store: any) => (
+                    <button
+                      key={store.id}
+                      onClick={() => setSelectedStore(store.id)}
+                      style={{
+                        display: "flex", alignItems: "center", gap: 10, padding: "12px 14px",
+                        borderRadius: 10, border: selectedStore === store.id ? "2px solid #1A56DB" : "1px solid #e5e7eb",
+                        background: selectedStore === store.id ? "#eff6ff" : "white",
+                        cursor: "pointer", textAlign: "left",
+                      }}
+                    >
+                      <MapPin size={16} style={{ color: selectedStore === store.id ? "#1A56DB" : "#9ca3af" }} />
+                      <span style={{ fontSize: 13, fontWeight: 500, color: "#111827" }}>{store.name}</span>
+                    </button>
+                  ))}
+                </div>
+              </>
+            ) : (
+              <>
+                {/* Na saída a loja é fixa: a mesma da entrada aberta */}
+                <label style={{ fontSize: 12, fontWeight: 600, color: "#374151", marginBottom: 8, display: "block" }}>Loja</label>
+                <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 14px", borderRadius: 10, border: "2px solid #ef4444", background: "#fef2f2", marginBottom: 6 }}>
+                  <MapPin size={16} style={{ color: "#ef4444" }} />
+                  <span style={{ fontSize: 13, fontWeight: 600, color: "#111827" }}>{openStoreName}</span>
+                </div>
+                <p style={{ fontSize: 11, color: "#6b7280", margin: "0 0 20px" }}>
+                  A saída é registrada na mesma loja da sua entrada{openEntry ? ` (${formatTime(openEntry.entryTime)})` : ""}.
+                </p>
+              </>
+            )}
 
             <label style={{ fontSize: 12, fontWeight: 600, color: "#374151", marginBottom: 8, display: "block" }}>Foto (opcional)</label>
             <div style={{ marginBottom: 20 }}>
@@ -293,12 +370,12 @@ export default function PromoterClockPage() {
 
             <button
               onClick={handleSubmit}
-              disabled={submitting || !selectedStore}
+              disabled={submitting || (entryType === "entry" && !selectedStore)}
               style={{
                 width: "100%", padding: "14px", borderRadius: 12, border: "none",
                 background: entryType === "entry" ? "#1A56DB" : "#ef4444",
                 color: "white", fontSize: 15, fontWeight: 700, cursor: submitting ? "not-allowed" : "pointer",
-                opacity: submitting || !selectedStore ? 0.6 : 1,
+                opacity: submitting || (entryType === "entry" && !selectedStore) ? 0.6 : 1,
               }}
             >
               {submitting ? "Registrando..." : entryType === "entry" ? "Confirmar Entrada" : "Confirmar Saída"}
