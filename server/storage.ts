@@ -1,95 +1,85 @@
-// Preconfigured storage helpers for Manus WebDev templates
-// Uses the Biz-provided storage proxy (Authorization: Bearer <token>)
+// Armazenamento de arquivos do PromoterHub — Supabase Storage
+// Substitui o armazenamento antigo do Manus (BUILT_IN_FORGE_API_*).
+//
+// Variáveis de ambiente necessárias no Railway:
+//   SUPABASE_URL          → ex.: https://abcdefgh.supabase.co
+//   SUPABASE_SERVICE_KEY  → chave secreta (secret / service_role) do projeto
+//   SUPABASE_BUCKET       → opcional, nome do bucket (padrão: "promoterhub")
+//
+// O bucket precisa ser PÚBLICO, pois o app exibe as fotos direto pela URL.
 
-import { ENV } from "./_core/env";
-
-type StorageConfig = { baseUrl: string; apiKey: string };
+type StorageConfig = { baseUrl: string; apiKey: string; bucket: string };
 
 function getStorageConfig(): StorageConfig {
-  const baseUrl = ENV.forgeApiUrl;
-  const apiKey = ENV.forgeApiKey;
+  const baseUrl = process.env.SUPABASE_URL ?? "";
+  const apiKey = process.env.SUPABASE_SERVICE_KEY ?? "";
+  const bucket = process.env.SUPABASE_BUCKET || "promoterhub";
 
   if (!baseUrl || !apiKey) {
     throw new Error(
-      "Storage proxy credentials missing: set BUILT_IN_FORGE_API_URL and BUILT_IN_FORGE_API_KEY",
+      "Armazenamento não configurado: defina SUPABASE_URL e SUPABASE_SERVICE_KEY no Railway",
     );
   }
 
-  return { baseUrl: baseUrl.replace(/\/+$/, ""), apiKey };
+  return { baseUrl: baseUrl.replace(/\/+$/, ""), apiKey, bucket };
 }
 
-function buildUploadUrl(baseUrl: string, relKey: string): URL {
-  const url = new URL("v1/storage/upload", ensureTrailingSlash(baseUrl));
-  url.searchParams.set("path", normalizeKey(relKey));
-  return url;
-}
-
-async function buildDownloadUrl(baseUrl: string, relKey: string, apiKey: string): Promise<string> {
-  const downloadApiUrl = new URL("v1/storage/downloadUrl", ensureTrailingSlash(baseUrl));
-  downloadApiUrl.searchParams.set("path", normalizeKey(relKey));
-  const response = await fetch(downloadApiUrl, {
-    method: "GET",
-    headers: buildAuthHeaders(apiKey),
-  });
-  return (await response.json()).url;
-}
-
-function ensureTrailingSlash(value: string): string {
-  return value.endsWith("/") ? value : `${value}/`;
-}
-
+// Remove barras do início do caminho e codifica cada parte para uso na URL
 function normalizeKey(relKey: string): string {
   return relKey.replace(/^\/+/, "");
 }
 
-function toFormData(
-  data: Buffer | Uint8Array | string,
-  contentType: string,
-  fileName: string,
-): FormData {
-  const blob =
-    typeof data === "string"
-      ? new Blob([data], { type: contentType })
-      : new Blob([data as any], { type: contentType });
-  const form = new FormData();
-  form.append("file", blob, fileName || "file");
-  return form;
+function encodeKey(key: string): string {
+  return key
+    .split("/")
+    .map((parte) => encodeURIComponent(parte))
+    .join("/");
 }
 
-function buildAuthHeaders(apiKey: string): HeadersInit {
-  return { Authorization: `Bearer ${apiKey}` };
+// Monta a URL pública do arquivo (bucket público)
+function buildPublicUrl(config: StorageConfig, key: string): string {
+  return `${config.baseUrl}/storage/v1/object/public/${config.bucket}/${encodeKey(key)}`;
 }
 
+// Envia um arquivo para o Supabase e devolve a URL pública
 export async function storagePut(
   relKey: string,
   data: Buffer | Uint8Array | string,
   contentType = "application/octet-stream",
 ): Promise<{ key: string; url: string }> {
-  const { baseUrl, apiKey } = getStorageConfig();
+  const config = getStorageConfig();
   const key = normalizeKey(relKey);
-  const uploadUrl = buildUploadUrl(baseUrl, key);
-  const formData = toFormData(data, contentType, key.split("/").pop() ?? key);
+  const uploadUrl = `${config.baseUrl}/storage/v1/object/${config.bucket}/${encodeKey(key)}`;
+
+  const body =
+    typeof data === "string"
+      ? new Blob([data], { type: contentType })
+      : new Blob([data as any], { type: contentType });
+
   const response = await fetch(uploadUrl, {
     method: "POST",
-    headers: buildAuthHeaders(apiKey),
-    body: formData,
+    headers: {
+      apikey: config.apiKey,
+      Authorization: `Bearer ${config.apiKey}`,
+      "Content-Type": contentType,
+      "x-upsert": "true", // sobrescreve se já existir um arquivo com o mesmo nome
+    },
+    body,
   });
 
   if (!response.ok) {
     const message = await response.text().catch(() => response.statusText);
     throw new Error(
-      `Storage upload failed (${response.status} ${response.statusText}): ${message}`,
+      `Falha no envio do arquivo (${response.status} ${response.statusText}): ${message}`,
     );
   }
-  const url = (await response.json()).url;
-  return { key, url };
+
+  return { key, url: buildPublicUrl(config, key) };
 }
 
+// Devolve a URL pública de um arquivo já enviado
 export async function storageGet(relKey: string): Promise<{ key: string; url: string }> {
-  const { baseUrl, apiKey } = getStorageConfig();
+  const config = getStorageConfig();
   const key = normalizeKey(relKey);
-  return {
-    key,
-    url: await buildDownloadUrl(baseUrl, key, apiKey),
-  };
+  return { key, url: buildPublicUrl(config, key) };
 }
