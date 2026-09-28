@@ -77,6 +77,11 @@ export const appRouter = router({
         }
 
         try {
+          // Foto obrigatória em todo registro de ponto (entrada e saída)
+          if (!input.photoBase64) {
+            throw new TRPCError({ code: "BAD_REQUEST", message: "A foto é obrigatória para registrar o ponto." });
+          }
+
           // Regra do ponto: verifica no servidor se existe entrada aberta hoje
           const openEntry = await clock.getOpenEntryToday(userId);
           let storeId: number;
