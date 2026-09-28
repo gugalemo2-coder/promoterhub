@@ -143,13 +143,14 @@ export default function PromoterClockPage() {
   const handleSubmit = async () => {
     if (submitting) return; // evita toque duplo
     if (entryType === "entry" && !selectedStore) { showToast("Selecione uma loja", true); return; }
+    if (!photoBase64) { showToast("Tire uma foto para registrar o ponto", true); return; }
     setSubmitting(true);
     try {
       const result = await createEntry.mutateAsync({
         // Na saída, a loja é definida pelo servidor (mesma loja da entrada)
         storeId: entryType === "entry" ? selectedStore! : undefined,
         entryType,
-        photoBase64: photoBase64 ?? undefined,
+        photoBase64,
         photoFileType: "image/jpeg",
       });
 
@@ -167,6 +168,9 @@ export default function PromoterClockPage() {
       utils.timeEntries.invalidate();
     }
   };
+
+  // Só libera o botão com a foto tirada (e a loja escolhida, na entrada)
+  const canSubmit = !submitting && !!photoBase64 && (entryType === "exit" || !!selectedStore);
 
   const clearPhoto = () => {
     setPhotoBase64(null);
@@ -344,7 +348,7 @@ export default function PromoterClockPage() {
               </>
             )}
 
-            <label style={{ fontSize: 12, fontWeight: 600, color: "#374151", marginBottom: 8, display: "block" }}>Foto (opcional)</label>
+            <label style={{ fontSize: 12, fontWeight: 600, color: "#374151", marginBottom: 8, display: "block" }}>Foto (obrigatória)</label>
             <div style={{ marginBottom: 20 }}>
               {photoBase64 ? (
                 <div style={{ position: "relative", width: 120, height: 90, borderRadius: 10, overflow: "hidden" }}>
@@ -370,15 +374,19 @@ export default function PromoterClockPage() {
 
             <button
               onClick={handleSubmit}
-              disabled={submitting || (entryType === "entry" && !selectedStore)}
+              disabled={!canSubmit}
               style={{
                 width: "100%", padding: "14px", borderRadius: 12, border: "none",
                 background: entryType === "entry" ? "#1A56DB" : "#ef4444",
-                color: "white", fontSize: 15, fontWeight: 700, cursor: submitting ? "not-allowed" : "pointer",
-                opacity: submitting || (entryType === "entry" && !selectedStore) ? 0.6 : 1,
+                color: "white", fontSize: 15, fontWeight: 700, cursor: canSubmit ? "pointer" : "not-allowed",
+                opacity: canSubmit ? 1 : 0.6,
               }}
             >
-              {submitting ? "Registrando..." : entryType === "entry" ? "Confirmar Entrada" : "Confirmar Saída"}
+              {submitting
+                ? "Registrando..."
+                : !photoBase64
+                  ? "Tire a foto para continuar"
+                  : entryType === "entry" ? "Confirmar Entrada" : "Confirmar Saída"}
             </button>
           </div>
         </div>
